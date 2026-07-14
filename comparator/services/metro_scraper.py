@@ -4,6 +4,7 @@ import re
 import subprocess  # nosec B404
 import sys
 import time
+import unicodedata
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
@@ -241,6 +242,54 @@ def dismiss_cookie_banner(driver):
     )
 
 
+def _plain_text(value):
+    return unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode("ascii").lower()
+
+
+def select_metro_store(driver, store_query):
+    """Select a METRO store using the site's own store picker and persistent browser profile."""
+    toggle = WebDriverWait(driver, 20).until(
+        lambda d: d.find_element(By.CSS_SELECTOR, ".brandbar-store-toggle")
+    )
+    driver.execute_script("arguments[0].click()", toggle)
+    control = WebDriverWait(driver, 10).until(
+        lambda d: d.find_element(By.CSS_SELECTOR, "#storesselector_stores .Select__control")
+    )
+    driver.execute_script("arguments[0].click()", control)
+    search = WebDriverWait(driver, 10).until(
+        lambda d: d.find_element(By.CSS_SELECTOR, "#storesselector_stores input")
+    )
+    search.send_keys(Keys.CONTROL, "a")
+    search.send_keys(store_query)
+    query_tokens = set(_plain_text(store_query).split())
+
+    def matching_option(current_driver):
+        for option in current_driver.find_elements(By.CSS_SELECTOR, "#storesselector_stores .Select__option"):
+            if query_tokens.issubset(set(_plain_text(option.text).split())):
+                return option
+        return False
+
+    option = WebDriverWait(driver, 15).until(matching_option)
+    selected_name = option.text.strip()
+    driver.execute_script("arguments[0].click()", option)
+    confirm = WebDriverWait(driver, 10).until(
+        lambda d: next(
+            (
+                button
+                for button in d.find_elements(By.CSS_SELECTOR, ".sd-store-selector button")
+                if "selecteaza magazin" in _plain_text(button.text)
+            ),
+            False,
+        )
+    )
+    driver.execute_script("arguments[0].click()", confirm)
+    WebDriverWait(driver, 20).until(
+        lambda d: _plain_text(d.find_element(By.CSS_SELECTOR, ".brandbar-store-data-name").text)
+        == _plain_text(selected_name)
+    )
+    return selected_name
+
+
 def _set_overlay_status(driver, message):
     driver.execute_script(
         "const s=document.getElementById('__pricematch_status'); if(s) s.textContent=arguments[0];",
@@ -282,10 +331,27 @@ def capture_watchlist(driver, job):
     return job.products.count()
 
 
-def capture_search_terms(job, terms, limit_per_search=8, delay_seconds=1, headless=True, progress=None):
+def capture_search_terms(
+    job,
+    terms,
+    limit_per_search=8,
+    delay_seconds=1,
+    headless=True,
+    progress=None,
+    store_query="",
+):
     """Capture a bounded set of relevant results for each METRO search term."""
     driver = create_metro_driver(headless=headless)
     try:
+        if store_query:
+            driver.get(job.start_url)
+            WebDriverWait(driver, 20).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            dismiss_cookie_banner(driver)
+            selected_store = select_metro_store(driver, store_query)
+            if progress:
+                progress(0, len(terms), f"Magazin: {selected_store}", job.captured_count)
         origin = urlparse(job.start_url)
         search_base = f"{origin.scheme}://{origin.netloc}/shop/search"
         for index, term in enumerate(terms, start=1):

@@ -24,6 +24,11 @@ class Command(BaseCommand):
         parser.add_argument("--delay", type=float, default=1.0)
         parser.add_argument("--headed", action="store_true", help="Arată fereastra Chrome.")
         parser.add_argument("--no-import", action="store_true", help="Păstrează rezultatele doar în staging.")
+        parser.add_argument(
+            "--store",
+            default=settings.METRO_STORE_QUERY,
+            help="Magazinul METRO care trebuie selectat înainte de scanare.",
+        )
 
     def handle(self, *args, **options):
         terms = options["terms"] or DEFAULT_TERMS
@@ -49,6 +54,7 @@ class Command(BaseCommand):
                 delay_seconds=options["delay"],
                 headless=not options["headed"],
                 progress=show_progress,
+                store_query=options["store"],
             )
             if not captured:
                 raise CommandError(

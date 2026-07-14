@@ -81,7 +81,11 @@ def product_list(request):
     for product in products:
         offer = product.current_metro_offer()
         rows.append((product, offer))
-    return render(request, "comparator/product_list.html", {"rows": rows, "query": query})
+    return render(
+        request,
+        "comparator/product_list.html",
+        {"rows": rows, "query": query, "preferred_metro_store": settings.PREFERRED_METRO_STORE},
+    )
 
 
 def product_create(request):
@@ -101,7 +105,11 @@ def metro_list(request):
     return render(
         request,
         "comparator/metro_list.html",
-        {"offers": offers, "confirmed_document_lines": confirmed_document_lines},
+        {
+            "offers": offers,
+            "confirmed_document_lines": confirmed_document_lines,
+            "preferred_metro_store": settings.PREFERRED_METRO_STORE,
+        },
     )
 
 

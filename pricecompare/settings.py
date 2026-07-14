@@ -146,6 +146,8 @@ METRO_START_URL = os.getenv("METRO_START_URL", "https://produse.metro.ro/shop")
 METRO_BROWSER_PROFILE = Path(os.getenv("METRO_BROWSER_PROFILE", BASE_DIR / "data" / "metro_chrome_profile"))
 METRO_SCRAPE_TIMEOUT_MINUTES = int(os.getenv("METRO_SCRAPE_TIMEOUT_MINUTES", "20"))
 METRO_SCRAPER_ENABLED = os.getenv("METRO_SCRAPER_ENABLED", "0" if PRODUCTION else "1") == "1"
+METRO_STORE_QUERY = os.getenv("METRO_STORE_QUERY", "")
+PREFERRED_METRO_STORE = os.getenv("PREFERRED_METRO_STORE", "")
 
 LOGGING = {
     "version": 1,

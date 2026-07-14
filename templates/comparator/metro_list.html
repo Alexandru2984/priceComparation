@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Prețuri METRO · PriceMatch{% endblock %}
 {% block content %}
-<div class="page-head"><div><p class="eyebrow">Referință de preț</p><h1>Prețuri METRO</h1></div><div class="actions"><a class="button" href="{% url 'comparator:metro_scrape_list' %}">Scanare Selenium</a><a class="button" href="{% url 'comparator:metro_import' %}">Importă CSV</a><a class="button primary" href="{% url 'comparator:metro_offer_create' %}">+ Preț</a></div></div>
+<div class="page-head"><div><p class="eyebrow">Referință de preț</p><h1>Prețuri METRO</h1><p>{% if preferred_metro_store %}Magazin preferat: <strong>{{ preferred_metro_store }}</strong>. Celelalte locații sunt păstrate ca fallback.{% endif %}</p></div><div class="actions"><a class="button" href="{% url 'comparator:metro_scrape_list' %}">Scanare Selenium</a><a class="button" href="{% url 'comparator:metro_import' %}">Importă CSV</a><a class="button primary" href="{% url 'comparator:metro_offer_create' %}">+ Preț</a></div></div>
 <section class="sync-banner">
   <div><strong>Sincronizare din documentele tale METRO</strong><span>{{ confirmed_document_lines }} linii confirmate sunt disponibile. Noile linii se sincronizează automat când le confirmi.</span></div>
   <form method="post" action="{% url 'comparator:metro_sync_documents' %}">{% csrf_token %}<button class="button">Sincronizează din nou</button></form>

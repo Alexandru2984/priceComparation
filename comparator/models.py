@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -48,12 +49,21 @@ class Product(models.Model):
         return f"{self.name}{suffix} ({self.base_unit})"
 
     def current_metro_offer(self):
-        offers = self.metro_offers.filter(active=True).order_by("-valid_from")
-        latest = offers.first()
-        if not latest:
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("metro_offers")
+        if prefetched is None:
+            offers = list(self.metro_offers.filter(active=True))
+        else:
+            offers = [offer for offer in prefetched if offer.active]
+        if not offers:
             return None
+        preferred_store = settings.PREFERRED_METRO_STORE.strip()
+        if preferred_store:
+            preferred_offers = [offer for offer in offers if preferred_store.lower() in offer.source.lower()]
+            if preferred_offers:
+                offers = preferred_offers
+        latest_date = max(offer.valid_from for offer in offers)
         return min(
-            offers.filter(valid_from=latest.valid_from),
+            (offer for offer in offers if offer.valid_from == latest_date),
             key=lambda offer: offer.price_per_base_unit,
         )
 
