@@ -2,19 +2,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from comparator.catalog import CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
 from comparator.models import MetroScrapeJob
 from comparator.services.metro_scraper import capture_search_terms, import_scraped_rows
 
 
-DEFAULT_TERMS = [
-    "iaurt", "smantana", "lapte", "branza",
-    "suc", "apa plata", "apa minerala",
-    "bere", "vin", "vodca",
-    "mere", "banane", "portocale", "rosii", "cartofi", "ceapa", "ardei", "castraveti",
-    "ulei", "zahar", "faina", "orez", "paste", "oua",
-    "conserve", "conserve peste", "conserve legume", "pate", "crema de branza",
-    "mezeluri", "salam", "sunca", "parizer", "crenvursti",
-]
+DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
 
 
 class Command(BaseCommand):
@@ -27,13 +20,26 @@ class Command(BaseCommand):
         parser.add_argument("--headed", action="store_true", help="Arată fereastra Chrome.")
         parser.add_argument("--no-import", action="store_true", help="Păstrează rezultatele doar în staging.")
         parser.add_argument(
+            "--category",
+            choices=[value for value, _ in CATEGORY_CHOICES],
+            default="Altele",
+            help="Categoria folosită pentru termenii transmiși manual.",
+        )
+        parser.add_argument(
             "--store",
             default=settings.METRO_STORE_QUERY,
             help="Magazinul METRO care trebuie selectat înainte de scanare.",
         )
 
     def handle(self, *args, **options):
-        terms = options["terms"] or DEFAULT_TERMS
+        if options["terms"]:
+            terms = options["terms"]
+            term_categories = {term: options["category"] for term in terms}
+        else:
+            terms = DEFAULT_TERMS
+            term_categories = {
+                term: category for category, category_terms in CATEGORY_SEARCH_TERMS.items() for term in category_terms
+            }
         limit = options["limit_per_search"]
         if limit < 1 or limit > 48:
             raise CommandError("--limit-per-search trebuie să fie între 1 și 48.")
@@ -57,6 +63,7 @@ class Command(BaseCommand):
                 headless=not options["headed"],
                 progress=show_progress,
                 store_query=options["store"],
+                term_categories=term_categories,
             )
             if not captured:
                 raise CommandError(

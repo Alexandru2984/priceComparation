@@ -25,9 +25,9 @@ class MetroOfferInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "brand", "ean", "base_unit", "active")
+    list_display = ("name", "brand", "category", "ean", "base_unit", "active")
     search_fields = ("name", "brand", "ean")
-    list_filter = ("base_unit", "active")
+    list_filter = ("category", "base_unit", "active")
     inlines = [MetroOfferInline]
 
 

@@ -339,6 +339,7 @@ def capture_search_terms(
     headless=True,
     progress=None,
     store_query="",
+    term_categories=None,
 ):
     """Capture a bounded set of relevant results for each METRO search term."""
     driver = create_metro_driver(headless=headless)
@@ -365,7 +366,11 @@ def capture_search_terms(
                 or "nu am gasit" in d.find_element(By.TAG_NAME, "body").text.lower()
             )
             raw_rows = driver.execute_script(CARD_DATA_SCRIPT)[:limit_per_search]
-            store_captured_rows(job, normalize_dom_rows(raw_rows))
+            normalized_rows = normalize_dom_rows(raw_rows)
+            category = (term_categories or {}).get(term, "")
+            for row in normalized_rows:
+                row["category"] = category
+            store_captured_rows(job, normalized_rows)
             job.current_url = driver.current_url[:1000]
             job.save(update_fields=["current_url"])
             if progress:
@@ -478,7 +483,11 @@ def import_scraped_rows(rows):
                 name=row.name,
                 brand="",
                 base_unit=row.base_unit,
+                defaults={"category": row.category},
             )
+        if row.category and product.category in {"", "Altele"}:
+            product.category = row.category
+            product.save(update_fields=["category"])
         source = f"Selenium {row.store_name or 'METRO'}"[:120]
         MetroOffer.objects.update_or_create(
             product=product,

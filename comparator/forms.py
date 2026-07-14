@@ -17,7 +17,7 @@ class SupplierForm(forms.ModelForm):
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ["name", "brand", "ean", "base_unit", "active"]
+        fields = ["name", "brand", "ean", "category", "base_unit", "active"]
 
 
 class MetroOfferForm(forms.ModelForm):

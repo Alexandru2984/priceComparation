@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from .catalog import CATEGORY_CHOICES
 from .validators import validate_document_upload
 
 
@@ -33,6 +34,7 @@ class Product(models.Model):
     brand = models.CharField("marcă", max_length=100, blank=True)
     ean = models.CharField("EAN", max_length=20, blank=True, db_index=True)
     base_unit = models.CharField("unitate de bază", max_length=3, choices=BaseUnit.choices)
+    category = models.CharField("categorie", max_length=80, choices=CATEGORY_CHOICES, blank=True, db_index=True)
     active = models.BooleanField("activ", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -139,6 +141,7 @@ class MetroScrapedProduct(models.Model):
     units_per_package = models.DecimalField(max_digits=10, decimal_places=3, default=1)
     unit_size = models.DecimalField(max_digits=10, decimal_places=3, default=1)
     base_unit = models.CharField(max_length=3, choices=BaseUnit.choices, default=BaseUnit.PIECE)
+    category = models.CharField(max_length=80, choices=CATEGORY_CHOICES, blank=True, db_index=True)
     price_gross = models.DecimalField("preț cu TVA", max_digits=12, decimal_places=2)
     matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="metro_scrape_rows")
     match_score = models.PositiveSmallIntegerField(default=0)
