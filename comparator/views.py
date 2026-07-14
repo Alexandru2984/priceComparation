@@ -9,7 +9,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count
-from django.http import FileResponse, Http404, HttpResponseNotAllowed
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import (
@@ -32,6 +32,7 @@ from .models import (
     Supplier,
 )
 from .services.invoices import process_invoice, sync_all_confirmed_metro_lines, sync_metro_offer_from_line
+from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import import_scraped_rows, launch_scrape_job
 
@@ -72,11 +73,19 @@ def supplier_create(request):
     return render(request, "comparator/form.html", {"form": form, "title": "Furnizor nou"})
 
 
-def product_list(request):
+def _filtered_products(request):
     query = request.GET.get("q", "").strip()
+    category = request.GET.get("category", "").strip()
     products = Product.objects.prefetch_related("metro_offers")
     if query:
         products = products.filter(name__icontains=query)
+    if category:
+        products = products.filter(category=category)
+    return products, query, category
+
+
+def product_list(request):
+    products, query, category = _filtered_products(request)
     rows = []
     for product in products:
         offer = product.current_metro_offer()
@@ -84,8 +93,35 @@ def product_list(request):
     return render(
         request,
         "comparator/product_list.html",
-        {"rows": rows, "query": query, "preferred_metro_store": settings.PREFERRED_METRO_STORE},
+        {
+            "rows": rows,
+            "query": query,
+            "selected_category": category,
+            "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
+            "preferred_metro_store": settings.PREFERRED_METRO_STORE,
+        },
     )
+
+
+def catalog_export(request, file_format):
+    products, _, _ = _filtered_products(request)
+    products = list(products)
+    if file_format == "csv":
+        response = HttpResponse(build_catalog_csv(products), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="catalog-pricematch.csv"'
+        return response
+    if file_format == "xlsx":
+        product_ids = [product.pk for product in products]
+        offers = MetroOffer.objects.filter(product_id__in=product_ids).select_related("product").order_by(
+            "product__name", "-valid_from", "source"
+        )
+        response = HttpResponse(
+            build_catalog_xlsx(products, offers),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="catalog-pricematch.xlsx"'
+        return response
+    raise Http404
 
 
 def product_create(request):
@@ -249,11 +285,12 @@ def metro_scrape_import(request, pk):
             row.units_per_package = units
             row.unit_size = size
             row.base_unit = base_unit
+            row.category = request.POST.get(f"category_{row.pk}", "").strip()[:80]
             row.price_gross = price
             row.matched_product = Product.objects.filter(pk=product_id).first() if product_id else None
             row.save(
                 update_fields=[
-                    "name", "units_per_package", "unit_size", "base_unit", "price_gross", "matched_product"
+                    "name", "units_per_package", "unit_size", "base_unit", "category", "price_gross", "matched_product"
                 ]
             )
     except (KeyError, InvalidOperation, ValueError) as exc:

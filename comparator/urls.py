@@ -11,6 +11,7 @@ urlpatterns = [
     path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
     path("furnizori/adauga/", staff_member_required(views.supplier_create), name="supplier_create"),
     path("catalog/", staff_member_required(views.product_list), name="product_list"),
+    path("catalog/export/<str:file_format>/", staff_member_required(views.catalog_export), name="catalog_export"),
     path("catalog/adauga/", staff_member_required(views.product_create), name="product_create"),
     path("metro/", staff_member_required(views.metro_list), name="metro_list"),
     path("metro/adauga/", staff_member_required(views.metro_offer_create), name="metro_offer_create"),
