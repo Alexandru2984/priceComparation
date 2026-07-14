@@ -2,12 +2,14 @@ import csv
 import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from django.contrib import messages
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count
-from django.http import HttpResponseNotAllowed
+from django.http import FileResponse, Http404, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import (
@@ -129,6 +131,8 @@ def _import_metro_file(upload):
 
     imported = 0
     for row_number, row in enumerate(reader, start=2):
+        if row_number > 10_001:
+            raise ValueError("CSV-ul poate conține maximum 10.000 de produse.")
         name = (row.get("name") or "").strip()
         unit = (row.get("base_unit") or "").strip().upper()
         if not name or unit not in BaseUnit.values:
@@ -183,6 +187,8 @@ def metro_scrape_list(request):
 def metro_scrape_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
+    if not settings.METRO_SCRAPER_ENABLED:
+        raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
     ).first()
@@ -281,6 +287,28 @@ def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related("supplier"), pk=pk)
     rows = [(line, line.comparison()) for line in invoice.lines.select_related("matched_product")]
     return render(request, "comparator/invoice_detail.html", {"invoice": invoice, "rows": rows})
+
+
+def _private_file_response(field_file):
+    if not field_file or not field_file.name:
+        raise Http404
+    try:
+        response = FileResponse(field_file.open("rb"), as_attachment=True, filename=Path(field_file.name).name)
+    except FileNotFoundError as exc:
+        raise Http404 from exc
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def invoice_file_download(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    return _private_file_response(invoice.document)
+
+
+def document_page_download(request, pk):
+    page = get_object_or_404(DocumentPage, pk=pk)
+    return _private_file_response(page.file)
 
 
 def invoice_process(request, pk):

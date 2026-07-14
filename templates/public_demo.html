@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Demo · PriceMatch{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Mod demonstrativ · fără date reale</p>
+    <h1>Compară prețurile înainte să cumperi marfa.</h1>
+    <p>Această pagină folosește exclusiv exemple statice. Facturile, furnizorii și prețurile reale sunt disponibile numai administratorului autentificat.</p>
+  </div>
+  <div class="actions"><a class="button primary" href="{% url 'admin:login' %}?next={% url 'comparator:dashboard' %}">Autentificare administrator</a></div>
+</section>
+<section class="demo-notice"><strong>Date demonstrative</strong><span>Nicio valoare de mai jos nu provine din baza privată a magazinului.</span></section>
+<section class="stats">
+  <article><strong>{{ mock_product_count }}</strong><span>produse exemplu</span></article>
+  <article><strong>{{ mock_offer_count }}</strong><span>prețuri exemplu</span></article>
+  <article class="warn"><strong>{{ mock_review_count }}</strong><span>potriviri exemplu de verificat</span></article>
+</section>
+<section class="panel table-wrap">
+  <table>
+    <thead><tr><th>Produs demonstrativ</th><th>Furnizor</th><th>Preț achiziție</th><th>Preț referință</th><th>Diferență</th></tr></thead>
+    <tbody>{% for row in mock_comparisons %}<tr>
+      <td><strong>{{ row.product }}</strong></td><td>{{ row.supplier }}</td>
+      <td>{{ row.invoice_price|floatformat:2 }} lei</td><td>{{ row.metro_price|floatformat:2 }} lei</td>
+      <td><span class="badge {{ row.status|lower }}">{{ row.difference|floatformat:1 }}%</span></td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</section>
+{% endblock %}

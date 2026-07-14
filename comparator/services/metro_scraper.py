@@ -1,5 +1,7 @@
+import logging
 import re
-import subprocess
+# The process uses a fixed argv, shell=False and the current trusted interpreter.
+import subprocess  # nosec B404
 import sys
 import time
 from decimal import Decimal, InvalidOperation
@@ -19,6 +21,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from comparator.models import BaseUnit, MetroOffer, MetroScrapeJob, MetroScrapedProduct, Product
 
 from .matching import suggest_product
+
+
+logger = logging.getLogger(__name__)
 
 
 CARD_DATA_SCRIPT = """
@@ -187,8 +192,8 @@ def _load_all_visible_cards(driver):
             WebDriverWait(driver, 1.5).until(
                 lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > current
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("METRO infinite-scroll wait expired: %s", exc)
         updated = len(driver.find_elements(By.CSS_SELECTOR, ".sd-articlecard"))
         if updated <= previous:
             stable_rounds += 1
@@ -260,14 +265,15 @@ def capture_watchlist(driver, job):
         search.send_keys(Keys.ENTER)
         try:
             WebDriverWait(driver, 15).until(lambda d: d.current_url != old_url)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("METRO search URL did not change before timeout: %s", exc)
         try:
             WebDriverWait(driver, 12).until(
                 lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
                 or "niciun" in d.find_element(By.TAG_NAME, "body").text.lower()
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("METRO search skipped for %r: %s", term, exc)
             continue
         raw_rows = driver.execute_script(CARD_DATA_SCRIPT)[:8]
         store_captured_rows(job, normalize_dom_rows(raw_rows))
@@ -372,8 +378,8 @@ def run_scrape_job(job):
         if driver:
             try:
                 driver.quit()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Chrome cleanup failed: %s", exc)
         job.captured_count = job.products.count()
         job.finished_at = timezone.now()
         job.save(update_fields=["status", "error", "captured_count", "finished_at", "current_url"])
@@ -383,7 +389,8 @@ def launch_scrape_job(job):
     log_dir = Path(settings.MEDIA_ROOT) / "metro_scraper"
     log_dir.mkdir(parents=True, exist_ok=True)
     with (log_dir / f"job-{job.pk}.log").open("ab") as log_file:
-        subprocess.Popen(
+        # No shell is involved and every argument is controlled by the application.
+        subprocess.Popen(  # nosec B603
             [sys.executable, str(Path(settings.BASE_DIR) / "manage.py"), "metro_scrape", str(job.pk)],
             cwd=settings.BASE_DIR,
             stdin=subprocess.DEVNULL,

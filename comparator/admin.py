@@ -13,6 +13,11 @@ from .models import (
 )
 
 
+admin.site.site_header = "PriceMatch · administrare securizată"
+admin.site.site_title = "PriceMatch Admin"
+admin.site.index_title = "Datele private ale magazinului"
+
+
 class MetroOfferInline(admin.TabularInline):
     model = MetroOffer
     extra = 0

@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from .validators import validate_document_upload
+
 
 class BaseUnit(models.TextChoices):
     PIECE = "BUC", "Bucată"
@@ -180,7 +182,9 @@ class Invoice(models.Model):
     document_type = models.CharField("tip document", max_length=10, choices=DocumentType.choices, default=DocumentType.INVOICE)
     number = models.CharField("număr factură/bon", max_length=80, blank=True)
     issued_at = models.DateField("data documentului")
-    document = models.FileField("imagine sau PDF", upload_to="invoices/%Y/%m/", blank=True)
+    document = models.FileField(
+        "imagine sau PDF", upload_to="invoices/%Y/%m/", blank=True, validators=[validate_document_upload]
+    )
     ocr_text = models.TextField("text extras / introdus manual", blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
     processing_error = models.TextField(blank=True)
@@ -198,7 +202,7 @@ class Invoice(models.Model):
 
 class DocumentPage(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="pages")
-    file = models.FileField("imagine/PDF", upload_to="documents/%Y/%m/")
+    file = models.FileField("imagine/PDF", upload_to="documents/%Y/%m/", validators=[validate_document_upload])
     page_order = models.PositiveSmallIntegerField("ordine", default=1)
     ocr_text = models.TextField(blank=True)
 

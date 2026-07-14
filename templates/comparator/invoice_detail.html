@@ -10,7 +10,8 @@
 
 {% if invoice.pages.all %}
 <div class="document-files">
-  {% for page in invoice.pages.all %}<a class="file-chip" href="{{ page.file.url }}" target="_blank">Imaginea {{ page.page_order }}</a>{% endfor %}
+  {% if invoice.document %}<a class="file-chip" href="{% url 'comparator:invoice_file_download' invoice.pk %}">Descarcă documentul</a>{% endif %}
+  {% for page in invoice.pages.all %}<a class="file-chip" href="{% url 'comparator:document_page_download' page.pk %}">Descarcă pagina {{ page.page_order }}</a>{% endfor %}
 </div>
 {% endif %}
 

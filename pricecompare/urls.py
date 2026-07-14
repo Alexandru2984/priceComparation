@@ -1,14 +1,11 @@
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from .views import public_demo
+
 
 urlpatterns = [
+    path("", public_demo, name="public_demo"),
     path("admin/", admin.site.urls),
-    path("", include("comparator.urls")),
+    path("app/", include("comparator.urls")),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-

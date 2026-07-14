@@ -1,6 +1,7 @@
 from django import forms
 
 from .models import Invoice, InvoiceLine, MetroOffer, Product, Supplier
+from .validators import MAX_DOCUMENT_TOTAL_SIZE, validate_csv_upload, validate_document_upload
 
 
 class DateInput(forms.DateInput):
@@ -27,7 +28,7 @@ class MetroOfferForm(forms.ModelForm):
 
 
 class MetroImportForm(forms.Form):
-    file = forms.FileField(label="Fișier CSV")
+    file = forms.FileField(label="Fișier CSV", validators=[validate_csv_upload])
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -40,14 +41,19 @@ class MultipleFileField(forms.FileField):
         if isinstance(data, (list, tuple)):
             if len(data) > 12:
                 raise forms.ValidationError("Poți încărca maximum 12 imagini/PDF-uri pentru un document.")
-            return [clean_one(item, initial) for item in data]
-        return [clean_one(data, initial)] if data else []
+            cleaned = [clean_one(item, initial) for item in data]
+        else:
+            cleaned = [clean_one(data, initial)] if data else []
+        if sum(item.size for item in cleaned) > MAX_DOCUMENT_TOTAL_SIZE:
+            raise forms.ValidationError("Documentul poate avea maximum 50 MB în total.")
+        return cleaned
 
 
 class InvoiceForm(forms.ModelForm):
     documents = MultipleFileField(
         label="Fotografii sau PDF-uri",
         required=False,
+        validators=[validate_document_upload],
         widget=MultipleFileInput(attrs={"accept": "image/*,.pdf"}),
         help_text="Pentru un bon lung poți selecta mai multe fotografii, în ordinea de sus în jos.",
     )
