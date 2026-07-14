@@ -132,6 +132,14 @@ rezultate per căutare. Pentru o selecție proprie poți transmite termenii expl
 .venv/bin/python manage.py metro_seed_catalog lapte iaurt banane --limit-per-search 12
 ```
 
+Poți adăuga oricând alte familii de produse fără să modifici codul:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog conserve pate "crema de branza" mezeluri salam sunca
+```
+
+Rezultatele sunt deduplicate, iar o ofertă existentă pentru același produs, magazin și zi este actualizată.
+
 Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru locația curentă:
 
 ```dotenv
