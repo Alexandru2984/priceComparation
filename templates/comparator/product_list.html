@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Catalog urmărit · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Catalog incremental</p><h1>Produse urmărite</h1><p>Adaugă doar produsele pe care le cumperi, nu întregul catalog METRO.</p></div><a class="button primary" href="{% url 'comparator:product_create' %}">+ Produs</a></div>
+<form class="search" method="get"><input type="search" name="q" value="{{ query }}" placeholder="Caută produs..."><button class="button">Caută</button></form>
+<section class="panel table-wrap">
+  <table><thead><tr><th>Produs</th><th>EAN</th><th>Unitate</th><th>Ultimul preț METRO</th><th>Preț bază</th></tr></thead>
+  <tbody>{% for product, offer in rows %}<tr><td><strong>{{ product.name }}</strong><small>{{ product.brand }}</small></td><td>{{ product.ean|default:"—" }}</td><td>{{ product.get_base_unit_display }}</td><td>{% if offer %}{{ offer.price_gross|floatformat:2 }} lei · {{ offer.valid_from|date:"d.m.Y" }}{% else %}<span class="muted">Lipsește</span>{% endif %}</td><td>{% if offer %}<strong>{{ offer.price_per_base_unit|floatformat:2 }} lei/{{ product.base_unit }}</strong>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="empty">Niciun produs urmărit.</td></tr>{% endfor %}</tbody></table>
+</section>
+{% endblock %}
+

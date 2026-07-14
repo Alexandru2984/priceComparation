@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Panou · PriceMatch{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Control local al costurilor</p>
+    <h1>Cumpără marfa la prețul corect.</h1>
+    <p>Încarcă facturile, compară pe kilogram, litru sau bucată și verifică doar potrivirile incerte.</p>
+  </div>
+  <div class="actions">
+    <a class="button primary" href="{% url 'comparator:invoice_create' %}">Adaugă factură sau bon</a>
+    <a class="button" href="{% url 'comparator:metro_offer_create' %}">Adaugă preț METRO</a>
+  </div>
+</section>
+
+<section class="stats">
+  <article><strong>{{ product_count }}</strong><span>produse urmărite</span></article>
+  <article><strong>{{ offer_count }}</strong><span>prețuri METRO active</span></article>
+  <article class="{% if review_count %}warn{% endif %}"><strong>{{ review_count }}</strong><span>linii de verificat</span></article>
+</section>
+
+<div class="grid two">
+  <section class="panel">
+    <div class="panel-head"><h2>Documente recente</h2><a href="{% url 'comparator:invoice_list' %}">Vezi toate</a></div>
+    {% if recent_invoices %}
+      <div class="list">
+        {% for invoice in recent_invoices %}
+          <a class="list-row" href="{% url 'comparator:invoice_detail' invoice.pk %}">
+            <div><strong>{{ invoice.supplier }}</strong><small>{{ invoice.get_document_type_display }} · {{ invoice.number|default:"Fără număr" }} · {{ invoice.issued_at|date:"d.m.Y" }}</small></div>
+            <span class="badge {{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty">Nicio factură sau bon încă.</div>{% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Impact financiar</h2></div>
+    {% if comparisons %}
+      <div class="list">
+        {% for line, result in comparisons %}
+          <a class="list-row" href="{% url 'comparator:invoice_detail' line.invoice_id %}">
+            <div><strong>{{ line.original_name }}</strong><small>{{ line.invoice.supplier }} · {{ result.percent|floatformat:1 }}% față de METRO</small></div>
+            <span class="money {{ result.status|lower }}">{{ result.total_impact|floatformat:2 }} lei</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty">Adaugă prețuri și facturi pentru primele comparații.</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

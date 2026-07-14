@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Import METRO · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Import rapid</p><h1>Importă prețuri METRO</h1><p>Fișier CSV UTF-8, câte un preț pe linie.</p></div></div>
+<div class="grid two">
+  <section class="panel form-panel"><form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "comparator/partials/form_fields.html" %}<div class="form-actions"><button class="button primary">Importă</button></div></form></section>
+  <section class="panel code-panel"><h2>Coloane CSV</h2><p>Obligatorii: <code>name</code>, <code>base_unit</code>, <code>price_gross</code>.</p><pre>name,brand,ean,base_unit,units_per_package,unit_size,price_gross,valid_from,source
+Coca-Cola PET 2L,Coca-Cola,5449000000996,L,6,2,42.90,2026-07-14,METRO</pre><small>Unitatea trebuie să fie BUC, KG sau L. Data folosește formatul AAAA-LL-ZZ.</small></section>
+</div>
+{% endblock %}
+

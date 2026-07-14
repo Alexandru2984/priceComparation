@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Scanare METRO #{{ job.pk }} · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><p class="eyebrow">Scanare #{{ job.pk }}</p><h1>Produse capturate</h1><p><span class="badge {{ job.status|lower }}">{{ job.get_status_display }}</span> · {{ job.captured_count }} capturate · {{ job.imported_count }} importate</p></div>
+  <a class="button" href="{% url 'comparator:metro_scrape_list' %}">Toate scanările</a>
+</div>
+{% if job.error %}<div class="message error">{{ job.error }}</div>{% endif %}
+{% if job.status == 'PENDING' or job.status == 'RUNNING' %}
+  <section class="sync-banner"><div><strong>Browserul este activ</strong><span>Navighează în Chrome și folosește panoul verde. Această pagină se actualizează automat.</span></div></section>
+  <script>setTimeout(() => location.reload(), 3000);</script>
+{% endif %}
+<form method="post" action="{% url 'comparator:metro_scrape_import' job.pk %}">{% csrf_token %}
+<section class="panel table-wrap scrape-table">
+  <table><thead><tr><th><input type="checkbox" id="select-all" checked></th><th>Denumire</th><th>Ambalare</th><th>Preț cu TVA</th><th>Normalizare</th><th>Magazin</th><th>Asociere</th><th>Stare</th></tr></thead>
+  <tbody>
+  {% for row in rows %}<tr class="{% if row.imported %}imported-row{% endif %}">
+    <td>{% if not row.imported %}<input type="checkbox" name="selected" value="{{ row.pk }}" checked>{% endif %}</td>
+    <td><input name="name_{{ row.pk }}" value="{{ row.name }}" {% if row.imported %}disabled{% endif %}><small><a href="{{ row.product_url }}" target="_blank">{{ row.external_id }}</a>{% if "SGR" in row.name %} · verifică dacă garanția SGR este inclusă{% endif %}</small></td>
+    <td><input class="compact" name="units_{{ row.pk }}" value="{{ row.units_per_package|floatformat:-3 }}" {% if row.imported %}disabled{% endif %}> × <input class="compact" name="size_{{ row.pk }}" value="{{ row.unit_size|floatformat:-3 }}" {% if row.imported %}disabled{% endif %}> <select name="unit_{{ row.pk }}" {% if row.imported %}disabled{% endif %}>{% for value, label in base_units %}<option value="{{ value }}" {% if row.base_unit == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select><small>{{ row.package_text|default:"—" }}</small></td>
+    <td><input class="price-input" name="price_{{ row.pk }}" value="{{ row.price_gross|floatformat:2 }}" {% if row.imported %}disabled{% endif %}> lei</td>
+    <td><strong>{{ row.price_per_base_unit|floatformat:2 }} lei/{{ row.base_unit }}</strong></td>
+    <td>{{ row.store_name|default:"Nedetectat" }}</td>
+    <td><select name="product_{{ row.pk }}" {% if row.imported %}disabled{% endif %}><option value="">Creează produs nou</option>{% for product in catalog_products %}<option value="{{ product.pk }}" {% if row.matched_product_id == product.pk %}selected{% endif %}>{{ product.name }}</option>{% endfor %}</select><small>scor {{ row.match_score }}%</small></td>
+    <td>{% if row.imported %}<span class="badge processed">Importat</span>{% else %}<span class="badge review">De verificat</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="empty">Nu ai capturat produse încă.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% if rows %}<div class="form-actions"><button class="button primary">Importă produsele selectate</button></div>{% endif %}
+</form>
+<script>const all=document.getElementById('select-all');if(all)all.addEventListener('change',()=>document.querySelectorAll('input[name="selected"]').forEach(x=>x.checked=all.checked));</script>
+{% endblock %}

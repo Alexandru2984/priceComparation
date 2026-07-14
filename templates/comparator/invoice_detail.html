@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice }} · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><p class="eyebrow">{{ invoice.supplier }} · {{ invoice.get_document_type_display }}</p><h1>{{ invoice.number|default:"Document fără număr" }}</h1><p>{{ invoice.issued_at|date:"d.m.Y" }} · <span class="badge {{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>{% if invoice.supplier.is_metro %} · <strong>actualizează METRO după confirmare</strong>{% endif %}</p></div>
+  <div class="actions"><form method="post" action="{% url 'comparator:invoice_process' invoice.pk %}">{% csrf_token %}<button class="button">Reprocesează OCR</button></form><a class="button primary" href="{% url 'comparator:line_create' invoice.pk %}">+ Linie manuală</a></div>
+</div>
+
+{% if invoice.processing_error %}<div class="message warning"><strong>Procesare:</strong> {{ invoice.processing_error }}</div>{% endif %}
+
+{% if invoice.pages.all %}
+<div class="document-files">
+  {% for page in invoice.pages.all %}<a class="file-chip" href="{{ page.file.url }}" target="_blank">Imaginea {{ page.page_order }}</a>{% endfor %}
+</div>
+{% endif %}
+
+<section class="panel table-wrap">
+  <table class="invoice-table"><thead><tr><th>Produs factură</th><th>Cantitate bază</th><th>Preț furnizor</th><th>Asociere</th><th>Preț METRO</th><th>Diferență</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for line, result in rows %}
+    <tr class="{% if line.needs_review %}review-row{% endif %}">
+      <td><strong>{{ line.original_name }}</strong><small>{{ line.quantity|floatformat:-3 }} × {{ line.units_per_package|floatformat:-3 }} × {{ line.unit_size|floatformat:-3 }} {{ line.base_unit }}</small></td>
+      <td>{{ line.total_base_quantity|floatformat:-3 }} {{ line.base_unit }}</td>
+      <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.unit_price_gross|floatformat:2 }} lei/pachet</small></td>
+      <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>scor {{ line.match_score }}%</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
+      <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }}</small>{% else %}—{% endif %}</td>
+      <td>{% if result %}<strong>{{ result.percent|floatformat:1 }}%</strong><small>{{ result.total_impact|floatformat:2 }} lei total</small>{% else %}—{% endif %}</td>
+      <td>{% if line.needs_review %}<span class="badge review">Verifică</span>{% elif result %}<span class="badge {{ result.status|lower }}">{{ result.status }}</span>{% else %}<span class="badge new">Fără preț</span>{% endif %}</td>
+      <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a><form method="post" action="{% url 'comparator:line_delete' line.pk %}">{% csrf_token %}<button class="link danger" onclick="return confirm('Ștergi linia?')">Șterge</button></form></td>
+    </tr>
+  {% empty %}<tr><td colspan="8" class="empty">Nu există linii. Adaugă-le manual sau procesează documentul.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+{% if invoice.ocr_text %}<details class="panel raw"><summary>Vezi textul OCR</summary><pre>{{ invoice.ocr_text }}</pre></details>{% endif %}
+{% endblock %}

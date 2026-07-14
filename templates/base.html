@@ -1,0 +1,33 @@
+{% load static %}
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PriceMatch Local{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'comparator:dashboard' %}"><span>PM</span> PriceMatch Local</a>
+    <nav>
+      <a href="{% url 'comparator:dashboard' %}">Panou</a>
+      <a href="{% url 'comparator:invoice_list' %}">Documente</a>
+      <a href="{% url 'comparator:product_list' %}">Produse</a>
+      <a href="{% url 'comparator:metro_list' %}">Prețuri METRO</a>
+      <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
+    </nav>
+    <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
+  </header>
+
+  <main class="container">
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Rulează local · datele rămân pe calculatorul tău</footer>
+</body>
+</html>

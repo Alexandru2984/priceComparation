@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Furnizori · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Administrare</p><h1>Furnizori</h1></div><a class="button primary" href="{% url 'comparator:supplier_create' %}">+ Furnizor</a></div>
+<section class="panel table-wrap">
+  <table><thead><tr><th>Denumire</th><th>Tip</th><th>CUI</th><th>Documente</th><th>Observații</th></tr></thead>
+  <tbody>{% for supplier in suppliers %}<tr><td><strong>{{ supplier.name }}</strong></td><td>{% if supplier.is_metro %}<span class="badge processed">METRO</span>{% else %}Alt furnizor{% endif %}</td><td>{{ supplier.tax_id|default:"—" }}</td><td>{{ supplier.invoice_count }}</td><td>{{ supplier.notes|truncatechars:80|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="empty">Adaugă primul furnizor.</td></tr>{% endfor %}</tbody></table>
+</section>
+{% endblock %}
