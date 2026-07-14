@@ -31,6 +31,15 @@ cp .env.example .env
 
 Deschide `http://127.0.0.1:8010`. Portul 8010 este folosit implicit fiindcă portul 8000 este deja ocupat pe acest calculator.
 
+Pagina `/` este un demo public cu date statice. Datele reale sunt în `/app/` și pot fi accesate numai de
+un utilizator `staff`. Creează primul administrator sau setează-i parola astfel:
+
+```bash
+.venv/bin/python manage.py createsuperuser
+# pentru utilizatorul local pregătit deja:
+.venv/bin/python manage.py changepassword micu
+```
+
 Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
 `DB_USER` la utilizatorul Linux care rulează aplicația. SQLite rămâne disponibil cu `DB_ENGINE=sqlite`.
@@ -40,6 +49,16 @@ După prima instalare, aplicația poate fi pornită simplu cu:
 ```bash
 ./start.sh
 ```
+
+## Flux recomandat pentru primele facturi și bonuri
+
+1. Autentifică-te la `http://127.0.0.1:8010/admin/login/`, apoi intră în `/app/`.
+2. Adaugă furnizorii din `Furnizori → Furnizor nou`; marchează separat furnizorul METRO.
+3. Din `Documente → Document nou`, alege factură sau bon și încarcă PDF/JPG/PNG ori lipește textul.
+4. Pentru un bon lung, selectează până la 12 fotografii în ordinea de sus în jos.
+5. Verifică denumirea, cantitatea, ambalarea, TVA-ul și prețul fiecărei linii înainte să debifezi
+   `necesită verificare`.
+6. Dacă OCR-ul nu citește corect, salvează documentul fără procesare și adaugă liniile manual.
 
 ## Ollama (opțional, recomandat)
 
@@ -118,6 +137,12 @@ rezultate per căutare. Pentru o selecție proprie poți transmite termenii expl
 ```bash
 .venv/bin/python manage.py test
 ```
+
+## Securitate și publicare
+
+Zona privată necesită cont staff, documentele sunt descărcate numai autentificat, iar încercările repetate
+de login sunt limitate. Configurația completă, rezultatele auditului și pașii obligatorii pentru HTTPS,
+Gunicorn, backup și HSTS sunt în [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
 
 ## Observație importantă
 
