@@ -132,6 +132,15 @@ rezultate per căutare. Pentru o selecție proprie poți transmite termenii expl
 .venv/bin/python manage.py metro_seed_catalog lapte iaurt banane --limit-per-search 12
 ```
 
+Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru locația curentă:
+
+```dotenv
+METRO_STORE_QUERY=Targoviste
+PREFERRED_METRO_STORE=METRO PUNCT TARGOVISTE
+```
+
+Ofertele celorlalte magazine sunt păstrate, dar comparațiile folosesc cu prioritate magazinul preferat.
+
 ## Teste
 
 ```bash
