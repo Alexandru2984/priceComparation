@@ -12,6 +12,8 @@ DEFAULT_TERMS = [
     "bere", "vin", "vodca",
     "mere", "banane", "portocale", "rosii", "cartofi", "ceapa", "ardei", "castraveti",
     "ulei", "zahar", "faina", "orez", "paste", "oua",
+    "conserve", "conserve peste", "conserve legume", "pate", "crema de branza",
+    "mezeluri", "salam", "sunca", "parizer", "crenvursti",
 ]
 
 
