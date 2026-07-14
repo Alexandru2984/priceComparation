@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product
@@ -42,6 +43,12 @@ class MetroNormalizationTests(TestCase):
 
 
 class MetroStagingTests(TestCase):
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            username="metro-admin", password="A-test-password-2026!", is_staff=True
+        )
+        self.client.force_login(self.staff)
+
     def test_stages_and_imports_selected_product(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         store_captured_rows(
@@ -94,5 +101,5 @@ class MetroStagingTests(TestCase):
 
     def test_scan_pages_load(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
-        self.assertEqual(self.client.get("/metro/scanari/").status_code, 200)
-        self.assertEqual(self.client.get(f"/metro/scanari/{job.pk}/").status_code, 200)
+        self.assertEqual(self.client.get("/app/metro/scanari/").status_code, 200)
+        self.assertEqual(self.client.get(f"/app/metro/scanari/{job.pk}/").status_code, 200)

@@ -1,8 +1,11 @@
+import io
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 
 from comparator.models import Invoice, InvoiceLine, MetroOffer, Product, Supplier
 
@@ -48,19 +51,37 @@ class ComparisonTests(TestCase):
 
 
 class DashboardSmokeTests(TestCase):
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            username="admin-test", password="A-test-password-2026!", is_staff=True
+        )
+        self.client.force_login(self.staff)
+
+    @staticmethod
+    def image_upload(name):
+        content = io.BytesIO()
+        Image.new("RGB", (40, 40), "white").save(content, format="JPEG")
+        return SimpleUploadedFile(name, content.getvalue(), content_type="image/jpeg")
+
     def test_dashboard_loads(self):
+        response = self.client.get("/app/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "PriceMatch")
+
+    def test_public_demo_loads(self):
+        self.client.logout()
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "PriceMatch Local")
+        self.assertContains(response, "Date demonstrative")
 
     def test_receipt_accepts_multiple_images(self):
         supplier = Supplier.objects.create(name="Magazin test")
         uploads = [
-            SimpleUploadedFile("bon-1.jpg", b"prima", content_type="image/jpeg"),
-            SimpleUploadedFile("bon-2.jpg", b"a doua", content_type="image/jpeg"),
+            self.image_upload("bon-1.jpg"),
+            self.image_upload("bon-2.jpg"),
         ]
         response = self.client.post(
-            "/facturi/adauga/",
+            "/app/facturi/adauga/",
             {
                 "document_type": Invoice.DocumentType.RECEIPT,
                 "supplier": supplier.pk,
@@ -83,7 +104,7 @@ class DashboardSmokeTests(TestCase):
             issued_at=date(2026, 7, 14),
         )
         response = self.client.post(
-            f"/facturi/{invoice.pk}/linie/adauga/",
+            f"/app/facturi/{invoice.pk}/linie/adauga/",
             {
                 "original_name": "Produs Metro Nou 1L",
                 "quantity": "2",
