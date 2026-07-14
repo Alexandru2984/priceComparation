@@ -140,6 +140,15 @@ Poți adăuga oricând alte familii de produse fără să modifici codul:
 
 Rezultatele sunt deduplicate, iar o ofertă existentă pentru același produs, magazin și zi este actualizată.
 
+Pentru termeni proprii poți fixa și categoria:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog "pasta de dinti" sampon deodorant --category "Igienă personală"
+```
+
+Lista implicită acoperă lactate, băuturi, fructe și legume, băcănie, conserve, mezeluri, dulciuri,
+snacks, igienă, curățenie, cafea și ceai, sosuri, panificație și congelate.
+
 Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru locația curentă:
 
 ```dotenv
@@ -148,6 +157,20 @@ PREFERRED_METRO_STORE=METRO PUNCT TARGOVISTE
 ```
 
 Ofertele celorlalte magazine sunt păstrate, dar comparațiile folosesc cu prioritate magazinul preferat.
+
+### Categorii și export
+
+În `Produse` poți filtra catalogul după categorie și poți descărca:
+
+- `Export CSV`: format UTF-8 cu separator `;`, ușor de deschis în Excel;
+- `Export Excel`: foaia `Catalog curent` cu prețul preferat și foaia `Toate ofertele` cu istoricul
+  locațiilor METRO pentru produsele filtrate.
+
+Pentru reclasificarea catalogului după schimbarea regulilor:
+
+```bash
+.venv/bin/python manage.py categorize_products --overwrite
+```
 
 ## Teste
 
