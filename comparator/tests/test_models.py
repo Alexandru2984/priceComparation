@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
@@ -48,6 +48,32 @@ class ComparisonTests(TestCase):
         self.assertEqual(result["invoice_price"], Decimal("3.95"))
         self.assertEqual(result["total_impact"], Decimal("2.70"))
         self.assertEqual(result["status"], "MAI_SCUMP")
+
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_current_offer_prefers_configured_store(self):
+        MetroOffer.objects.create(
+            product=self.product,
+            units_per_package=1,
+            unit_size=2,
+            price_gross=Decimal("8.00"),
+            valid_from=date(2026, 7, 15),
+            source="Selenium METRO PALLADY",
+        )
+        preferred = MetroOffer.objects.create(
+            product=self.product,
+            units_per_package=1,
+            unit_size=2,
+            price_gross=Decimal("8.40"),
+            valid_from=date(2026, 7, 15),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        self.assertEqual(self.product.current_metro_offer(), preferred)
+
+    def test_prefetched_current_offer_does_not_run_extra_queries(self):
+        product = Product.objects.prefetch_related("metro_offers").get(pk=self.product.pk)
+        with self.assertNumQueries(0):
+            offer = product.current_metro_offer()
+        self.assertIsNotNone(offer)
 
 
 class DashboardSmokeTests(TestCase):
