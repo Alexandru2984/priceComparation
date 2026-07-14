@@ -4,7 +4,7 @@ import sys
 import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import pandas as pd
 from django.conf import settings
@@ -134,6 +134,10 @@ def parse_measurement(name, package_text=""):
         unit_size, base_unit = _convert_size(multi.group(2), multi.group(3))
         return _decimal(multi.group(1)) or Decimal("1"), unit_size, base_unit
 
+    pieces = re.search(r"(?i)\b(\d+(?:\.\d+)?)\s*buc(?:ata|ati)?\b", normalized_name)
+    if pieces:
+        return _decimal(pieces.group(1)) or Decimal("1"), Decimal("1"), BaseUnit.PIECE
+
     sizes = list(re.finditer(r"(?i)\b(\d+(?:\.\d+)?)\s*(kg|gr?|g|ml|l)\b", normalized_name))
     if sizes:
         unit_size, base_unit = _convert_size(sizes[-1].group(1), sizes[-1].group(2))
@@ -202,6 +206,36 @@ def _displayed_search_input(driver):
     return None
 
 
+def create_metro_driver(headless=False):
+    profile = Path(settings.METRO_BROWSER_PROFILE)
+    profile.mkdir(parents=True, exist_ok=True)
+    options = webdriver.ChromeOptions()
+    options.add_argument(f"--user-data-dir={profile}")
+    options.add_argument("--profile-directory=Default")
+    options.add_argument("--window-size=1440,1100")
+    options.add_argument("--lang=ro-RO")
+    options.add_argument("--disable-dev-shm-usage")
+    if headless:
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+    return webdriver.Chrome(options=options)
+
+
+def dismiss_cookie_banner(driver):
+    return driver.execute_script(
+        """
+        const host = document.querySelector('cms-cookie-disclaimer');
+        if (!host) return false;
+        const root = host.shadowRoot || host;
+        const button = Array.from(root.querySelectorAll('button'))
+          .find(item => item.textContent.includes('Nu sunt de acord'));
+        if (!button) return false;
+        button.click();
+        return true;
+        """
+    )
+
+
 def _set_overlay_status(driver, message):
     driver.execute_script(
         "const s=document.getElementById('__pricematch_status'); if(s) s.textContent=arguments[0];",
@@ -242,10 +276,42 @@ def capture_watchlist(driver, job):
     return job.products.count()
 
 
+def capture_search_terms(job, terms, limit_per_search=8, delay_seconds=1, headless=True, progress=None):
+    """Capture a bounded set of relevant results for each METRO search term."""
+    driver = create_metro_driver(headless=headless)
+    try:
+        origin = urlparse(job.start_url)
+        search_base = f"{origin.scheme}://{origin.netloc}/shop/search"
+        for index, term in enumerate(terms, start=1):
+            driver.get(f"{search_base}?{urlencode({'q': term})}")
+            WebDriverWait(driver, 20).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            dismiss_cookie_banner(driver)
+            WebDriverWait(driver, 20).until(
+                lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
+                or "nu am gasit" in d.find_element(By.TAG_NAME, "body").text.lower()
+            )
+            raw_rows = driver.execute_script(CARD_DATA_SCRIPT)[:limit_per_search]
+            store_captured_rows(job, normalize_dom_rows(raw_rows))
+            job.current_url = driver.current_url[:1000]
+            job.save(update_fields=["current_url"])
+            if progress:
+                progress(index, len(terms), term, job.captured_count)
+            time.sleep(delay_seconds)
+        return job.captured_count
+    finally:
+        driver.quit()
+
+
 @transaction.atomic
 def store_captured_rows(job, rows):
     for data in rows:
         product, score = suggest_product(data["name"], base_unit=data["base_unit"])
+        # METRO variants often share only a package size; fuzzy scores around 85
+        # are not safe enough to merge catalog rows without human confirmation.
+        if score < 100:
+            product = None
         MetroScrapedProduct.objects.update_or_create(
             job=job,
             external_id=data["external_id"],
@@ -257,15 +323,6 @@ def store_captured_rows(job, rows):
 
 
 def run_scrape_job(job):
-    profile = Path(settings.METRO_BROWSER_PROFILE)
-    profile.mkdir(parents=True, exist_ok=True)
-    options = webdriver.ChromeOptions()
-    options.add_argument(f"--user-data-dir={profile}")
-    options.add_argument("--profile-directory=Default")
-    options.add_argument("--start-maximized")
-    options.add_argument("--lang=ro-RO")
-    options.add_argument("--disable-dev-shm-usage")
-
     driver = None
     job.status = MetroScrapeJob.Status.RUNNING
     job.started_at = timezone.now()
@@ -275,8 +332,9 @@ def run_scrape_job(job):
     last_saved_url = ""
     consecutive_browser_errors = 0
     try:
-        driver = webdriver.Chrome(options=options)
+        driver = create_metro_driver()
         driver.get(job.start_url)
+        dismiss_cookie_banner(driver)
         while time.monotonic() < deadline:
             try:
                 job.current_url = driver.current_url[:1000]

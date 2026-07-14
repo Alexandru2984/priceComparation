@@ -19,14 +19,21 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 
 ```bash
 sudo apt update
-sudo apt install -y python3-venv tesseract-ocr tesseract-ocr-ron tesseract-ocr-eng
+sudo apt install -y python3-venv tesseract-ocr tesseract-ocr-ron tesseract-ocr-eng postgresql
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+sudo -u postgres createuser --createdb --pwprompt pricecompare
+sudo -u postgres createdb --owner=pricecompare pricecompare
+cp .env.example .env
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py runserver 127.0.0.1:8010
 ```
 
 Deschide `http://127.0.0.1:8010`. Portul 8010 este folosit implicit fiindcă portul 8000 este deja ocupat pe acest calculator.
+
+Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
+rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
+`DB_USER` la utilizatorul Linux care rulează aplicația. SQLite rămâne disponibil cu `DB_ENGINE=sqlite`.
 
 După prima instalare, aplicația poate fi pornită simplu cu:
 
@@ -91,6 +98,20 @@ Panoul verde injectat în pagina METRO oferă:
 Sunt colectate numai denumirea, codul METRO din URL, ambalarea/gramajul, prețul cu TVA, magazinul și
 momentul capturii. Imaginile și descrierile comerciale nu sunt descărcate. Înainte de import poți corecta
 orice gramaj, preț sau asociere.
+
+Pentru a popula automat un catalog inițial cu produse alimentare de bază folosind magazinul păstrat în
+profilul Chrome:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog
+```
+
+Comanda caută controlat lactate, băuturi, alcool, fructe, legume și produse de băcănie, cu maximum 8
+rezultate per căutare. Pentru o selecție proprie poți transmite termenii explicit, de exemplu:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog lapte iaurt banane --limit-per-search 12
+```
 
 ## Teste
 

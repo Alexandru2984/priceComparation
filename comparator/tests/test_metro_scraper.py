@@ -36,6 +36,10 @@ class MetroNormalizationTests(TestCase):
         units, size, base_unit = parse_measurement("Piept pui gastro 4,5 Kg", "1 KILOGRAM")
         self.assertEqual((units, size, base_unit), (Decimal("1"), Decimal("1"), "KG"))
 
+    def test_piece_count_is_read_from_product_name(self):
+        units, size, base_unit = parse_measurement("aro Oua M 20 buc", "1 CASEROLA")
+        self.assertEqual((units, size, base_unit), (Decimal("20"), Decimal("1"), "BUC"))
+
 
 class MetroStagingTests(TestCase):
     def test_stages_and_imports_selected_product(self):
@@ -64,8 +68,31 @@ class MetroStagingTests(TestCase):
         self.assertTrue(row.imported)
         self.assertEqual(product.metro_offers.get().price_gross, Decimal("8.50"))
 
+    def test_does_not_merge_a_weak_fuzzy_match(self):
+        existing = Product.objects.create(name="PFANNER Suc Ananas 1 L", brand="", base_unit="L")
+        job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
+        store_captured_rows(
+            job,
+            [
+                {
+                    "external_id": "BTY-X2",
+                    "name": "aro Lapte Consum 1.5% grasime 1 L",
+                    "product_url": "https://produse.metro.ro/shop/pv/BTY-X2/0032/0021/test",
+                    "store_name": "METRO PALLADY",
+                    "package_text": "1 STICLA",
+                    "units_per_package": Decimal("1"),
+                    "unit_size": Decimal("1"),
+                    "base_unit": "L",
+                    "price_gross": Decimal("3.50"),
+                }
+            ],
+        )
+        row = MetroScrapedProduct.objects.get(job=job)
+        self.assertGreaterEqual(row.match_score, 80)
+        self.assertNotEqual(row.matched_product, existing)
+        self.assertIsNone(row.matched_product)
+
     def test_scan_pages_load(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         self.assertEqual(self.client.get("/metro/scanari/").status_code, 200)
         self.assertEqual(self.client.get(f"/metro/scanari/{job.pk}/").status_code, 200)
-
