@@ -1,6 +1,6 @@
 # Audit de securitate și publicare
 
-Data auditului: 14 iulie 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
+Data ultimei actualizări: 8 august 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
 fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 
 ## Măsuri implementate
@@ -17,6 +17,10 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 - sunt active CSP, anti-framing, `nosniff`, Referrer-Policy, Permissions-Policy și `no-store` pe zona privată;
 - modul de producție activează cookies `Secure`, redirect HTTPS și HSTS;
 - Selenium este dezactivat implicit în producție și se activează numai explicit;
+- camera este permisă prin Permissions-Policy exclusiv pe pagina privată a scannerului EAN;
+- EAN/GTIN este validat prin cifra de control, iar codurile duplicate sunt refuzate;
+- backupurile locale sunt comprimate, au permisiuni restrictive și manifest SHA-256;
+- restaurarea refuză arhive cu căi nesigure și cere confirmarea literală `RESTORE`;
 - secretele și configurația bazei rămân în `.env`, exclus din Git;
 - `pip-audit` nu a găsit vulnerabilități cunoscute în dependențele declarate;
 - Bandit nu a găsit probleme de severitate medie sau mare.
@@ -59,8 +63,9 @@ exclusiv prin HTTPS, setează `DJANGO_HSTS_SECONDS=31536000`, `DJANGO_HSTS_INCLU
 
 ## Backup și operare
 
-- salvează zilnic baza cu `pg_dump -Fc pricecompare > pricecompare.dump`;
-- salvează separat directorul `media/`, cu criptare și acces limitat;
+- rulează zilnic `.venv/bin/python manage.py backup_pricematch` și copiază backupul pe alt disc;
+- pentru redundanță PostgreSQL poți păstra și `pg_dump -Fc pricecompare > pricecompare.dump`;
+- backupul aplicației include `media/`, dar discul extern trebuie criptat și accesul limitat;
 - testează restaurarea, nu doar crearea backupului;
 - rotește `DJANGO_SECRET_KEY` și parola bazei dacă există suspiciune de compromitere;
 - verifică periodic tabelele `axes_accessattempt` și `axes_accesslog`;

@@ -14,6 +14,12 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - comparație exactă per BUC/KG/L folosind `Decimal`;
 - coadă vizuală pentru potrivirile care necesită verificare.
 - actualizarea automată a prețurilor de referință din documentele METRO confirmate.
+- revizuirea tuturor liniilor unui document într-un singur tabel;
+- cost efectiv cu reduceri, SGR, transport și reducerea generală distribuite proporțional;
+- istoric separat METRO/furnizor, alerte de preț și semnale de calitate;
+- liste de cumpărături care recomandă cea mai ieftină sursă recentă;
+- scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
+- backup comprimat, verificat SHA-256 și restaurare explicită.
 
 ## Instalare rapidă pe Ubuntu/Debian
 
@@ -56,9 +62,12 @@ După prima instalare, aplicația poate fi pornită simplu cu:
 2. Adaugă furnizorii din `Furnizori → Furnizor nou`; marchează separat furnizorul METRO.
 3. Din `Documente → Document nou`, alege factură sau bon și încarcă PDF/JPG/PNG ori lipește textul.
 4. Pentru un bon lung, selectează până la 12 fotografii în ordinea de sus în jos.
-5. Verifică denumirea, cantitatea, ambalarea, TVA-ul și prețul fiecărei linii înainte să debifezi
-   `necesită verificare`.
+5. Folosește tabelul `Revizuire rapidă` pentru a corecta toate liniile, apoi debifează `necesită
+   verificare`. Confirmarea memorează automat aliasul și prețul furnizorului.
 6. Dacă OCR-ul nu citește corect, salvează documentul fără procesare și adaugă liniile manual.
+
+Transportul și reducerea generală se completează pe document. Reducerea unei linii și garanția SGR se
+completează separat; SGR nu este tratată ca preț al mărfii. Toate comparațiile rămân pe valori cu TVA.
 
 ## Ollama (opțional, recomandat)
 
@@ -125,8 +134,16 @@ profilul Chrome:
 .venv/bin/python manage.py metro_seed_catalog
 ```
 
-Comanda caută controlat lactate, băuturi, alcool, fructe, legume și produse de băcănie, cu maximum 8
-rezultate per căutare. Pentru o selecție proprie poți transmite termenii explicit, de exemplu:
+Comanda caută automat peste 200 de familii de produse. Implicit încarcă toate cardurile disponibile
+pentru fiecare căutare, deduplică după codul intern METRO și salvează progresul fiecărui termen. Dacă
+Chrome sau rețeaua se opresc, reia exact scanarea rămasă:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --resume ID_SCANARE
+```
+
+Din interfață, `Prețuri METRO → Scanare Selenium → Catalog complet automat` pornește aceeași operație în
+fundal. Pentru o selecție proprie poți transmite termenii explicit, de exemplu:
 
 ```bash
 .venv/bin/python manage.py metro_seed_catalog lapte iaurt banane --limit-per-search 12
@@ -147,7 +164,9 @@ Pentru termeni proprii poți fixa și categoria:
 ```
 
 Lista implicită acoperă lactate, băuturi, fructe și legume, băcănie, conserve, mezeluri, dulciuri,
-snacks, igienă, curățenie, cafea și ceai, sosuri, panificație și congelate.
+snacks, igienă, curățenie, cafea și ceai, sosuri, panificație, congelate, carne și pește, produse pentru
+copii, hrană pentru animale și consumabile de menaj. Folosește o întârziere de cel puțin 0,3 secunde;
+valoarea implicită de 0,8 secunde evită încărcarea agresivă a site-ului.
 
 Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru locația curentă:
 
@@ -171,6 +190,48 @@ Pentru reclasificarea catalogului după schimbarea regulilor:
 ```bash
 .venv/bin/python manage.py categorize_products --overwrite
 ```
+
+### EAN și scannerul telefonului
+
+`Produse → Scanează EAN` folosește camera prin API-ul local al browserului și verifică cifra de control
+GTIN. Camera este disponibilă numai pe `localhost` sau prin HTTPS; de pe un telefon din rețeaua locală
+este necesar HTTPS. Chrome pe Android oferă suportul cel mai bun. Introducerea manuală rămâne disponibilă.
+
+Codul intern METRO este păstrat separat de EAN. Astfel, schimbarea denumirii comerciale de pe site nu mai
+creează automat un produs duplicat.
+
+### Istoric, alerte și liste de cumpărături
+
+- apasă denumirea produsului din catalog pentru istoricul normalizat METRO și furnizori;
+- în `Alerte` setează pragul în lei per BUC/KG/L;
+- în `Cumpărături` introdu cantitatea necesară; aplicația alege cea mai ieftină sursă și arată economia;
+- ofertele furnizorilor mai vechi de `SUPPLIER_PRICE_MAX_AGE_DAYS` (implicit 90 zile) sunt ignorate.
+
+## Backup, restaurare și automatizare
+
+Backupul include baza de date și documentele din `media/`, cu manifest și verificare SHA-256:
+
+```bash
+.venv/bin/python manage.py backup_pricematch
+```
+
+Restaurarea șterge datele curente și cere confirmarea explicită:
+
+```bash
+.venv/bin/python manage.py restore_pricematch backups/pricematch-AAAALLZZ-HHMMSS --confirm RESTORE
+```
+
+Pentru cron sau un timer systemd, comanda periodică face întâi backupul și poate porni apoi scanarea:
+
+```bash
+# backup zilnic
+.venv/bin/python manage.py pricematch_maintenance
+
+# backup + actualizare completă METRO
+.venv/bin/python manage.py pricematch_maintenance --scan-metro --store Targoviste
+```
+
+Nu suprapune două scanări Selenium și păstrează directorul `backups/` în afara Git, pe un disc separat.
 
 ## Teste
 

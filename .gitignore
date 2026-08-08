@@ -8,3 +8,4 @@ staticfiles/
 .idea/
 .vscode/
 data/
+backups/
