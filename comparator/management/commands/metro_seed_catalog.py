@@ -67,8 +67,15 @@ class Command(BaseCommand):
         job.error = ""
         job.save(update_fields=["status", "started_at", "finished_at", "error"])
 
+        incremental_imported = 0
+
         def show_progress(index, total, term, count):
-            self.stdout.write(f"[{index}/{total}] {term}: {count} produse unice")
+            nonlocal incremental_imported
+            if not options["no_import"]:
+                incremental_imported += import_scraped_rows(job.products.filter(imported=False))
+            self.stdout.write(
+                f"[{index}/{total}] {term}: {count} produse unice, {incremental_imported} importate"
+            )
 
         try:
             captured = capture_search_terms(
@@ -87,7 +94,7 @@ class Command(BaseCommand):
                 raise CommandError(
                     "METRO nu a returnat produse cu preț. Deschide o scanare vizibilă și selectează magazinul."
                 )
-            imported = 0 if options["no_import"] else import_scraped_rows(job.products.all())
+            imported = 0 if options["no_import"] else incremental_imported + import_scraped_rows(job.products.all())
             failed = job.terms.filter(status=MetroScrapeTerm.Status.ERROR).count()
             job.status = MetroScrapeJob.Status.ERROR if failed else MetroScrapeJob.Status.COMPLETED
             job.error = f"{failed} căutări au eșuat; reia scanarea cu --resume {job.pk}." if failed else ""

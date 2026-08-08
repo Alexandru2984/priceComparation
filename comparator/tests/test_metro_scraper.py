@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product
+from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product, ProductCode
 from comparator.services.metro_scraper import (
     import_scraped_rows,
     normalize_dom_rows,
@@ -103,3 +103,22 @@ class MetroStagingTests(TestCase):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         self.assertEqual(self.client.get("/app/metro/scanari/").status_code, 200)
         self.assertEqual(self.client.get(f"/app/metro/scanari/{job.pk}/").status_code, 200)
+
+    def test_metro_identity_is_saved_when_a_row_is_imported(self):
+        job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
+        store_captured_rows(
+            job,
+            [{
+                "external_id": "BTY-PERSIST",
+                "name": "Produs persistent 1 buc",
+                "product_url": "https://produse.metro.ro/shop/pv/BTY-PERSIST/x",
+                "store_name": "METRO PUNCT TARGOVISTE",
+                "package_text": "1 BUCATA",
+                "units_per_package": Decimal("1"),
+                "unit_size": Decimal("1"),
+                "base_unit": "BUC",
+                "price_gross": Decimal("3.50"),
+            }],
+        )
+        import_scraped_rows(job.products.all())
+        self.assertTrue(ProductCode.objects.filter(kind="METRO", code="BTY-PERSIST").exists())
