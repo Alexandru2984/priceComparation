@@ -7,9 +7,15 @@ from .models import (
     MetroOffer,
     MetroScrapeJob,
     MetroScrapedProduct,
+    MetroScrapeTerm,
+    PriceAlert,
     Product,
     ProductAlias,
+    ProductCode,
+    ShoppingList,
+    ShoppingListItem,
     Supplier,
+    SupplierOffer,
 )
 
 
@@ -53,3 +59,9 @@ admin.site.register(MetroOffer)
 admin.site.register(ProductAlias)
 admin.site.register(MetroScrapeJob)
 admin.site.register(MetroScrapedProduct)
+admin.site.register(MetroScrapeTerm)
+admin.site.register(ProductCode)
+admin.site.register(SupplierOffer)
+admin.site.register(PriceAlert)
+admin.site.register(ShoppingList)
+admin.site.register(ShoppingListItem)

@@ -12,7 +12,10 @@ class SecurityHeadersMiddleware:
             "object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; connect-src 'self'",
         )
-        response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        camera = "(self)" if request.path == "/app/catalog/scaneaza-ean/" else "()"
+        response.setdefault(
+            "Permissions-Policy", f"camera={camera}, microphone=(), geolocation=(), payment=()"
+        )
         if request.path.startswith(("/app/", "/admin/")):
             response["Cache-Control"] = "private, no-store"
         return response

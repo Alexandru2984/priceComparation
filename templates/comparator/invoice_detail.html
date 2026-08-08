@@ -8,6 +8,12 @@
 
 {% if invoice.processing_error %}<div class="message warning"><strong>Procesare:</strong> {{ invoice.processing_error }}</div>{% endif %}
 
+<section class="stats compact-stats">
+  <article><strong>{{ invoice.merchandise_total_gross|floatformat:2 }}</strong><span>lei marfă după reduceri și SGR</span></article>
+  <article><strong>{{ invoice.transport_gross|floatformat:2 }}</strong><span>lei transport distribuit</span></article>
+  <article><strong>{{ invoice.document_discount_gross|floatformat:2 }}</strong><span>lei reducere pe document</span></article>
+</section>
+
 {% if invoice.pages.all %}
 <div class="document-files">
   {% if invoice.document %}<a class="file-chip" href="{% url 'comparator:invoice_file_download' invoice.pk %}">Descarcă documentul</a>{% endif %}
@@ -15,19 +21,43 @@
 </div>
 {% endif %}
 
-<section class="panel table-wrap">
+{% if line_formset.forms %}
+<details class="panel bulk-review" {% if invoice.status == 'REVIEW' %}open{% endif %}>
+  <summary>Revizuire rapidă pentru toate liniile</summary>
+  <form method="post" action="{% url 'comparator:invoice_lines_review' invoice.pk %}">{% csrf_token %}
+    {{ line_formset.management_form }}
+    {% if line_formset.non_form_errors %}<div class="form-errors">{{ line_formset.non_form_errors }}</div>{% endif %}
+    <div class="table-wrap"><table class="bulk-table">
+      <thead><tr><th>Produs / cod</th><th>Cantitate</th><th>Ambalare</th><th>Preț / TVA</th><th>Reducere / SGR</th><th>Asociere</th><th>De verificat</th><th>Șterge</th></tr></thead>
+      <tbody>{% for form in line_formset %}<tr>
+        <td>{{ form.id }}{{ form.original_name }}{{ form.original_name.errors }}{{ form.ean }}{{ form.ean.errors }}</td>
+        <td>{{ form.quantity }}{{ form.quantity.errors }}</td>
+        <td><div class="inline-fields">{{ form.units_per_package }} × {{ form.unit_size }} {{ form.base_unit }}</div>{{ form.units_per_package.errors }}{{ form.unit_size.errors }}{{ form.base_unit.errors }}</td>
+        <td><div class="inline-fields">{{ form.unit_price_gross }} lei · TVA {{ form.vat_rate }}%</div>{{ form.line_total_gross }}{{ form.unit_price_gross.errors }}{{ form.vat_rate.errors }}</td>
+        <td><div class="inline-fields">− {{ form.discount_gross }} + {{ form.deposit_gross }}</div>{{ form.discount_gross.errors }}{{ form.deposit_gross.errors }}</td>
+        <td>{{ form.matched_product }}{{ form.matched_product.errors }}<small>Potrivire curentă: {{ form.instance.match_score }}%</small></td>
+        <td>{{ form.needs_review }}<small>Bifat = încă necesită verificare</small></td>
+        <td>{{ form.DELETE }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="form-actions"><button class="button primary">Salvează toate liniile</button></div>
+  </form>
+</details>
+{% endif %}
+
+<section class="panel table-wrap analysis-table">
   <table class="invoice-table"><thead><tr><th>Produs factură</th><th>Cantitate bază</th><th>Preț furnizor</th><th>Asociere</th><th>Preț METRO</th><th>Diferență</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for line, result in rows %}
     <tr class="{% if line.needs_review %}review-row{% endif %}">
       <td><strong>{{ line.original_name }}</strong><small>{{ line.quantity|floatformat:-3 }} × {{ line.units_per_package|floatformat:-3 }} × {{ line.unit_size|floatformat:-3 }} {{ line.base_unit }}</small></td>
       <td>{{ line.total_base_quantity|floatformat:-3 }} {{ line.base_unit }}</td>
-      <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.unit_price_gross|floatformat:2 }} lei/pachet</small></td>
+      <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.merchandise_total_net|floatformat:2 }} lei fără TVA · cost efectiv cu transport</small></td>
       <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>scor {{ line.match_score }}%</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
       <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }}</small>{% else %}—{% endif %}</td>
       <td>{% if result %}<strong>{{ result.percent|floatformat:1 }}%</strong><small>{{ result.total_impact|floatformat:2 }} lei total</small>{% else %}—{% endif %}</td>
       <td>{% if line.needs_review %}<span class="badge review">Verifică</span>{% elif result %}<span class="badge {{ result.status|lower }}">{{ result.status }}</span>{% else %}<span class="badge new">Fără preț</span>{% endif %}</td>
-      <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a><form method="post" action="{% url 'comparator:line_delete' line.pk %}">{% csrf_token %}<button class="link danger" onclick="return confirm('Ștergi linia?')">Șterge</button></form></td>
+      <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a><form method="post" action="{% url 'comparator:line_delete' line.pk %}" data-confirm="Ștergi linia?">{% csrf_token %}<button class="link danger">Șterge</button></form></td>
     </tr>
   {% empty %}<tr><td colspan="8" class="empty">Nu există linii. Adaugă-le manual sau procesează documentul.</td></tr>{% endfor %}
   </tbody></table>

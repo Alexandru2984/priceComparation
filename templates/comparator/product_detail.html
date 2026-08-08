@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ product.name }} · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">{{ product.category|default:"Catalog" }}</p><h1>{{ product.name }}</h1><p>{{ product.brand|default:"Fără marcă" }} · {{ product.get_base_unit_display }}{% if product.ean %} · EAN {{ product.ean }}{% endif %}</p></div><div class="actions"><a class="button" href="{% url 'comparator:price_alert_list' %}">Adaugă alertă</a><a class="button" href="{% url 'comparator:product_list' %}">Catalog</a></div></div>
+
+<section class="stats compact-stats"><article><strong>{{ minimum|floatformat:2 }}</strong><span>lei/{{ product.base_unit }} minim istoric</span></article><article><strong>{{ maximum|floatformat:2 }}</strong><span>lei/{{ product.base_unit }} maxim istoric</span></article><article><strong>{{ history|length }}</strong><span>observații de preț</span></article></section>
+
+<section class="panel table-wrap"><table><thead><tr><th>Data</th><th>Sursa</th><th>Tip</th><th>Preț normalizat</th><th>Evoluție relativă</th></tr></thead><tbody>{% for row in history %}<tr><td>{{ row.date|date:"d.m.Y" }}</td><td>{{ row.source }}</td><td>{{ row.kind }}</td><td><strong>{{ row.price|floatformat:2 }} lei/{{ product.base_unit }}</strong></td><td><div class="price-bar"><span data-width="{{ row.bar_percent }}"></span></div></td></tr>{% empty %}<tr><td colspan="5" class="empty">Nu există încă istoric pentru acest produs.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'price_history.js' %}" defer></script>{% endblock %}

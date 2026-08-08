@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Liste de cumpărături · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Planificare</p><h1>Liste de cumpărături</h1><p>Adaugă necesarul, iar aplicația compară ultima ofertă METRO cu prețurile confirmate ale furnizorilor.</p></div></div>
+<div class="grid two">
+  <section class="panel form-panel"><h2>Listă nouă</h2><form method="post">{% csrf_token %}{% include "comparator/partials/form_fields.html" %}<div class="form-actions"><button class="button primary">Creează lista</button></div></form></section>
+  <section class="panel"><div class="list">{% for shopping_list in lists %}<a class="list-row" href="{% url 'comparator:shopping_list_detail' shopping_list.pk %}"><div><strong>{{ shopping_list.name }}</strong><small>{{ shopping_list.created_at|date:"d.m.Y H:i" }}</small></div><span>{{ shopping_list.item_count }} produse</span></a>{% empty %}<div class="empty">Nu există liste încă.</div>{% endfor %}</div></section>
+</div>
+{% endblock %}

@@ -16,6 +16,8 @@
         <a href="{% url 'comparator:invoice_list' %}">Documente</a>
         <a href="{% url 'comparator:product_list' %}">Produse</a>
         <a href="{% url 'comparator:metro_list' %}">Prețuri METRO</a>
+        <a href="{% url 'comparator:shopping_list_index' %}">Cumpărături</a>
+        <a href="{% url 'comparator:price_alert_list' %}">Alerte</a>
         <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
@@ -35,6 +37,7 @@
     {% block content %}{% endblock %}
   </main>
   <footer>{% if user.is_staff %}Zonă privată · {{ user.username }}{% else %}Mod public demonstrativ · fără date reale{% endif %}</footer>
+  <script src="{% static 'app.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

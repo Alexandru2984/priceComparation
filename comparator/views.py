@@ -9,15 +9,19 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count
-from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import (
     InvoiceForm,
     InvoiceLineForm,
+    InvoiceLineFormSet,
     MetroImportForm,
     MetroOfferForm,
+    PriceAlertForm,
     ProductForm,
+    ShoppingListForm,
+    ShoppingListItemForm,
     SupplierForm,
 )
 from .models import (
@@ -27,14 +31,30 @@ from .models import (
     InvoiceLine,
     MetroOffer,
     MetroScrapeJob,
+    PriceAlert,
     Product,
+    ProductCode,
     ProductAlias,
+    ShoppingList,
+    ShoppingListItem,
     Supplier,
 )
-from .services.invoices import process_invoice, sync_all_confirmed_metro_lines, sync_metro_offer_from_line
+from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
+from .services.invoices import (
+    process_invoice,
+    sync_all_confirmed_metro_lines,
+    sync_metro_offer_from_line,
+    sync_supplier_offer_from_line,
+)
 from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
-from .services.metro_scraper import import_scraped_rows, launch_scrape_job
+from .services.metro_scraper import import_scraped_rows, launch_mass_catalog_job, launch_scrape_job
+from .services.insights import (
+    catalog_quality_summary,
+    product_history,
+    recent_metro_changes,
+    shopping_recommendation,
+)
 
 
 def dashboard(request):
@@ -46,6 +66,8 @@ def dashboard(request):
         if comparison:
             comparisons.append((line, comparison))
     comparisons.sort(key=lambda item: abs(item[1]["total_impact"]), reverse=True)
+    total_impact = sum((item[1]["total_impact"] for item in comparisons), Decimal("0"))
+    alerts = [alert for alert in PriceAlert.objects.select_related("product").filter(active=True) if alert.is_triggered]
     return render(
         request,
         "comparator/dashboard.html",
@@ -55,6 +77,10 @@ def dashboard(request):
             "product_count": Product.objects.filter(active=True).count(),
             "offer_count": MetroOffer.objects.filter(active=True).count(),
             "comparisons": comparisons[:8],
+            "total_impact": total_impact,
+            "triggered_alerts": alerts[:6],
+            "metro_changes": recent_metro_changes(),
+            "quality": catalog_quality_summary(),
         },
     )
 
@@ -127,10 +153,96 @@ def catalog_export(request, file_format):
 def product_create(request):
     form = ProductForm(request.POST or None)
     if form.is_valid():
-        form.save()
+        product = form.save()
+        if product.ean:
+            assign_ean(product, product.ean)
         messages.success(request, "Produsul a fost adăugat în catalogul urmărit.")
         return redirect("comparator:product_list")
     return render(request, "comparator/form.html", {"form": form, "title": "Produs urmărit nou"})
+
+
+def product_detail(request, pk):
+    product = get_object_or_404(Product.objects.prefetch_related("metro_offers", "supplier_offers"), pk=pk)
+    history, minimum, maximum = product_history(product)
+    return render(
+        request,
+        "comparator/product_detail.html",
+        {"product": product, "history": history, "minimum": minimum, "maximum": maximum},
+    )
+
+
+def price_alert_list(request):
+    form = PriceAlertForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Alerta de preț a fost salvată.")
+        return redirect("comparator:price_alert_list")
+    alerts = PriceAlert.objects.select_related("product")
+    return render(request, "comparator/price_alert_list.html", {"alerts": alerts, "form": form})
+
+
+def price_alert_delete(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    get_object_or_404(PriceAlert, pk=pk).delete()
+    messages.success(request, "Alerta a fost ștearsă.")
+    return redirect("comparator:price_alert_list")
+
+
+def shopping_list_index(request):
+    form = ShoppingListForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        shopping_list = form.save()
+        return redirect("comparator:shopping_list_detail", pk=shopping_list.pk)
+    lists = ShoppingList.objects.annotate(item_count=Count("items"))
+    return render(request, "comparator/shopping_list_index.html", {"lists": lists, "form": form})
+
+
+def shopping_list_detail(request, pk):
+    shopping_list = get_object_or_404(ShoppingList, pk=pk)
+    form = ShoppingListItemForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        item = form.save(commit=False)
+        item.shopping_list = shopping_list
+        ShoppingListItem.objects.update_or_create(
+            shopping_list=shopping_list,
+            product=item.product,
+            defaults={"quantity": item.quantity, "purchased": item.purchased},
+        )
+        messages.success(request, "Produsul a fost adăugat în listă.")
+        return redirect("comparator:shopping_list_detail", pk=pk)
+    rows = [(item, shopping_recommendation(item)) for item in shopping_list.items.select_related("product")]
+    estimated_total = sum((result["total"] or Decimal("0") for _, result in rows), Decimal("0"))
+    potential_saving = sum((result["saving"] or Decimal("0") for _, result in rows), Decimal("0"))
+    return render(
+        request,
+        "comparator/shopping_list_detail.html",
+        {
+            "shopping_list": shopping_list,
+            "rows": rows,
+            "form": form,
+            "estimated_total": estimated_total,
+            "potential_saving": potential_saving,
+        },
+    )
+
+
+def shopping_list_item_toggle(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    item = get_object_or_404(ShoppingListItem, pk=pk)
+    item.purchased = not item.purchased
+    item.save(update_fields=["purchased"])
+    return redirect("comparator:shopping_list_detail", pk=item.shopping_list_id)
+
+
+def shopping_list_item_delete(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    item = get_object_or_404(ShoppingListItem, pk=pk)
+    list_id = item.shopping_list_id
+    item.delete()
+    return redirect("comparator:shopping_list_detail", pk=list_id)
 
 
 def metro_list(request):
@@ -252,6 +364,30 @@ def metro_scrape_start(request):
     return redirect("comparator:metro_scrape_detail", pk=job.pk)
 
 
+def metro_scrape_mass_start(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    if not settings.METRO_SCRAPER_ENABLED:
+        raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
+    active = MetroScrapeJob.objects.filter(
+        status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
+    ).first()
+    if active:
+        messages.warning(request, "Există deja o scanare activă.")
+        return redirect("comparator:metro_scrape_detail", pk=active.pk)
+    job = MetroScrapeJob.objects.create(start_url=settings.METRO_START_URL)
+    try:
+        launch_mass_catalog_job(job, settings.METRO_STORE_QUERY)
+    except Exception as exc:
+        job.status = MetroScrapeJob.Status.ERROR
+        job.error = str(exc)
+        job.save(update_fields=["status", "error"])
+        messages.error(request, f"Scanarea automată nu a putut porni: {exc}")
+    else:
+        messages.success(request, "Catalogarea masivă rulează în fundal și importă incremental rezultatele.")
+    return redirect("comparator:metro_scrape_detail", pk=job.pk)
+
+
 def metro_scrape_detail(request, pk):
     job = get_object_or_404(MetroScrapeJob, pk=pk)
     rows = job.products.select_related("matched_product")
@@ -259,7 +395,13 @@ def metro_scrape_detail(request, pk):
     return render(
         request,
         "comparator/metro_scrape_detail.html",
-        {"job": job, "rows": rows, "catalog_products": products, "base_units": BaseUnit.choices},
+        {
+            "job": job,
+            "rows": rows,
+            "catalog_products": products,
+            "base_units": BaseUnit.choices,
+            "search_terms": job.terms.all(),
+        },
     )
 
 
@@ -331,7 +473,12 @@ def invoice_create(request):
 def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related("supplier"), pk=pk)
     rows = [(line, line.comparison()) for line in invoice.lines.select_related("matched_product")]
-    return render(request, "comparator/invoice_detail.html", {"invoice": invoice, "rows": rows})
+    formset = InvoiceLineFormSet(queryset=invoice.lines.select_related("matched_product"), prefix="lines")
+    return render(
+        request,
+        "comparator/invoice_detail.html",
+        {"invoice": invoice, "rows": rows, "line_formset": formset},
+    )
 
 
 def _private_file_response(field_file):
@@ -391,6 +538,7 @@ def _save_line(form, invoice=None):
         line.match_score = 100
     line.save()
     metro_offer = sync_metro_offer_from_line(line)
+    sync_supplier_offer_from_line(line)
     if line.matched_product_id and not line.needs_review:
         ProductAlias.objects.update_or_create(
             supplier=line.invoice.supplier,
@@ -403,6 +551,73 @@ def _save_line(form, invoice=None):
         line.invoice.status = Invoice.Status.PROCESSED
     line.invoice.save(update_fields=["status"])
     return line, metro_offer
+
+
+@transaction.atomic
+def invoice_lines_review(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    invoice = get_object_or_404(Invoice, pk=pk)
+    formset = InvoiceLineFormSet(request.POST, queryset=invoice.lines.all(), prefix="lines")
+    if not formset.is_valid():
+        rows = [(line, line.comparison()) for line in invoice.lines.select_related("matched_product")]
+        messages.error(request, "Unele valori nu sunt valide. Corectează câmpurile marcate.")
+        return render(
+            request,
+            "comparator/invoice_detail.html",
+            {"invoice": invoice, "rows": rows, "line_formset": formset},
+            status=400,
+        )
+    saved = 0
+    for form in formset:
+        if not form.instance.pk:
+            continue
+        if form.cleaned_data.get("DELETE"):
+            form.instance.delete()
+            continue
+        _save_line(form)
+        saved += 1
+    messages.success(request, f"Au fost verificate și salvate {saved} linii.")
+    return redirect("comparator:invoice_detail", pk=invoice.pk)
+
+
+def barcode_scanner(request):
+    products = Product.objects.filter(active=True).only("id", "name", "brand", "ean").order_by("name")
+    return render(request, "comparator/barcode_scanner.html", {"products": products})
+
+
+def barcode_lookup(request):
+    code = normalize_barcode(request.GET.get("code"))
+    if not code:
+        return JsonResponse({"found": False, "error": "Cod lipsă."}, status=400)
+    product = Product.objects.filter(ean=code, active=True).first()
+    if not product:
+        code_row = ProductCode.objects.select_related("product").filter(
+            kind=ProductCode.Kind.EAN, code=code, supplier__isnull=True, product__active=True
+        ).first()
+        product = code_row.product if code_row else None
+    if not product:
+        return JsonResponse({"found": False, "code": code})
+    return JsonResponse(
+        {"found": True, "code": code, "product": {"id": product.pk, "name": product.name, "brand": product.brand}}
+    )
+
+
+def barcode_assign(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    code = normalize_barcode(request.POST.get("code"))
+    product = get_object_or_404(Product, pk=request.POST.get("product"), active=True)
+    if not is_valid_gtin(code):
+        messages.error(request, "Cod EAN/GTIN invalid. Verifică scanarea.")
+    else:
+        try:
+            assign_ean(product, code)
+        except Exception as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f"EAN {code} a fost asociat produsului {product.name}.")
+    return redirect("comparator:barcode_scanner")
 
 
 def line_create(request, pk):

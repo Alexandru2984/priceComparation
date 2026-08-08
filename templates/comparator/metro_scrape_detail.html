@@ -2,13 +2,14 @@
 {% block title %}Scanare METRO #{{ job.pk }} · PriceMatch{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><p class="eyebrow">Scanare #{{ job.pk }}</p><h1>Produse capturate</h1><p><span class="badge {{ job.status|lower }}">{{ job.get_status_display }}</span> · {{ job.captured_count }} capturate · {{ job.imported_count }} importate</p></div>
+  <div><p class="eyebrow">Scanare #{{ job.pk }}</p><h1>Produse capturate</h1><p><span class="badge {{ job.status|lower }}">{{ job.get_status_display }}</span> · {{ job.captured_count }} capturate · {{ job.imported_count }} importate{% if job.total_queries %} · {{ job.completed_queries }}/{{ job.total_queries }} căutări{% endif %}</p></div>
   <a class="button" href="{% url 'comparator:metro_scrape_list' %}">Toate scanările</a>
 </div>
 {% if job.error %}<div class="message error">{{ job.error }}</div>{% endif %}
 {% if job.status == 'PENDING' or job.status == 'RUNNING' %}
   <section class="sync-banner" data-auto-refresh><div><strong>Browserul este activ</strong><span>Navighează în Chrome și folosește panoul verde. Această pagină se actualizează automat.</span></div></section>
 {% endif %}
+{% if search_terms %}<details class="panel term-progress"><summary>Progresul căutărilor automate</summary><div class="term-grid">{% for term in search_terms %}<span class="term {{ term.status|lower }}">{{ term.term }} <small>{{ term.found_count }} rezultate{% if term.attempts > 1 %} · {{ term.attempts }} încercări{% endif %}</small></span>{% endfor %}</div></details>{% endif %}
 <form method="post" action="{% url 'comparator:metro_scrape_import' job.pk %}">{% csrf_token %}
 <section class="panel table-wrap scrape-table">
   <table><thead><tr><th><input type="checkbox" id="select-all" checked></th><th>Denumire</th><th>Categorie</th><th>Ambalare</th><th>Preț cu TVA</th><th>Normalizare</th><th>Magazin</th><th>Asociere</th><th>Stare</th></tr></thead>

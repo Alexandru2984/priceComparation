@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Alerte · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Monitorizare</p><h1>Alerte de preț</h1><p>Alerta este declanșată când prețul METRO normalizat ajunge sub pragul ales.</p></div></div>
+<div class="grid two">
+  <section class="panel form-panel"><h2>Alertă nouă</h2><form method="post">{% csrf_token %}{% include "comparator/partials/form_fields.html" %}<div class="form-actions"><button class="button primary">Salvează alerta</button></div></form></section>
+  <section class="panel"><div class="list">{% for alert in alerts %}<div class="list-row"><div><strong>{{ alert.product.name }}</strong><small>Prag {{ alert.target_price|floatformat:2 }} lei/{{ alert.product.base_unit }}{% if alert.current_offer %} · acum {{ alert.current_offer.price_per_base_unit|floatformat:2 }}{% endif %}</small></div><div class="actions">{% if alert.is_triggered %}<span class="badge processed">DECLANȘATĂ</span>{% elif alert.active %}<span class="badge new">În așteptare</span>{% else %}<span class="badge">Inactivă</span>{% endif %}<form method="post" action="{% url 'comparator:price_alert_delete' alert.pk %}">{% csrf_token %}<button class="link danger">Șterge</button></form></div></div>{% empty %}<div class="empty">Nu ai configurat alerte.</div>{% endfor %}</div></section>
+</div>
+{% endblock %}
