@@ -19,7 +19,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
-from comparator.models import BaseUnit, MetroOffer, MetroScrapeJob, MetroScrapedProduct, Product
+from comparator.models import (
+    BaseUnit,
+    MetroOffer,
+    MetroScrapeJob,
+    MetroScrapedProduct,
+    MetroScrapeTerm,
+    Product,
+    ProductCode,
+)
 
 from .matching import suggest_product
 
@@ -340,8 +348,21 @@ def capture_search_terms(
     progress=None,
     store_query="",
     term_categories=None,
+    retries=3,
+    refresh_completed=False,
 ):
-    """Capture a bounded set of relevant results for each METRO search term."""
+    """Capture search results with persistent per-term checkpoints and bounded retries."""
+    term_categories = term_categories or {}
+    for term in dict.fromkeys(terms):
+        MetroScrapeTerm.objects.get_or_create(
+            job=job,
+            term=term,
+            defaults={"category": term_categories.get(term, "")},
+        )
+    job.total_queries = job.terms.count()
+    job.completed_queries = job.terms.filter(status=MetroScrapeTerm.Status.COMPLETED).count()
+    job.save(update_fields=["total_queries", "completed_queries"])
+
     driver = create_metro_driver(headless=headless)
     try:
         if store_query:
@@ -351,30 +372,63 @@ def capture_search_terms(
             )
             dismiss_cookie_banner(driver)
             selected_store = select_metro_store(driver, store_query)
+            job.store_name = selected_store[:120]
+            job.save(update_fields=["store_name"])
             if progress:
-                progress(0, len(terms), f"Magazin: {selected_store}", job.captured_count)
+                progress(job.completed_queries, job.total_queries, f"Magazin: {selected_store}", job.captured_count)
         origin = urlparse(job.start_url)
         search_base = f"{origin.scheme}://{origin.netloc}/shop/search"
-        for index, term in enumerate(terms, start=1):
-            driver.get(f"{search_base}?{urlencode({'q': term})}")
-            WebDriverWait(driver, 20).until(
-                lambda d: d.execute_script("return document.readyState") == "complete"
-            )
-            dismiss_cookie_banner(driver)
-            WebDriverWait(driver, 20).until(
-                lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
-                or "nu am gasit" in d.find_element(By.TAG_NAME, "body").text.lower()
-            )
-            raw_rows = driver.execute_script(CARD_DATA_SCRIPT)[:limit_per_search]
-            normalized_rows = normalize_dom_rows(raw_rows)
-            category = (term_categories or {}).get(term, "")
-            for row in normalized_rows:
-                row["category"] = category
-            store_captured_rows(job, normalized_rows)
+        term_rows = job.terms.all()
+        if not refresh_completed:
+            term_rows = term_rows.exclude(status=MetroScrapeTerm.Status.COMPLETED)
+        for term_row in term_rows:
+            last_error = None
+            for attempt in range(max(1, retries)):
+                term_row.status = MetroScrapeTerm.Status.RUNNING
+                term_row.attempts += 1
+                term_row.started_at = timezone.now()
+                term_row.error = ""
+                term_row.save(update_fields=["status", "attempts", "started_at", "error"])
+                try:
+                    driver.get(f"{search_base}?{urlencode({'q': term_row.term})}")
+                    WebDriverWait(driver, 20).until(
+                        lambda d: d.execute_script("return document.readyState") == "complete"
+                    )
+                    dismiss_cookie_banner(driver)
+                    WebDriverWait(driver, 20).until(
+                        lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
+                        or "nu am gasit" in _plain_text(d.find_element(By.TAG_NAME, "body").text)
+                    )
+                    _load_all_visible_cards(driver)
+                    raw_rows = driver.execute_script(CARD_DATA_SCRIPT)
+                    if limit_per_search:
+                        raw_rows = raw_rows[:limit_per_search]
+                    normalized_rows = normalize_dom_rows(raw_rows)
+                    for row in normalized_rows:
+                        row["category"] = term_row.category
+                    store_captured_rows(job, normalized_rows)
+                    term_row.status = MetroScrapeTerm.Status.COMPLETED
+                    term_row.found_count = len(normalized_rows)
+                    term_row.finished_at = timezone.now()
+                    term_row.error = ""
+                    term_row.save(
+                        update_fields=["status", "found_count", "finished_at", "error"]
+                    )
+                    break
+                except (WebDriverException, TimeoutError) as exc:
+                    last_error = exc
+                    term_row.status = MetroScrapeTerm.Status.ERROR
+                    term_row.error = str(exc)[:2000]
+                    term_row.finished_at = timezone.now()
+                    term_row.save(update_fields=["status", "error", "finished_at"])
+                    if attempt + 1 < max(1, retries):
+                        time.sleep(min(2 ** attempt, 8))
             job.current_url = driver.current_url[:1000]
-            job.save(update_fields=["current_url"])
+            job.completed_queries = job.terms.filter(status=MetroScrapeTerm.Status.COMPLETED).count()
+            job.save(update_fields=["current_url", "completed_queries"])
             if progress:
-                progress(index, len(terms), term, job.captured_count)
+                label = term_row.term if not last_error or term_row.status == MetroScrapeTerm.Status.COMPLETED else f"{term_row.term} (eroare)"
+                progress(job.completed_queries, job.total_queries, label, job.captured_count)
             time.sleep(delay_seconds)
         return job.captured_count
     finally:
@@ -384,7 +438,13 @@ def capture_search_terms(
 @transaction.atomic
 def store_captured_rows(job, rows):
     for data in rows:
-        product, score = suggest_product(data["name"], base_unit=data["base_unit"])
+        identity = ProductCode.objects.select_related("product").filter(
+            kind=ProductCode.Kind.METRO, code=data["external_id"], supplier__isnull=True
+        ).first()
+        if identity:
+            product, score = identity.product, 100
+        else:
+            product, score = suggest_product(data["name"], base_unit=data["base_unit"])
         # METRO variants often share only a package size; fuzzy scores around 85
         # are not safe enough to merge catalog rows without human confirmation.
         if score < 100:
@@ -471,13 +531,43 @@ def launch_scrape_job(job):
         )
 
 
+def launch_mass_catalog_job(job, store_query=""):
+    log_dir = Path(settings.MEDIA_ROOT) / "metro_scraper"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    arguments = [
+        sys.executable,
+        str(Path(settings.BASE_DIR) / "manage.py"),
+        "metro_seed_catalog",
+        "--resume",
+        str(job.pk),
+        "--delay",
+        "0.8",
+        "--retries",
+        "3",
+    ]
+    if store_query:
+        arguments.extend(["--store", store_query])
+    with (log_dir / f"mass-job-{job.pk}.log").open("ab") as log_file:
+        subprocess.Popen(  # nosec B603
+            arguments,
+            cwd=settings.BASE_DIR,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+
 @transaction.atomic
 def import_scraped_rows(rows):
     imported = 0
     touched_jobs = set()
     today = timezone.localdate()
     for row in rows.select_related("job", "matched_product").filter(imported=False):
-        product = row.matched_product
+        identity = ProductCode.objects.select_related("product").filter(
+            kind=ProductCode.Kind.METRO, code=row.external_id, supplier__isnull=True
+        ).first()
+        product = identity.product if identity else row.matched_product
         if not product:
             product, _ = Product.objects.get_or_create(
                 name=row.name,
@@ -488,6 +578,12 @@ def import_scraped_rows(rows):
         if row.category and product.category in {"", "Altele"}:
             product.category = row.category
             product.save(update_fields=["category"])
+        ProductCode.objects.update_or_create(
+            kind=ProductCode.Kind.METRO,
+            code=row.external_id,
+            supplier=None,
+            defaults={"product": product},
+        )
         source = f"Selenium {row.store_name or 'METRO'}"[:120]
         MetroOffer.objects.update_or_create(
             product=product,
