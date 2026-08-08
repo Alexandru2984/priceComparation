@@ -1,9 +1,9 @@
 from django.db import transaction
 
-from comparator.models import Invoice, InvoiceLine, MetroOffer
+from comparator.models import Invoice, InvoiceLine, MetroOffer, ProductCode, SupplierOffer
 
 from .matching import apply_match
-from .ocr import extract_text
+from .ocr import extract_text, merge_ocr_pages
 from .parser import parse_invoice_text
 
 
@@ -24,7 +24,7 @@ def process_invoice(invoice, force_ocr=False):
             if page:
                 page.ocr_text = text
                 page.save(update_fields=["ocr_text"])
-        invoice.ocr_text = "\n\n--- URMĂTOAREA IMAGINE ---\n\n".join(chunks)
+        invoice.ocr_text = merge_ocr_pages(chunks)
 
     products, parser_name, parser_warning = parse_invoice_text(invoice.ocr_text)
     if not products:
@@ -64,6 +64,30 @@ def sync_metro_offer_from_line(line):
             "active": True,
         },
     )
+    return offer
+
+
+def sync_supplier_offer_from_line(line):
+    if line.needs_review or not line.matched_product_id:
+        SupplierOffer.objects.filter(invoice_line=line).delete()
+        return None
+    offer, _ = SupplierOffer.objects.update_or_create(
+        invoice_line=line,
+        defaults={
+            "supplier": line.invoice.supplier,
+            "product": line.matched_product,
+            "price_per_base_unit": line.price_per_base_unit,
+            "base_unit": line.base_unit,
+            "valid_from": line.invoice.issued_at,
+        },
+    )
+    if line.ean:
+        ProductCode.objects.update_or_create(
+            supplier=line.invoice.supplier,
+            kind=ProductCode.Kind.SUPPLIER,
+            code=line.ean.strip().upper(),
+            defaults={"product": line.matched_product},
+        )
     return offer
 
 

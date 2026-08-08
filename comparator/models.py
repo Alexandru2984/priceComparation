@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 from .catalog import CATEGORY_CHOICES
 from .validators import validate_document_upload
@@ -70,6 +71,39 @@ class Product(models.Model):
         )
 
 
+class ProductCode(models.Model):
+    class Kind(models.TextChoices):
+        EAN = "EAN", "EAN / cod de bare"
+        METRO = "METRO", "Cod METRO"
+        SUPPLIER = "SUPPLIER", "Cod furnizor"
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="codes")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    code = models.CharField(max_length=80, db_index=True)
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.CASCADE, null=True, blank=True, related_name="product_codes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["kind", "code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kind", "code"],
+                condition=Q(supplier__isnull=True),
+                name="unique_global_product_code",
+            ),
+            models.UniqueConstraint(
+                fields=["supplier", "kind", "code"],
+                condition=Q(supplier__isnull=False),
+                name="unique_supplier_product_code",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.code} → {self.product.name}"
+
+
 class MetroOffer(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="metro_offers")
     units_per_package = models.DecimalField(
@@ -118,6 +152,9 @@ class MetroScrapeJob(models.Model):
     start_url = models.URLField(max_length=500)
     captured_count = models.PositiveIntegerField(default=0)
     imported_count = models.PositiveIntegerField(default=0)
+    total_queries = models.PositiveIntegerField(default=0)
+    completed_queries = models.PositiveIntegerField(default=0)
+    store_name = models.CharField(max_length=120, blank=True)
     current_url = models.URLField(max_length=1000, blank=True)
     error = models.TextField(blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
@@ -129,6 +166,31 @@ class MetroScrapeJob(models.Model):
 
     def __str__(self):
         return f"Scanare METRO #{self.pk} · {self.get_status_display()}"
+
+
+class MetroScrapeTerm(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "În așteptare"
+        RUNNING = "RUNNING", "În curs"
+        COMPLETED = "COMPLETED", "Finalizat"
+        ERROR = "ERROR", "Eroare"
+
+    job = models.ForeignKey(MetroScrapeJob, on_delete=models.CASCADE, related_name="terms")
+    term = models.CharField(max_length=160)
+    category = models.CharField(max_length=80, choices=CATEGORY_CHOICES, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    found_count = models.PositiveIntegerField(default=0)
+    error = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["job", "term"], name="unique_term_per_metro_job")]
+
+    def __str__(self):
+        return f"{self.term} · {self.get_status_display()}"
 
 
 class MetroScrapedProduct(models.Model):
@@ -202,6 +264,14 @@ class Invoice(models.Model):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
     processing_error = models.TextField(blank=True)
     notes = models.TextField("observații", blank=True)
+    transport_gross = models.DecimalField(
+        "transport cu TVA", max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    document_discount_gross = models.DecimalField(
+        "reducere document", max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -211,6 +281,22 @@ class Invoice(models.Model):
 
     def __str__(self):
         return f"{self.supplier} · {self.number or self.issued_at}"
+
+    @property
+    def merchandise_total_gross(self):
+        return sum((line.merchandise_total_gross for line in self.lines.all()), Decimal("0"))
+
+    def allocated_transport(self, line):
+        total = self.merchandise_total_gross
+        if total <= 0 or self.transport_gross <= 0:
+            return Decimal("0")
+        return self.transport_gross * line.merchandise_total_gross / total
+
+    def allocated_document_discount(self, line):
+        total = self.merchandise_total_gross
+        if total <= 0 or self.document_discount_gross <= 0:
+            return Decimal("0")
+        return self.document_discount_gross * line.merchandise_total_gross / total
 
 
 class DocumentPage(models.Model):
@@ -230,6 +316,7 @@ class DocumentPage(models.Model):
 class InvoiceLine(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
     original_name = models.CharField("denumire de pe factură", max_length=240)
+    ean = models.CharField("EAN / cod produs", max_length=80, blank=True, db_index=True)
     quantity = models.DecimalField(
         "număr pachete/bucăți", max_digits=10, decimal_places=3, default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
@@ -249,6 +336,14 @@ class InvoiceLine(models.Model):
     )
     vat_rate = models.DecimalField("TVA %", max_digits=5, decimal_places=2, default=0)
     line_total_gross = models.DecimalField("total linie cu TVA", max_digits=12, decimal_places=2, null=True, blank=True)
+    discount_gross = models.DecimalField(
+        "reducere linie", max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    deposit_gross = models.DecimalField(
+        "SGR/garanție", max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
     matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines")
     match_score = models.PositiveSmallIntegerField(default=0)
     needs_review = models.BooleanField(default=True)
@@ -265,12 +360,29 @@ class InvoiceLine(models.Model):
 
     @property
     def price_per_base_unit(self):
-        package_base_quantity = self.units_per_package * self.unit_size
-        return self.unit_price_gross / package_base_quantity if package_base_quantity else Decimal("0")
+        return self.landed_total_gross / self.total_base_quantity if self.total_base_quantity else Decimal("0")
 
     @property
     def calculated_line_total(self):
         return self.line_total_gross if self.line_total_gross is not None else self.quantity * self.unit_price_gross
+
+    @property
+    def merchandise_total_gross(self):
+        return max(self.calculated_line_total - self.discount_gross - self.deposit_gross, Decimal("0"))
+
+    @property
+    def landed_total_gross(self):
+        return max(
+            self.merchandise_total_gross
+            + self.invoice.allocated_transport(self)
+            - self.invoice.allocated_document_discount(self),
+            Decimal("0"),
+        )
+
+    @property
+    def merchandise_total_net(self):
+        divisor = Decimal("1") + self.vat_rate / Decimal("100")
+        return self.merchandise_total_gross / divisor if divisor else self.merchandise_total_gross
 
     def best_metro_offer(self):
         if not self.matched_product_id:
@@ -304,3 +416,76 @@ class InvoiceLine(models.Model):
 
     def __str__(self):
         return self.original_name
+
+
+class SupplierOffer(models.Model):
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="offers")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="supplier_offers")
+    invoice_line = models.OneToOneField(
+        InvoiceLine, on_delete=models.CASCADE, related_name="supplier_offer"
+    )
+    price_per_base_unit = models.DecimalField(max_digits=14, decimal_places=4)
+    base_unit = models.CharField(max_length=3, choices=BaseUnit.choices)
+    valid_from = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-valid_from", "price_per_base_unit"]
+        indexes = [models.Index(fields=["product", "supplier", "-valid_from"])]
+
+    def __str__(self):
+        return f"{self.product} · {self.supplier}: {self.price_per_base_unit}"
+
+
+class PriceAlert(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="price_alerts")
+    target_price = models.DecimalField(
+        "prag lei/unitate", max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    active = models.BooleanField(default=True)
+    note = models.CharField(max_length=180, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["product__name"]
+
+    @property
+    def current_offer(self):
+        return self.product.current_metro_offer()
+
+    @property
+    def is_triggered(self):
+        offer = self.current_offer
+        return bool(offer and offer.price_per_base_unit <= self.target_price)
+
+
+class ShoppingList(models.Model):
+    name = models.CharField(max_length=180)
+    created_at = models.DateTimeField(auto_now_add=True)
+    archived = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+
+class ShoppingListItem(models.Model):
+    shopping_list = models.ForeignKey(ShoppingList, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="shopping_items")
+    quantity = models.DecimalField(
+        "cantitate necesară", max_digits=12, decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+    )
+    purchased = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["product__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["shopping_list", "product"], name="unique_product_per_shopping_list")
+        ]
+
+    def __str__(self):
+        return f"{self.product} × {self.quantity}"

@@ -2,9 +2,10 @@ import re
 import unicodedata
 
 from django.conf import settings
+from django.db import models
 from rapidfuzz import fuzz
 
-from comparator.models import Product, ProductAlias
+from comparator.models import Product, ProductAlias, ProductCode
 
 
 STOPWORDS = {
@@ -20,7 +21,18 @@ def normalize_name(value):
     return " ".join(token for token in tokens if token not in STOPWORDS)
 
 
-def suggest_product(name, supplier=None, base_unit=None):
+def suggest_product(name, supplier=None, base_unit=None, code=""):
+    code = (code or "").strip().upper()
+    if code:
+        direct = Product.objects.filter(ean__iexact=code, active=True).first()
+        if direct and (not base_unit or direct.base_unit == base_unit):
+            return direct, 100
+        codes = ProductCode.objects.select_related("product").filter(code__iexact=code, product__active=True)
+        if supplier:
+            codes = codes.filter(models.Q(supplier=supplier) | models.Q(supplier__isnull=True))
+        direct_code = codes.first()
+        if direct_code and (not base_unit or direct_code.product.base_unit == base_unit):
+            return direct_code.product, 100
     normalized = normalize_name(name)
     if not normalized:
         return None, 0
@@ -46,7 +58,9 @@ def suggest_product(name, supplier=None, base_unit=None):
 
 
 def apply_match(line):
-    product, score = suggest_product(line.original_name, line.invoice.supplier, line.base_unit)
+    product, score = suggest_product(
+        line.original_name, line.invoice.supplier, line.base_unit, getattr(line, "ean", "")
+    )
     line.match_score = score
     if product and score >= settings.MATCH_REVIEW_THRESHOLD:
         line.matched_product = product

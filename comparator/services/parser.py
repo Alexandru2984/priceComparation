@@ -17,6 +17,7 @@ PRODUCT_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "original_name": {"type": "string"},
+                    "ean": {"type": "string"},
                     "quantity": {"type": "number"},
                     "units_per_package": {"type": "number"},
                     "unit_size": {"type": "number"},
@@ -24,10 +25,12 @@ PRODUCT_SCHEMA = {
                     "unit_price_gross": {"type": "number"},
                     "vat_rate": {"type": "number"},
                     "line_total_gross": {"type": ["number", "null"]},
+                    "discount_gross": {"type": "number"},
+                    "deposit_gross": {"type": "number"},
                 },
                 "required": [
-                    "original_name", "quantity", "units_per_package", "unit_size", "base_unit",
-                    "unit_price_gross", "vat_rate", "line_total_gross",
+                    "original_name", "ean", "quantity", "units_per_package", "unit_size", "base_unit",
+                    "unit_price_gross", "vat_rate", "line_total_gross", "discount_gross", "deposit_gross",
                 ],
             },
         }
@@ -48,6 +51,8 @@ def parse_with_ollama(text):
 Nu inventa valori. quantity este numărul de pachete cumpărate; units_per_package este numărul de
 bucăți dintr-un bax; unit_size este cantitatea unei bucăți exprimată în KG, L sau 1 pentru BUC.
 unit_price_gross este prețul cu TVA al unui pachet. Dacă nu există TVA, folosește 0.
+ean este codul de bare sau codul produsului numai dacă apare explicit. Separă reducerea și garanția
+SGR în discount_gross și deposit_gross; nu le inventa și nu le trata ca produse când apar clar lângă o linie.
 În expresia «10 bucăți x 7,90 RON», 10 este quantity, 7,90 este unit_price_gross,
 iar units_per_package este 1. Folosește o valoare mai mare de 1 pentru units_per_package doar dacă
 textul menționează explicit un bax sau o ambalare de tip «6 x 2 L».
@@ -121,6 +126,7 @@ def parse_heuristic(text):
             products.append(
                 {
                     "original_name": name,
+                    "ean": "",
                     "quantity": quantity,
                     "units_per_package": Decimal("1"),
                     "unit_size": size,
@@ -128,6 +134,8 @@ def parse_heuristic(text):
                     "unit_price_gross": price,
                     "vat_rate": Decimal("0"),
                     "line_total_gross": _decimal(match.groupdict().get("total")) if match.groupdict().get("total") else quantity * price,
+                    "discount_gross": Decimal("0"),
+                    "deposit_gross": Decimal("0"),
                 }
             )
             break
@@ -137,6 +145,7 @@ def parse_heuristic(text):
 def normalize_product_data(item):
     return {
         "original_name": str(item.get("original_name", "")).strip()[:240],
+        "ean": str(item.get("ean", "")).strip()[:80],
         "quantity": max(_decimal(item.get("quantity"), "1"), Decimal("0.001")),
         "units_per_package": max(_decimal(item.get("units_per_package"), "1"), Decimal("0.001")),
         "unit_size": max(_decimal(item.get("unit_size"), "1"), Decimal("0.001")),
@@ -144,6 +153,8 @@ def normalize_product_data(item):
         "unit_price_gross": max(_decimal(item.get("unit_price_gross")), Decimal("0")),
         "vat_rate": max(_decimal(item.get("vat_rate")), Decimal("0")),
         "line_total_gross": _decimal(item["line_total_gross"]) if item.get("line_total_gross") is not None else None,
+        "discount_gross": max(_decimal(item.get("discount_gross")), Decimal("0")),
+        "deposit_gross": max(_decimal(item.get("deposit_gross")), Decimal("0")),
     }
 
 
