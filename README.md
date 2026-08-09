@@ -20,6 +20,7 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - liste de cumpărături care recomandă cea mai ieftină sursă recentă;
 - scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
 - backup comprimat, verificat SHA-256 și restaurare explicită.
+- paginare pentru cataloagele mari și căutare locală autocomplete, fără încărcarea miilor de opțiuni în HTML.
 
 ## Instalare rapidă pe Ubuntu/Debian
 
@@ -199,6 +200,11 @@ este necesar HTTPS. Chrome pe Android oferă suportul cel mai bun. Introducerea 
 
 Codul intern METRO este păstrat separat de EAN. Astfel, schimbarea denumirii comerciale de pe site nu mai
 creează automat un produs duplicat.
+
+Selectarea produselor din facturi, alerte, liste și prețuri manuale folosește căutarea locală. Scrie cel
+puțin două caractere din denumire, marcă, EAN sau codul furnizorului; sunt returnate maximum 20 de rezultate.
+Catalogul și istoricul METRO afișează câte 100 de rânduri pe pagină, iar exporturile continuă să includă
+toate produsele care corespund filtrelor.
 
 ### Istoric, alerte și liste de cumpărături
 
