@@ -78,6 +78,14 @@ Lista de documente poate fi căutată după furnizor ori număr și filtrată du
 furnizor și aceeași dată, un număr de document nu poate fi introdus de două ori, inclusiv cu alte majuscule.
 Bonurile fără număr rămân permise.
 
+Din pagina unui document poți folosi `Editează documentul` pentru total, transport, reducere și observații.
+După ce există linii, furnizorul, tipul, numărul și data sunt blocate ca să nu rupă istoricul de preț;
+corectează aceste câmpuri înainte de procesare. Reprocesarea OCR cere o confirmare separată deoarece
+înlocuiește liniile și corecțiile existente.
+
+`Șterge documentul…` cere tastarea explicită a cuvântului `STERGE`. Operația elimină liniile, fișierele
+încărcate și ofertele METRO derivate direct din document, fără să șteargă produsele din catalog.
+
 Transportul și reducerea generală se completează pe document. Reducerea unei linii și garanția SGR se
 completează separat; SGR nu este tratată ca preț al mărfii. Toate comparațiile rămân pe valori cu TVA.
 
