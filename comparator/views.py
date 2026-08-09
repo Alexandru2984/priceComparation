@@ -581,8 +581,36 @@ def metro_scrape_import(request, pk):
 
 
 def invoice_list(request):
-    invoices = Invoice.objects.select_related("supplier").annotate(line_count=Count("lines"))
-    return render(request, "comparator/invoice_list.html", {"invoices": invoices})
+    query = request.GET.get("q", "").strip()[:100]
+    selected_status = request.GET.get("status", "").strip()
+    selected_type = request.GET.get("type", "").strip()
+    invoices = Invoice.objects.select_related("supplier").prefetch_related("lines").annotate(line_count=Count("lines"))
+    if query:
+        invoices = invoices.filter(Q(supplier__name__icontains=query) | Q(number__icontains=query))
+    if selected_status in Invoice.Status.values:
+        invoices = invoices.filter(status=selected_status)
+    else:
+        selected_status = ""
+    if selected_type in Invoice.DocumentType.values:
+        invoices = invoices.filter(document_type=selected_type)
+    else:
+        selected_type = ""
+    invoices = invoices.order_by("-issued_at", "-created_at")
+    page_obj = Paginator(invoices, 100).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/invoice_list.html",
+        {
+            "invoices": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
+            "query": query,
+            "selected_status": selected_status,
+            "selected_type": selected_type,
+            "status_choices": Invoice.Status.choices,
+            "type_choices": Invoice.DocumentType.choices,
+        },
+    )
 
 
 def invoice_create(request):
@@ -608,8 +636,11 @@ def invoice_create(request):
 
 
 def invoice_detail(request, pk):
-    invoice = get_object_or_404(Invoice.objects.select_related("supplier"), pk=pk)
-    rows = [(line, line.comparison()) for line in invoice.lines.select_related("matched_product")]
+    invoice = get_object_or_404(Invoice.objects.select_related("supplier").prefetch_related("lines"), pk=pk)
+    rows = [
+        (line, line.comparison())
+        for line in invoice.lines.select_related("matched_product").prefetch_related("matched_product__metro_offers")
+    ]
     formset = InvoiceLineFormSet(queryset=invoice.lines.select_related("matched_product"), prefix="lines")
     return render(
         request,
@@ -697,7 +728,12 @@ def invoice_lines_review(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     formset = InvoiceLineFormSet(request.POST, queryset=invoice.lines.all(), prefix="lines")
     if not formset.is_valid():
-        rows = [(line, line.comparison()) for line in invoice.lines.select_related("matched_product")]
+        rows = [
+            (line, line.comparison())
+            for line in invoice.lines.select_related("matched_product").prefetch_related(
+                "matched_product__metro_offers"
+            )
+        ]
         messages.error(request, "Unele valori nu sunt valide. Corectează câmpurile marcate.")
         return render(
             request,

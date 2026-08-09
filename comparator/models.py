@@ -1,9 +1,10 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 
 from .catalog import CATEGORY_CHOICES
 from .validators import validate_document_upload
@@ -274,12 +275,30 @@ class Invoice(models.Model):
         "reducere document", max_digits=12, decimal_places=2, default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
+    document_total_gross = models.DecimalField(
+        "total document cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Totalul final tipărit pe factură sau bon, folosit pentru verificare.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-issued_at", "-created_at"]
         verbose_name = "document de achiziție"
         verbose_name_plural = "documente de achiziție"
+        constraints = [
+            models.UniqueConstraint(
+                Lower("number"),
+                "supplier",
+                "issued_at",
+                condition=~Q(number=""),
+                name="unique_supplier_document_number_date",
+            )
+        ]
 
     def __str__(self):
         return f"{self.supplier} · {self.number or self.issued_at}"
@@ -299,6 +318,31 @@ class Invoice(models.Model):
         if total <= 0 or self.document_discount_gross <= 0:
             return Decimal("0")
         return self.document_discount_gross * line.merchandise_total_gross / total
+
+    @property
+    def deposit_total_gross(self):
+        return sum((line.deposit_gross for line in self.lines.all()), Decimal("0"))
+
+    @property
+    def calculated_document_total_gross(self):
+        total = (
+            self.merchandise_total_gross
+            + self.deposit_total_gross
+            + self.transport_gross
+            - self.document_discount_gross
+        )
+        return max(total, Decimal("0"))
+
+    @property
+    def reconciliation_difference(self):
+        if self.document_total_gross is None:
+            return None
+        return self.calculated_document_total_gross - self.document_total_gross
+
+    @property
+    def is_reconciled(self):
+        difference = self.reconciliation_difference
+        return difference is not None and abs(difference) <= Decimal("0.05")
 
 
 class DocumentPage(models.Model):
@@ -336,8 +380,21 @@ class InvoiceLine(models.Model):
         "preț pachet/bucată cu TVA", max_digits=12, decimal_places=2,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    vat_rate = models.DecimalField("TVA %", max_digits=5, decimal_places=2, default=0)
-    line_total_gross = models.DecimalField("total linie cu TVA", max_digits=12, decimal_places=2, null=True, blank=True)
+    vat_rate = models.DecimalField(
+        "TVA %",
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+    )
+    line_total_gross = models.DecimalField(
+        "total linie cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
     discount_gross = models.DecimalField(
         "reducere linie", max_digits=12, decimal_places=2, default=0,
         validators=[MinValueValidator(Decimal("0"))],
@@ -415,6 +472,20 @@ class InvoiceLine(models.Model):
             "total_impact": total_impact,
             "status": status,
         }
+
+    @property
+    def data_warnings(self):
+        warnings = []
+        expected_total = self.quantity * self.unit_price_gross
+        if self.line_total_gross is not None and abs(self.line_total_gross - expected_total) > Decimal("0.05"):
+            warnings.append(
+                f"Totalul liniei ({self.line_total_gross:.2f}) diferă de cantitate × preț ({expected_total:.2f})."
+            )
+        if self.discount_gross + self.deposit_gross > self.calculated_line_total:
+            warnings.append("Reducerea și SGR depășesc totalul brut al liniei.")
+        if self.vat_rate not in {Decimal(value) for value in (0, 5, 9, 11, 19, 20, 21, 24)}:
+            warnings.append(f"Cota TVA de {self.vat_rate}% este neobișnuită și trebuie verificată.")
+        return warnings
 
     def __str__(self):
         return self.original_name

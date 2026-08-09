@@ -2,8 +2,16 @@
 {% block title %}Documente · PriceMatch{% endblock %}
 {% block content %}
 <div class="page-head"><div><p class="eyebrow">Achiziții</p><h1>Facturi și bonuri</h1></div><a class="button primary" href="{% url 'comparator:invoice_create' %}">+ Document</a></div>
+<form class="search document-filters" method="get">
+  <input type="search" name="q" value="{{ query }}" placeholder="Furnizor sau număr document">
+  <select name="type"><option value="">Toate tipurile</option>{% for value, label in type_choices %}<option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <select name="status"><option value="">Toate statusurile</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button class="button">Filtrează</button>
+  {% if query or selected_type or selected_status %}<a class="button" href="{% url 'comparator:invoice_list' %}">Resetează</a>{% endif %}
+</form>
 <section class="panel table-wrap">
-  <table><thead><tr><th>Furnizor</th><th>Tip</th><th>Document</th><th>Data</th><th>Produse</th><th>Status</th><th></th></tr></thead>
-  <tbody>{% for invoice in invoices %}<tr><td><strong>{{ invoice.supplier }}</strong></td><td>{{ invoice.get_document_type_display }}</td><td>{{ invoice.number|default:"Fără număr" }}</td><td>{{ invoice.issued_at|date:"d.m.Y" }}</td><td>{{ invoice.line_count }}</td><td><span class="badge {{ invoice.status|lower }}">{{ invoice.get_status_display }}</span></td><td><a href="{% url 'comparator:invoice_detail' invoice.pk %}">Deschide →</a></td></tr>{% empty %}<tr><td colspan="7" class="empty">Nicio factură sau bon încă.</td></tr>{% endfor %}</tbody></table>
+  <table><thead><tr><th>Furnizor</th><th>Tip</th><th>Document</th><th>Data</th><th>Produse</th><th>Total</th><th>Status</th><th></th></tr></thead>
+  <tbody>{% for invoice in invoices %}<tr><td><strong>{{ invoice.supplier }}</strong></td><td>{{ invoice.get_document_type_display }}</td><td>{{ invoice.number|default:"Fără număr" }}</td><td>{{ invoice.issued_at|date:"d.m.Y" }}</td><td>{{ invoice.line_count }}</td><td>{% if invoice.document_total_gross != None %}<strong>{{ invoice.document_total_gross|floatformat:2 }} lei</strong>{% if invoice.is_reconciled %}<small class="reconciled">Reconciliat</small>{% else %}<small class="anomaly">Diferență {{ invoice.reconciliation_difference|floatformat:2 }} lei</small>{% endif %}{% else %}<span class="muted">Neintrodus</span>{% endif %}</td><td><span class="badge {{ invoice.status|lower }}">{{ invoice.get_status_display }}</span></td><td><a href="{% url 'comparator:invoice_detail' invoice.pk %}">Deschide →</a></td></tr>{% empty %}<tr><td colspan="8" class="empty">Niciun document nu corespunde filtrelor.</td></tr>{% endfor %}</tbody></table>
 </section>
+{% if page_obj.paginator.num_pages > 1 %}<nav class="pagination">{% if page_obj.has_previous %}<a href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.previous_page_number }}">← Înapoi</a>{% endif %}<span>Pagina {{ page_obj.number }} din {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.next_page_number }}">Înainte →</a>{% endif %}</nav>{% endif %}
 {% endblock %}

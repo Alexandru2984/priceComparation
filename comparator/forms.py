@@ -95,7 +95,7 @@ class InvoiceForm(forms.ModelForm):
         model = Invoice
         fields = [
             "document_type", "supplier", "number", "issued_at", "transport_gross",
-            "document_discount_gross", "ocr_text", "notes",
+            "document_discount_gross", "document_total_gross", "ocr_text", "notes",
         ]
         widgets = {
             "issued_at": DateInput(),
@@ -107,6 +107,27 @@ class InvoiceForm(forms.ModelForm):
 
     def clean_document_discount_gross(self):
         return self.cleaned_data.get("document_discount_gross") or 0
+
+    def clean_number(self):
+        return (self.cleaned_data.get("number") or "").strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        supplier = cleaned.get("supplier")
+        number = cleaned.get("number")
+        issued_at = cleaned.get("issued_at")
+        if supplier and number and issued_at:
+            duplicate = Invoice.objects.filter(
+                supplier=supplier,
+                number__iexact=number,
+                issued_at=issued_at,
+            ).exclude(pk=self.instance.pk).first()
+            if duplicate:
+                self.add_error(
+                    "number",
+                    f"Documentul există deja (#{duplicate.pk}). Deschide înregistrarea existentă.",
+                )
+        return cleaned
 
 
 class InvoiceLineForm(forms.ModelForm):

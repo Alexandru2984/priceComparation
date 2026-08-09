@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from comparator.models import (
@@ -80,6 +81,34 @@ class CostAndLearningTests(TestCase):
         self.assertTrue(SupplierOffer.objects.filter(invoice_line=line).exists())
         match, score = suggest_product("alt nume", self.supplier, "BUC", "SKU-991")
         self.assertEqual((match, score), (self.product, 100))
+
+    def test_document_total_reconciles_merchandise_adjustments_and_deposits(self):
+        InvoiceLine.objects.create(
+            invoice=self.invoice,
+            original_name="Produs cu SGR",
+            quantity=2,
+            unit_price_gross=Decimal("10"),
+            line_total_gross=Decimal("20"),
+            discount_gross=Decimal("2"),
+            deposit_gross=Decimal("1"),
+        )
+        self.invoice.document_total_gross = Decimal("27.25")
+        self.invoice.save(update_fields=["document_total_gross"])
+        self.assertEqual(self.invoice.calculated_document_total_gross, Decimal("27.25"))
+        self.assertEqual(self.invoice.reconciliation_difference, Decimal("0.00"))
+        self.assertTrue(self.invoice.is_reconciled)
+
+    def test_line_exposes_suspicious_ocr_values_for_review(self):
+        line = InvoiceLine.objects.create(
+            invoice=self.invoice,
+            original_name="Produs OCR suspect",
+            quantity=2,
+            unit_price_gross=Decimal("10"),
+            line_total_gross=Decimal("200"),
+            vat_rate=Decimal("17"),
+        )
+        self.assertEqual(len(line.data_warnings), 2)
+        self.assertIn("cantitate × preț", line.data_warnings[0])
 
 
 class BarcodeAndMetroIdentityTests(TestCase):
@@ -194,6 +223,59 @@ class BulkReviewAndScannerViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("camera=(self)", response["Permissions-Policy"])
         self.assertIn("camera=()", self.client.get("/app/")["Permissions-Policy"])
+
+    def test_duplicate_number_for_same_supplier_and_date_is_rejected(self):
+        supplier = Supplier.objects.create(name="Furnizor duplicate")
+        Invoice.objects.create(supplier=supplier, number="INV-100", issued_at=date(2026, 8, 8))
+        response = self.client.post(
+            "/app/facturi/adauga/",
+            {
+                "document_type": Invoice.DocumentType.INVOICE,
+                "supplier": supplier.pk,
+                "number": "inv-100",
+                "issued_at": "2026-08-08",
+                "transport_gross": "0",
+                "document_discount_gross": "0",
+                "ocr_text": "",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Documentul există deja")
+        self.assertEqual(Invoice.objects.filter(supplier=supplier).count(), 1)
+
+    def test_database_constraint_still_allows_numberless_receipts(self):
+        supplier = Supplier.objects.create(name="Furnizor bonuri fără număr")
+        Invoice.objects.create(supplier=supplier, number="", issued_at=date(2026, 8, 8))
+        Invoice.objects.create(supplier=supplier, number="", issued_at=date(2026, 8, 8))
+        self.assertEqual(Invoice.objects.filter(supplier=supplier).count(), 2)
+
+    def test_database_constraint_blocks_case_insensitive_duplicate(self):
+        supplier = Supplier.objects.create(name="Furnizor constrângere")
+        Invoice.objects.create(supplier=supplier, number="ABC-9", issued_at=date(2026, 8, 8))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Invoice.objects.create(supplier=supplier, number="abc-9", issued_at=date(2026, 8, 8))
+
+    def test_document_list_filters_by_supplier_type_and_status(self):
+        visible_supplier = Supplier.objects.create(name="Furnizor filtrat")
+        hidden_supplier = Supplier.objects.create(name="Alt furnizor")
+        Invoice.objects.create(
+            supplier=visible_supplier,
+            number="BON-CAUTAT",
+            issued_at=date(2026, 8, 8),
+            document_type=Invoice.DocumentType.RECEIPT,
+            status=Invoice.Status.REVIEW,
+        )
+        Invoice.objects.create(
+            supplier=hidden_supplier,
+            number="FACT-ASCUNSA",
+            issued_at=date(2026, 8, 8),
+            document_type=Invoice.DocumentType.INVOICE,
+            status=Invoice.Status.PROCESSED,
+        )
+        response = self.client.get("/app/facturi/?q=filtrat&type=RECEIPT&status=REVIEW")
+        self.assertContains(response, "BON-CAUTAT")
+        self.assertNotContains(response, "FACT-ASCUNSA")
 
 
 class OCRAndBackupTests(TestCase):

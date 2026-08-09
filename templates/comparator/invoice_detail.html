@@ -7,12 +7,21 @@
 </div>
 
 {% if invoice.processing_error %}<div class="message warning"><strong>Procesare:</strong> {{ invoice.processing_error }}</div>{% endif %}
+{% if invoice.document_total_gross != None and not invoice.is_reconciled %}<div class="message warning"><strong>Total nealiniat:</strong> liniile și ajustările diferă cu {{ invoice.reconciliation_difference|floatformat:2 }} lei față de totalul introdus. Verifică liniile, reducerile, transportul și SGR.</div>{% endif %}
 
 <section class="stats compact-stats">
   <article><strong>{{ invoice.merchandise_total_gross|floatformat:2 }}</strong><span>lei marfă după reduceri și SGR</span></article>
   <article><strong>{{ invoice.transport_gross|floatformat:2 }}</strong><span>lei transport distribuit</span></article>
   <article><strong>{{ invoice.document_discount_gross|floatformat:2 }}</strong><span>lei reducere pe document</span></article>
 </section>
+
+{% if invoice.document_total_gross != None %}
+<section class="stats compact-stats reconciliation-stats">
+  <article><strong>{{ invoice.document_total_gross|floatformat:2 }}</strong><span>lei total tipărit</span></article>
+  <article><strong>{{ invoice.calculated_document_total_gross|floatformat:2 }}</strong><span>lei total calculat din linii</span></article>
+  <article class="{% if not invoice.is_reconciled %}warn{% endif %}"><strong>{{ invoice.reconciliation_difference|floatformat:2 }}</strong><span>lei diferență{% if invoice.is_reconciled %} · reconciliat{% else %} · de verificat{% endif %}</span></article>
+</section>
+{% endif %}
 
 {% if invoice.pages.all %}
 <div class="document-files">
@@ -50,7 +59,7 @@
   <tbody>
   {% for line, result in rows %}
     <tr class="{% if line.needs_review %}review-row{% endif %}">
-      <td><strong>{{ line.original_name }}</strong><small>{{ line.quantity|floatformat:-3 }} × {{ line.units_per_package|floatformat:-3 }} × {{ line.unit_size|floatformat:-3 }} {{ line.base_unit }}</small></td>
+      <td><strong>{{ line.original_name }}</strong><small>{{ line.quantity|floatformat:-3 }} × {{ line.units_per_package|floatformat:-3 }} × {{ line.unit_size|floatformat:-3 }} {{ line.base_unit }}</small>{% for warning in line.data_warnings %}<small class="anomaly">⚠ {{ warning }}</small>{% endfor %}</td>
       <td>{{ line.total_base_quantity|floatformat:-3 }} {{ line.base_unit }}</td>
       <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.merchandise_total_net|floatformat:2 }} lei fără TVA · cost efectiv cu transport</small></td>
       <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>scor {{ line.match_score }}%</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
