@@ -83,6 +83,11 @@ După ce există linii, furnizorul, tipul, numărul și data sunt blocate ca să
 corectează aceste câmpuri înainte de procesare. Reprocesarea OCR cere o confirmare separată deoarece
 înlocuiește liniile și corecțiile existente.
 
+Înainte de înlocuirea OCR, aplicația salvează automat o versiune locală cu textul extras, liniile,
+cantitățile, prețurile și asocierile de produse. Ultimele 10 versiuni sunt vizibile în pagina documentului
+și pot fi restaurate. Restaurarea salvează mai întâi versiunea curentă, astfel încât operația poate fi
+anulată printr-o restaurare ulterioară. Versiunile sunt private și sunt șterse odată cu documentul.
+
 `Șterge documentul…` cere tastarea explicită a cuvântului `STERGE`. Operația elimină liniile, fișierele
 încărcate și ofertele METRO derivate direct din document, fără să șteargă produsele din catalog.
 
