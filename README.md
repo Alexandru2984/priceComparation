@@ -17,6 +17,7 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - revizuirea tuturor liniilor unui document într-un singur tabel;
 - cost efectiv cu reduceri, SGR, transport și reducerea generală distribuite proporțional;
 - istoric separat METRO/furnizor, alerte de preț și semnale de calitate;
+- notificări Web Push locale, fără API plătit, verificate automat la 15 minute;
 - liste de cumpărături care recomandă cea mai ieftină sursă recentă;
 - scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
 - backup comprimat, verificat SHA-256 și restaurare explicită.
@@ -51,11 +52,13 @@ Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și n
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
 `DB_USER` la utilizatorul Linux care rulează aplicația. SQLite rămâne disponibil cu `DB_ENGINE=sqlite`.
 
-După prima instalare, aplicația poate fi pornită simplu cu:
+Pentru dezvoltare, aplicația poate fi pornită simplu cu:
 
 ```bash
 ./start.sh
 ```
+
+Pe calculatorul configurat în producție se folosesc serviciile systemd descrise mai jos, nu `start.sh`.
 
 ## Flux recomandat pentru primele facturi și bonuri
 
@@ -205,6 +208,67 @@ Selectarea produselor din facturi, alerte, liste și prețuri manuale folosește
 puțin două caractere din denumire, marcă, EAN sau codul furnizorului; sunt returnate maximum 20 de rezultate.
 Catalogul și istoricul METRO afișează câte 100 de rânduri pe pagină, iar exporturile continuă să includă
 toate produsele care corespund filtrelor.
+
+## HTTPS local și acces de pe telefon
+
+Configurația din `deploy/` rulează Django prin Gunicorn numai pe `127.0.0.1:8010`; Caddy este singurul
+serviciu expus în rețeaua locală și termină conexiunea HTTPS. Pentru calculatorul curent, adresa este:
+
+```text
+https://10.0.0.7
+```
+
+Caddy folosește o autoritate de certificare strict locală. Înainte ca telefonul să considere conexiunea
+sigură, conectează-l la aceeași rețea Wi-Fi și:
+
+1. descarcă certificatul public de la `http://10.0.0.7/ca.crt`;
+2. instalează-l ca certificat CA de încredere pe telefon;
+3. pe iPhone/iPad activează și încrederea completă în `Configurări → General → Informații → Configurări
+   de încredere certificat`;
+4. redeschide `https://10.0.0.7` și verifică să nu mai apară avertismentul de certificat.
+
+Fișierul oferit la `/ca.crt` conține doar certificatul public; cheia privată rămâne în spațiul Caddy de pe
+calculator. Camera și Web Push trebuie testate numai după ce browserul afișează conexiunea ca sigură.
+Pentru iOS, adaugă aplicația pe ecranul principal înainte de activarea notificărilor. Pe Android, Chrome
+poate activa notificările direct din pagina `Notificări`.
+
+Adresa `10.0.0.7` ar trebui rezervată în router pentru acest calculator. Dacă DHCP o schimbă, actualizează
+IP-ul în `.env` și [deploy/Caddyfile](deploy/Caddyfile), reinstalează configurația și repornește serviciile.
+
+Comenzi utile:
+
+```bash
+sudo systemctl status pricematch caddy
+sudo systemctl restart pricematch caddy
+sudo journalctl -u pricematch -u caddy --since today
+systemctl list-timers 'pricematch-*'
+```
+
+Serviciile instalate sunt:
+
+- `pricematch.service`: Gunicorn, pornit automat la boot;
+- `pricematch-alerts.timer`: verifică alertele la fiecare 15 minute;
+- `pricematch-backup.timer`: creează backupul zilnic în jurul orei 03:30.
+
+PostgreSQL și Ollama ascultă în continuare numai pe localhost. Dacă activezi UFW ulterior, permite porturile
+TCP 80 și 443 numai din subrețeaua locală, nu expune portul 8010 și nu configura port-forwarding în router.
+
+## Notificări automate
+
+Cheile VAPID se generează o singură dată și rămân locale:
+
+```bash
+.venv/bin/python manage.py generate_vapid_keys
+```
+
+Valorile afișate se adaugă în `.env` la `WEBPUSH_VAPID_PRIVATE_KEY` și `WEBPUSH_VAPID_PUBLIC_KEY`. Nu
+șterge și nu regenera cheia privată după abonarea telefonului, altfel abonamentele existente trebuie create
+din nou. Din aplicație intră în `Notificări`, activează dispozitivul și trimite un test. Fiecare browser se
+abonează separat, iar dezabonarea afectează doar dispozitivul curent.
+
+Web Push nu are cost de API pentru această aplicație. Mesajul este criptat pentru abonamentul browserului;
+livrarea trece totuși prin infrastructura push a browserului, deci notificarea nu este un mecanism complet
+offline. Aplicația trimite doar denumirea produsului și prețul, fără facturi, conturi sau alte date sensibile.
 
 ### Istoric, alerte și liste de cumpărături
 
