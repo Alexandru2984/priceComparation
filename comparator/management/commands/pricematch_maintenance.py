@@ -11,6 +11,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--skip-backup", action="store_true")
         parser.add_argument("--scan-metro", action="store_true")
+        parser.add_argument("--skip-notifications", action="store_true")
         parser.add_argument("--backup-output", type=Path, default=Path(settings.BASE_DIR) / "backups")
         parser.add_argument("--store", default=settings.METRO_STORE_QUERY)
 
@@ -19,4 +20,6 @@ class Command(BaseCommand):
             call_command("backup_pricematch", output=options["backup_output"])
         if options["scan_metro"]:
             call_command("metro_seed_catalog", store=options["store"], delay=0.8, retries=3)
+        if not options["skip_notifications"] and settings.WEBPUSH_VAPID_PRIVATE_KEY:
+            call_command("send_price_alerts")
         self.stdout.write(self.style.SUCCESS("Mentenanța periodică s-a încheiat."))

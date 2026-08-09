@@ -12,6 +12,7 @@ from .models import (
     Product,
     ProductAlias,
     ProductCode,
+    PushSubscription,
     ShoppingList,
     ShoppingListItem,
     Supplier,
@@ -65,3 +66,4 @@ admin.site.register(SupplierOffer)
 admin.site.register(PriceAlert)
 admin.site.register(ShoppingList)
 admin.site.register(ShoppingListItem)
+admin.site.register(PushSubscription)

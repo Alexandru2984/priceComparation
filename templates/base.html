@@ -4,7 +4,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#195c44">
   <title>{% block title %}PriceMatch Local{% endblock %}</title>
+  <link rel="manifest" href="{% static 'manifest.json' %}">
   <link rel="stylesheet" href="{% static 'app.css' %}">
 </head>
 <body>
@@ -18,6 +20,7 @@
         <a href="{% url 'comparator:metro_list' %}">Prețuri METRO</a>
         <a href="{% url 'comparator:shopping_list_index' %}">Cumpărături</a>
         <a href="{% url 'comparator:price_alert_list' %}">Alerte</a>
+        <a href="{% url 'comparator:notification_settings' %}">Notificări</a>
         <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>

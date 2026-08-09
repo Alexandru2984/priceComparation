@@ -32,6 +32,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -127,6 +128,10 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 FILE_UPLOAD_PERMISSIONS = 0o600
@@ -149,6 +154,17 @@ METRO_SCRAPER_ENABLED = os.getenv("METRO_SCRAPER_ENABLED", "0" if PRODUCTION els
 METRO_STORE_QUERY = os.getenv("METRO_STORE_QUERY", "")
 PREFERRED_METRO_STORE = os.getenv("PREFERRED_METRO_STORE", "")
 SUPPLIER_PRICE_MAX_AGE_DAYS = int(os.getenv("SUPPLIER_PRICE_MAX_AGE_DAYS", "90"))
+WEBPUSH_VAPID_PRIVATE_KEY = os.getenv("WEBPUSH_VAPID_PRIVATE_KEY", "")
+WEBPUSH_VAPID_PUBLIC_KEY = os.getenv("WEBPUSH_VAPID_PUBLIC_KEY", "")
+WEBPUSH_VAPID_SUBJECT = os.getenv("WEBPUSH_VAPID_SUBJECT", "mailto:admin@pricematch.local")
+WEBPUSH_ALLOWED_HOSTS = [
+    host.strip().lower()
+    for host in os.getenv(
+        "WEBPUSH_ALLOWED_HOSTS",
+        "fcm.googleapis.com,push.services.mozilla.com,notify.windows.com,push.apple.com",
+    ).split(",")
+    if host.strip()
+]
 
 LOGGING = {
     "version": 1,

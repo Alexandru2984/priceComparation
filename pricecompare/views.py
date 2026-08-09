@@ -42,3 +42,10 @@ def public_demo(request):
             ],
         },
     )
+
+
+def service_worker(request):
+    response = render(request, "service_worker.js", content_type="application/javascript")
+    response["Service-Worker-Allowed"] = "/"
+    response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response

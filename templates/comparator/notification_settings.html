@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Notificări · PriceMatch{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Telefon și browser</p>
+    <h1>Notificări de preț</h1>
+    <p>Primești o alertă când un produs urmărit ajunge la prețul țintă. Abonarea se face separat pe fiecare telefon sau browser.</p>
+  </div>
+</section>
+
+<section
+  class="panel form-panel notification-panel"
+  data-push-settings
+  data-ready="{{ webpush_ready|yesno:'true,false' }}"
+  data-public-key="{{ vapid_public_key }}"
+  data-subscribe-url="{% url 'comparator:push_subscribe' %}"
+  data-unsubscribe-url="{% url 'comparator:push_unsubscribe' %}"
+  data-test-url="{% url 'comparator:push_test' %}"
+>
+  <form class="hidden-csrf" aria-hidden="true">{% csrf_token %}</form>
+  <h2>Acest dispozitiv</h2>
+  {% if webpush_ready %}
+    <p class="muted">Abonamente active pentru contul tău: {{ active_subscription_count }}.</p>
+    <p class="notification-status" data-push-status>Verific starea notificărilor…</p>
+    <div class="actions">
+      <button class="button primary" type="button" data-push-enable>Activează notificările</button>
+      <button class="button" type="button" data-push-test>Trimite un test</button>
+      <button class="button" type="button" data-push-disable>Dezactivează pe acest dispozitiv</button>
+    </div>
+  {% else %}
+    <div class="message warning">Cheile Web Push nu sunt încă configurate pe server.</div>
+  {% endif %}
+</section>
+
+<section class="panel instructions notification-help">
+  <h2>Cum funcționează</h2>
+  <ol>
+    <li>Deschide această pagină prin HTTPS pe telefon.</li>
+    <li>Apasă „Activează notificările” și acceptă permisiunea browserului.</li>
+    <li>Configurează pragurile în pagina Alerte. Verificarea automată rulează periodic.</li>
+  </ol>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'push_notifications.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,9 @@
+{
+  "name": "PriceMatch Local",
+  "short_name": "PriceMatch",
+  "start_url": "/app/",
+  "display": "standalone",
+  "background_color": "#f5f4ef",
+  "theme_color": "#195c44",
+  "icons": []
+}
