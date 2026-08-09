@@ -359,6 +359,31 @@ class DocumentPage(models.Model):
         return f"{self.invoice} · pagina {self.page_order}"
 
 
+class InvoiceRevision(models.Model):
+    class Reason(models.TextChoices):
+        OCR_REPROCESS = "OCR_REPROCESS", "Înainte de reprocesare OCR"
+        RESTORE = "RESTORE", "Înainte de restaurarea altei versiuni"
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="revisions")
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    snapshot = models.JSONField()
+    line_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_revisions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.invoice} · {self.get_reason_display()} · {self.created_at:%d.%m.%Y %H:%M}"
+
+
 class InvoiceLine(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
     original_name = models.CharField("denumire de pe factură", max_length=240)

@@ -15,3 +15,4 @@
 .anomaly{color:var(--red)!important;font-weight:700;max-width:420px}.reconciliation-stats{margin-top:-10px}
 .reconciled{color:var(--green)!important;font-weight:700}.document-filters{flex-wrap:wrap}.document-filters input{min-width:280px}.document-filters select{min-width:180px}
 .button.danger{border-color:var(--red);background:var(--red);color:#fff}.danger-zone{margin-top:28px;padding-top:20px;border-top:1px solid #e8ccc7}.danger-panel{border-color:#e8ccc7}
+.revision-panel{margin-top:18px}.revision-panel .list-row form{margin-left:auto}

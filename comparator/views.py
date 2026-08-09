@@ -33,6 +33,7 @@ from .models import (
     DocumentPage,
     Invoice,
     InvoiceLine,
+    InvoiceRevision,
     MetroOffer,
     MetroScrapeJob,
     PriceAlert,
@@ -50,6 +51,7 @@ from .services.invoices import (
     delete_invoice_line,
     process_invoice,
     reconcile_derived_metro_offer,
+    restore_invoice_revision,
     sync_all_confirmed_metro_lines,
     sync_metro_offer_from_line,
     sync_supplier_offer_from_line,
@@ -649,7 +651,12 @@ def invoice_detail(request, pk):
     return render(
         request,
         "comparator/invoice_detail.html",
-        {"invoice": invoice, "rows": rows, "line_formset": formset},
+        {
+            "invoice": invoice,
+            "rows": rows,
+            "line_formset": formset,
+            "revisions": invoice.revisions.select_related("created_by")[:10],
+        },
     )
 
 
@@ -710,13 +717,30 @@ def invoice_process(request, pk):
     if invoice.lines.exists() and request.POST.get("confirm_replace") != "1":
         return render(request, "comparator/invoice_confirm_reprocess.html", {"invoice": invoice})
     try:
-        process_invoice(invoice, force_ocr=bool(invoice.document or invoice.pages.exists()))
+        process_invoice(
+            invoice,
+            force_ocr=bool(invoice.document or invoice.pages.exists()),
+            created_by=request.user,
+        )
         messages.success(request, "Factura a fost reprocesată local.")
     except Exception as exc:
         invoice.status = Invoice.Status.ERROR
         invoice.processing_error = str(exc)
         invoice.save(update_fields=["status", "processing_error"])
         messages.error(request, str(exc))
+    return redirect("comparator:invoice_detail", pk=pk)
+
+
+def invoice_revision_restore(request, pk, revision_pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    revision = get_object_or_404(InvoiceRevision, pk=revision_pk, invoice_id=pk)
+    try:
+        restore_invoice_revision(revision, created_by=request.user)
+    except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+        messages.error(request, f"Versiunea nu a putut fi restaurată: {exc}")
+    else:
+        messages.success(request, f"Au fost restaurate {revision.line_count} linii din versiunea aleasă.")
     return redirect("comparator:invoice_detail", pk=pk)
 
 

@@ -4,6 +4,7 @@ from .models import (
     DocumentPage,
     Invoice,
     InvoiceLine,
+    InvoiceRevision,
     MetroOffer,
     MetroScrapeJob,
     MetroScrapedProduct,
@@ -53,6 +54,19 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_display = ("supplier", "number", "issued_at", "status")
     list_filter = ("status", "supplier")
     inlines = [DocumentPageInline, InvoiceLineInline]
+
+
+@admin.register(InvoiceRevision)
+class InvoiceRevisionAdmin(admin.ModelAdmin):
+    list_display = ("invoice", "reason", "line_count", "created_by", "created_at")
+    list_filter = ("reason", "created_at")
+    readonly_fields = ("invoice", "reason", "snapshot", "line_count", "created_by", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 admin.site.register(Supplier)

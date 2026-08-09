@@ -73,5 +73,6 @@
 </section>
 
 {% if invoice.ocr_text %}<details class="panel raw"><summary>Vezi textul OCR</summary><pre>{{ invoice.ocr_text }}</pre></details>{% endif %}
+{% if revisions %}<section class="panel revision-panel"><div class="panel-head"><h2>Versiuni anterioare</h2><span class="muted">Ultimele 10</span></div>{% for revision in revisions %}<div class="list-row"><div><strong>{{ revision.get_reason_display }}</strong><small>{{ revision.created_at|date:"d.m.Y H:i" }} · {{ revision.line_count }} linii{% if revision.created_by %} · {{ revision.created_by.username }}{% endif %}</small></div><form method="post" action="{% url 'comparator:invoice_revision_restore' invoice.pk revision.pk %}" data-confirm="Restaurezi această versiune? Versiunea curentă va fi salvată automat înainte de restaurare.">{% csrf_token %}<button class="button small">Restaurează</button></form></div>{% endfor %}</section>{% endif %}
 <div class="danger-zone"><a class="button danger" href="{% url 'comparator:invoice_delete' invoice.pk %}">Șterge documentul…</a></div>
 {% endblock %}

@@ -1,8 +1,18 @@
 import logging
+from decimal import Decimal
 
 from django.db import transaction
 
-from comparator.models import Invoice, InvoiceLine, MetroOffer, ProductCode, SupplierOffer
+from comparator.models import (
+    BaseUnit,
+    Invoice,
+    InvoiceLine,
+    InvoiceRevision,
+    MetroOffer,
+    Product,
+    ProductCode,
+    SupplierOffer,
+)
 
 from .matching import apply_match
 from .ocr import extract_text, merge_ocr_pages
@@ -10,6 +20,53 @@ from .parser import parse_invoice_text
 
 
 logger = logging.getLogger(__name__)
+
+
+LINE_DECIMAL_FIELDS = (
+    "quantity",
+    "units_per_package",
+    "unit_size",
+    "unit_price_gross",
+    "vat_rate",
+    "discount_gross",
+    "deposit_gross",
+)
+
+
+def _serialize_invoice_line(line):
+    data = {
+        "original_name": line.original_name,
+        "ean": line.ean,
+        "base_unit": line.base_unit,
+        "line_total_gross": str(line.line_total_gross) if line.line_total_gross is not None else None,
+        "matched_product_id": line.matched_product_id,
+        "match_score": line.match_score,
+        "needs_review": line.needs_review,
+    }
+    data.update({field: str(getattr(line, field)) for field in LINE_DECIMAL_FIELDS})
+    return data
+
+
+def create_invoice_revision(invoice, reason, created_by=None, include_empty=False):
+    lines = list(invoice.lines.order_by("id"))
+    if not lines and not include_empty:
+        return None
+    snapshot = {
+        "version": 1,
+        "invoice": {
+            "ocr_text": invoice.ocr_text,
+            "processing_error": invoice.processing_error,
+            "status": invoice.status,
+        },
+        "lines": [_serialize_invoice_line(line) for line in lines],
+    }
+    return InvoiceRevision.objects.create(
+        invoice=invoice,
+        reason=reason,
+        snapshot=snapshot,
+        line_count=len(lines),
+        created_by=created_by if getattr(created_by, "is_authenticated", False) else None,
+    )
 
 
 def metro_offer_source_for_invoice(invoice):
@@ -45,7 +102,8 @@ def reconcile_derived_metro_offer(invoice, product_id):
 
 
 @transaction.atomic
-def process_invoice(invoice, force_ocr=False):
+def process_invoice(invoice, force_ocr=False, created_by=None):
+    create_invoice_revision(invoice, InvoiceRevision.Reason.OCR_REPROCESS, created_by=created_by)
     invoice.processing_error = ""
     if force_ocr or not invoice.ocr_text.strip():
         sources = []
@@ -142,6 +200,61 @@ def delete_invoice(invoice):
         delete_derived_metro_offers(invoice)
         invoice.delete()
         transaction.on_commit(remove_stored_files)
+
+
+@transaction.atomic
+def restore_invoice_revision(revision, created_by=None):
+    invoice = Invoice.objects.select_for_update().select_related("supplier").get(pk=revision.invoice_id)
+    snapshot = revision.snapshot
+    if snapshot.get("version") != 1 or not isinstance(snapshot.get("lines"), list):
+        raise ValueError("Versiunea salvată nu are un format recunoscut.")
+    create_invoice_revision(invoice, InvoiceRevision.Reason.RESTORE, created_by=created_by, include_empty=True)
+    delete_derived_metro_offers(invoice)
+    invoice.lines.all().delete()
+
+    product_ids = {
+        item.get("matched_product_id")
+        for item in snapshot["lines"]
+        if item.get("matched_product_id")
+    }
+    existing_product_ids = set(Product.objects.filter(pk__in=product_ids).values_list("pk", flat=True))
+    restored_lines = []
+    for item in snapshot["lines"]:
+        base_unit = item.get("base_unit")
+        if base_unit not in BaseUnit.values:
+            raise ValueError("Versiunea conține o unitate de măsură invalidă.")
+        product_id = item.get("matched_product_id")
+        product_exists = not product_id or product_id in existing_product_ids
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            original_name=str(item.get("original_name", ""))[:240],
+            ean=str(item.get("ean", ""))[:80],
+            base_unit=base_unit,
+            line_total_gross=(
+                Decimal(item["line_total_gross"])
+                if item.get("line_total_gross") is not None
+                else None
+            ),
+            matched_product_id=product_id if product_id in existing_product_ids else None,
+            match_score=int(item.get("match_score", 0)) if product_exists else 0,
+            needs_review=bool(item.get("needs_review", True)) or not product_exists,
+            **{field: Decimal(str(item[field])) for field in LINE_DECIMAL_FIELDS},
+        )
+        restored_lines.append(line)
+
+    invoice_data = snapshot.get("invoice", {})
+    invoice.ocr_text = str(invoice_data.get("ocr_text", ""))
+    invoice.processing_error = str(invoice_data.get("processing_error", ""))
+    status = invoice_data.get("status")
+    invoice.status = status if status in Invoice.Status.values else Invoice.Status.REVIEW
+    if any(line.needs_review for line in restored_lines):
+        invoice.status = Invoice.Status.REVIEW
+    invoice.save(update_fields=["ocr_text", "processing_error", "status"])
+
+    for line in restored_lines:
+        sync_metro_offer_from_line(line)
+        sync_supplier_offer_from_line(line)
+    return invoice
 
 
 def sync_supplier_offer_from_line(line):
