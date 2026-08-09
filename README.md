@@ -70,6 +70,11 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
    verificare`. Confirmarea memorează automat aliasul și prețul furnizorului.
 6. Dacă OCR-ul nu citește corect, salvează documentul fără procesare și adaugă liniile manual.
 
+După salvare, secțiunea `Fișiere și ordinea OCR` permite adăugarea altor cadre, mutarea lor sus/jos și
+ștergerea unei fotografii greșite. Ordinea afișată este exact ordinea folosită de OCR. Orice modificare a
+fișierelor marchează documentul pentru reverificare; reprocesarea rămâne o acțiune separată și salvează
+automat versiunea veche a liniilor. Limitele sunt 12 fișiere, 10 MB per fișier și 50 MB cumulat.
+
 Completează și `total document cu TVA` exact cum apare tipărit. Pagina documentului compară acest total cu
 suma liniilor, reducerilor, transportului și SGR și semnalează orice diferență mai mare de 0,05 lei. Sunt
 marcate separat liniile în care `cantitate × preț` nu coincide cu totalul OCR sau cota TVA pare neobișnuită.
