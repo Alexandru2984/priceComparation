@@ -44,6 +44,9 @@ class InvoiceRevisionTests(TestCase):
         self.assertEqual(revision.line_count, 1)
         self.assertEqual(revision.snapshot["lines"][0]["original_name"], "Corecție manuală veche")
         self.assertEqual(invoice.lines.get().original_name, "Produs nou")
+        response = self.client.get(f"/app/facturi/{invoice.pk}/")
+        self.assertContains(response, "Versiuni anterioare")
+        self.assertContains(response, "Înainte de reprocesare OCR")
 
     def test_restore_round_trip_preserves_prices_matches_and_creates_undo_revision(self):
         product = Product.objects.create(name="Produs restaurat", base_unit="BUC")
