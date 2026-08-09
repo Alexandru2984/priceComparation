@@ -70,6 +70,14 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
    verificare`. Confirmarea memorează automat aliasul și prețul furnizorului.
 6. Dacă OCR-ul nu citește corect, salvează documentul fără procesare și adaugă liniile manual.
 
+Completează și `total document cu TVA` exact cum apare tipărit. Pagina documentului compară acest total cu
+suma liniilor, reducerilor, transportului și SGR și semnalează orice diferență mai mare de 0,05 lei. Sunt
+marcate separat liniile în care `cantitate × preț` nu coincide cu totalul OCR sau cota TVA pare neobișnuită.
+
+Lista de documente poate fi căutată după furnizor ori număr și filtrată după tip și status. Pentru același
+furnizor și aceeași dată, un număr de document nu poate fi introdus de două ori, inclusiv cu alte majuscule.
+Bonurile fără număr rămân permise.
+
 Transportul și reducerea generală se completează pe document. Reducerea unei linii și garanția SGR se
 completează separat; SGR nu este tratată ca preț al mărfii. Toate comparațiile rămân pe valori cu TVA.
 
