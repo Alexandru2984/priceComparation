@@ -1,0 +1,20 @@
+http://10.0.0.7 {
+	@local_ca path /ca.crt
+	handle @local_ca {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Disposition "attachment; filename=pricematch-local-ca.crt"
+		header Content-Type "application/x-x509-ca-cert"
+		file_server
+	}
+
+	handle {
+		redir https://10.0.0.7{uri} permanent
+	}
+}
+
+https://10.0.0.7 {
+	tls internal
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8010
+}

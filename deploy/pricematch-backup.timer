@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the PriceMatch backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=pricematch-backup.service
+
+[Install]
+WantedBy=timers.target

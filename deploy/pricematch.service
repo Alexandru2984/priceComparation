@@ -1,0 +1,25 @@
+[Unit]
+Description=PriceMatch Django application
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=micu
+Group=micu
+WorkingDirectory=/home/micu/Desktop/priceComparision
+EnvironmentFile=/home/micu/Desktop/priceComparision/.env
+ExecStartPre=/home/micu/Desktop/priceComparision/.venv/bin/python manage.py migrate --noinput
+ExecStartPre=/home/micu/Desktop/priceComparision/.venv/bin/python manage.py collectstatic --noinput
+ExecStart=/home/micu/Desktop/priceComparision/.venv/bin/gunicorn pricecompare.wsgi:application --bind 127.0.0.1:8010 --workers 2 --timeout 180 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/micu/Desktop/priceComparision/media /home/micu/Desktop/priceComparision/backups /home/micu/Desktop/priceComparision/data /home/micu/Desktop/priceComparision/staticfiles
+
+[Install]
+WantedBy=multi-user.target

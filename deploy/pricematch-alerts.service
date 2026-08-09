@@ -1,0 +1,17 @@
+[Unit]
+Description=PriceMatch price alert delivery
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=micu
+Group=micu
+WorkingDirectory=/home/micu/Desktop/priceComparision
+EnvironmentFile=/home/micu/Desktop/priceComparision/.env
+ExecStart=/home/micu/Desktop/priceComparision/.venv/bin/python manage.py send_price_alerts
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/micu/Desktop/priceComparision/data
