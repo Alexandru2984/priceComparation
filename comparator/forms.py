@@ -10,7 +10,12 @@ from .models import (
     ShoppingListItem,
     Supplier,
 )
-from .validators import MAX_DOCUMENT_TOTAL_SIZE, validate_csv_upload, validate_document_upload
+from .validators import (
+    MAX_DOCUMENT_PAGES,
+    MAX_DOCUMENT_TOTAL_SIZE,
+    validate_csv_upload,
+    validate_document_upload,
+)
 from .services.barcodes import is_valid_gtin, normalize_barcode
 from .widgets import ProductAutocompleteWidget, set_product_widget_label
 
@@ -67,8 +72,10 @@ class MultipleFileField(forms.FileField):
     def clean(self, data, initial=None):
         clean_one = super().clean
         if isinstance(data, (list, tuple)):
-            if len(data) > 12:
-                raise forms.ValidationError("Poți încărca maximum 12 imagini/PDF-uri pentru un document.")
+            if len(data) > MAX_DOCUMENT_PAGES:
+                raise forms.ValidationError(
+                    f"Poți încărca maximum {MAX_DOCUMENT_PAGES} imagini/PDF-uri pentru un document."
+                )
             cleaned = [clean_one(item, initial) for item in data]
         else:
             cleaned = [clean_one(data, initial)] if data else []
@@ -130,6 +137,15 @@ class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
 
     def clean_document_discount_gross(self):
         return self.cleaned_data.get("document_discount_gross") or 0
+
+
+class DocumentPagesForm(forms.Form):
+    documents = MultipleFileField(
+        label="Adaugă fotografii sau PDF-uri",
+        validators=[validate_document_upload],
+        widget=MultipleFileInput(attrs={"accept": "image/*,.pdf"}),
+        help_text="Fișierele sunt adăugate la final; apoi le poți muta în ordinea corectă.",
+    )
 
 
 class InvoiceEditForm(InvoiceIdentityValidationMixin, forms.ModelForm):

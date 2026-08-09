@@ -6,6 +6,7 @@ from PIL import Image, UnidentifiedImageError
 
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_TOTAL_SIZE = 50 * 1024 * 1024
+MAX_DOCUMENT_PAGES = 12
 MAX_CSV_SIZE = 2 * 1024 * 1024
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF"}
 ALLOWED_DOCUMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".pdf"}

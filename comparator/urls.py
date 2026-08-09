@@ -43,7 +43,10 @@ urlpatterns = [
     path("facturi/<int:pk>/editeaza/", staff_member_required(views.invoice_edit), name="invoice_edit"),
     path("facturi/<int:pk>/sterge/", staff_member_required(views.invoice_delete), name="invoice_delete"),
     path("facturi/<int:pk>/fisier/", staff_member_required(views.invoice_file_download), name="invoice_file_download"),
+    path("facturi/<int:pk>/pagini/adauga/", staff_member_required(views.invoice_pages_add), name="invoice_pages_add"),
     path("documente/pagini/<int:pk>/fisier/", staff_member_required(views.document_page_download), name="document_page_download"),
+    path("documente/pagini/<int:pk>/muta/", staff_member_required(views.document_page_move), name="document_page_move"),
+    path("documente/pagini/<int:pk>/sterge/", staff_member_required(views.document_page_delete), name="document_page_delete"),
     path("facturi/<int:pk>/proceseaza/", staff_member_required(views.invoice_process), name="invoice_process"),
     path(
         "facturi/<int:pk>/versiuni/<int:revision_pk>/restaureaza/",

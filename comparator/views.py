@@ -18,6 +18,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import (
     InvoiceForm,
     InvoiceEditForm,
+    DocumentPagesForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
     MetroImportForm,
@@ -46,6 +47,7 @@ from .models import (
     Supplier,
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
+from .services.documents import add_document_pages, delete_document_page, move_document_page
 from .services.invoices import (
     delete_invoice,
     delete_invoice_line,
@@ -655,6 +657,7 @@ def invoice_detail(request, pk):
             "invoice": invoice,
             "rows": rows,
             "line_formset": formset,
+            "page_upload_form": DocumentPagesForm(),
             "revisions": invoice.revisions.select_related("created_by")[:10],
         },
     )
@@ -708,6 +711,47 @@ def invoice_file_download(request, pk):
 def document_page_download(request, pk):
     page = get_object_or_404(DocumentPage, pk=pk)
     return _private_file_response(page.file)
+
+
+def invoice_pages_add(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    invoice = get_object_or_404(Invoice, pk=pk)
+    form = DocumentPagesForm(request.POST, request.FILES)
+    if not form.is_valid():
+        errors = " ".join(error for field_errors in form.errors.values() for error in field_errors)
+        messages.error(request, errors or "Fișierele nu sunt valide.")
+        return redirect("comparator:invoice_detail", pk=pk)
+    try:
+        added = add_document_pages(invoice, form.cleaned_data["documents"])
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    else:
+        messages.success(request, f"Au fost adăugate {added} fișiere. Verifică ordinea și reprocesează OCR.")
+    return redirect("comparator:invoice_detail", pk=pk)
+
+
+def document_page_delete(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    page = get_object_or_404(DocumentPage, pk=pk)
+    invoice_id = delete_document_page(page)
+    messages.success(request, "Fișierul a fost șters. Reprocesează OCR când ordinea este corectă.")
+    return redirect("comparator:invoice_detail", pk=invoice_id)
+
+
+def document_page_move(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    page = get_object_or_404(DocumentPage, pk=pk)
+    try:
+        invoice_id, moved = move_document_page(page, request.POST.get("direction", ""))
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("comparator:invoice_detail", pk=page.invoice_id)
+    if moved:
+        messages.success(request, "Ordinea fișierelor a fost actualizată.")
+    return redirect("comparator:invoice_detail", pk=invoice_id)
 
 
 def invoice_process(request, pk):
@@ -805,7 +849,13 @@ def invoice_lines_review(request, pk):
         return render(
             request,
             "comparator/invoice_detail.html",
-            {"invoice": invoice, "rows": rows, "line_formset": formset},
+            {
+                "invoice": invoice,
+                "rows": rows,
+                "line_formset": formset,
+                "page_upload_form": DocumentPagesForm(),
+                "revisions": invoice.revisions.select_related("created_by")[:10],
+            },
             status=400,
         )
     saved = 0
