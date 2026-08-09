@@ -3,10 +3,23 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.cache import cache
+from django.db.models import Count, Max
 from django.utils import timezone
 
 from comparator.models import MetroOffer, Product, SupplierOffer
 from .matching import normalize_name
+
+
+def _catalog_cache_key(prefix):
+    product_state = Product.objects.filter(active=True).aggregate(total=Count("id"), latest=Max("updated_at"))
+    offer_state = MetroOffer.objects.aggregate(total=Count("id"), latest=Max("updated_at"))
+    product_latest = product_state["latest"].isoformat() if product_state["latest"] else "none"
+    offer_latest = offer_state["latest"].isoformat() if offer_state["latest"] else "none"
+    return (
+        f"pricematch:{prefix}:{product_state['total']}:{product_latest}:"
+        f"{offer_state['total']}:{offer_latest}"
+    )
 
 
 def current_source_options(product):
@@ -86,6 +99,10 @@ def product_history(product):
 
 
 def recent_metro_changes(limit=8):
+    cache_key = f"{_catalog_cache_key('metro-changes')}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     grouped = defaultdict(list)
     offers = MetroOffer.objects.select_related("product").filter(active=True).order_by(
         "product_id", "source", "-valid_from", "-created_at"
@@ -102,10 +119,16 @@ def recent_metro_changes(limit=8):
         if abs(percent) >= Decimal("0.1"):
             changes.append({"offer": pair[0], "previous": pair[1], "percent": percent})
     changes.sort(key=lambda item: abs(item["percent"]), reverse=True)
-    return changes[:limit]
+    result = changes[:limit]
+    cache.set(cache_key, result, 300)
+    return result
 
 
 def catalog_quality_summary():
+    cache_key = _catalog_cache_key("catalog-quality")
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     products = list(Product.objects.filter(active=True).prefetch_related("metro_offers"))
     normalized = defaultdict(list)
     missing_prices = 0
@@ -122,10 +145,12 @@ def catalog_quality_summary():
             if offer.price_per_base_unit <= 0 or offer.price_per_base_unit > Decimal("10000")
         )
     duplicates = sum(len(group) - 1 for group in normalized.values() if len(group) > 1)
-    return {
+    result = {
         "duplicates": duplicates,
         "missing_prices": missing_prices,
         "missing_categories": missing_categories,
         "suspicious_prices": suspicious_prices,
         "total": duplicates + missing_prices + missing_categories + suspicious_prices,
     }
+    cache.set(cache_key, result, 300)
+    return result

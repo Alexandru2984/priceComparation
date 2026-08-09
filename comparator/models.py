@@ -38,6 +38,7 @@ class Product(models.Model):
     category = models.CharField("categorie", max_length=80, choices=CATEGORY_CHOICES, blank=True, db_index=True)
     active = models.BooleanField("activ", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name", "brand"]
@@ -122,6 +123,7 @@ class MetroOffer(models.Model):
     source = models.CharField("sursă", max_length=120, default="METRO")
     active = models.BooleanField("ofertă activă", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-valid_from", "product__name"]
