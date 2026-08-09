@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Confirmă reprocesarea · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Înlocuire linii</p><h1>Reprocesezi documentul?</h1><p>{{ invoice.supplier }} · {{ invoice.number|default:"fără număr" }} · {{ invoice.issued_at|date:"d.m.Y" }}</p></div></div>
+<section class="panel form-panel danger-panel">
+  <p>Noua extracție OCR va înlocui toate liniile existente, inclusiv corecțiile și asocierile confirmate. Documentul și imaginile originale rămân păstrate.</p>
+  <form method="post" action="{% url 'comparator:invoice_process' invoice.pk %}">{% csrf_token %}<input type="hidden" name="confirm_replace" value="1"><div class="form-actions"><button class="button danger" type="submit">Înlocuiește liniile și reprocesează</button><a class="button" href="{% url 'comparator:invoice_detail' invoice.pk %}">Renunță</a></div></form>
+</section>
+{% endblock %}

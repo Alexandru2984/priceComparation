@@ -77,7 +77,30 @@ class MultipleFileField(forms.FileField):
         return cleaned
 
 
-class InvoiceForm(forms.ModelForm):
+class InvoiceIdentityValidationMixin:
+    def clean_number(self):
+        return (self.cleaned_data.get("number") or "").strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        supplier = cleaned.get("supplier")
+        number = cleaned.get("number")
+        issued_at = cleaned.get("issued_at")
+        if supplier and number and issued_at:
+            duplicate = Invoice.objects.filter(
+                supplier=supplier,
+                number__iexact=number,
+                issued_at=issued_at,
+            ).exclude(pk=self.instance.pk).first()
+            if duplicate:
+                self.add_error(
+                    "number",
+                    f"Documentul există deja (#{duplicate.pk}). Deschide înregistrarea existentă.",
+                )
+        return cleaned
+
+
+class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
     transport_gross = forms.DecimalField(label="Transport cu TVA", required=False, initial=0, min_value=0)
     document_discount_gross = forms.DecimalField(
         label="Reducere document", required=False, initial=0, min_value=0
@@ -108,26 +131,30 @@ class InvoiceForm(forms.ModelForm):
     def clean_document_discount_gross(self):
         return self.cleaned_data.get("document_discount_gross") or 0
 
-    def clean_number(self):
-        return (self.cleaned_data.get("number") or "").strip()
 
-    def clean(self):
-        cleaned = super().clean()
-        supplier = cleaned.get("supplier")
-        number = cleaned.get("number")
-        issued_at = cleaned.get("issued_at")
-        if supplier and number and issued_at:
-            duplicate = Invoice.objects.filter(
-                supplier=supplier,
-                number__iexact=number,
-                issued_at=issued_at,
-            ).exclude(pk=self.instance.pk).first()
-            if duplicate:
-                self.add_error(
-                    "number",
-                    f"Documentul există deja (#{duplicate.pk}). Deschide înregistrarea existentă.",
+class InvoiceEditForm(InvoiceIdentityValidationMixin, forms.ModelForm):
+    class Meta:
+        model = Invoice
+        fields = [
+            "document_type",
+            "supplier",
+            "number",
+            "issued_at",
+            "transport_gross",
+            "document_discount_gross",
+            "document_total_gross",
+            "notes",
+        ]
+        widgets = {"issued_at": DateInput()}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.lines.exists():
+            for field_name in ("document_type", "supplier", "number", "issued_at"):
+                self.fields[field_name].disabled = True
+                self.fields[field_name].help_text = (
+                    "Câmp blocat după adăugarea liniilor, pentru a proteja istoricul de preț."
                 )
-        return cleaned
 
 
 class InvoiceLineForm(forms.ModelForm):

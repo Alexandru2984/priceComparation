@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import (
     InvoiceForm,
+    InvoiceEditForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
     MetroImportForm,
@@ -45,7 +46,10 @@ from .models import (
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.invoices import (
+    delete_invoice,
+    delete_invoice_line,
     process_invoice,
+    reconcile_derived_metro_offer,
     sync_all_confirmed_metro_lines,
     sync_metro_offer_from_line,
     sync_supplier_offer_from_line,
@@ -649,6 +653,34 @@ def invoice_detail(request, pk):
     )
 
 
+def invoice_edit(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    form = InvoiceEditForm(request.POST or None, instance=invoice)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Datele documentului au fost actualizate.")
+        return redirect("comparator:invoice_detail", pk=invoice.pk)
+    return render(request, "comparator/form.html", {"form": form, "title": "Editează documentul"})
+
+
+def invoice_delete(request, pk):
+    invoice = get_object_or_404(Invoice.objects.select_related("supplier").prefetch_related("pages"), pk=pk)
+    if request.method not in {"GET", "POST"}:
+        return HttpResponseNotAllowed(["GET", "POST"])
+    if request.method == "POST":
+        if request.POST.get("confirmation", "").strip().upper() != "STERGE":
+            return render(
+                request,
+                "comparator/invoice_confirm_delete.html",
+                {"invoice": invoice, "confirmation_error": True},
+                status=400,
+            )
+        delete_invoice(invoice)
+        messages.success(request, "Documentul și fișierele lui au fost șterse.")
+        return redirect("comparator:invoice_list")
+    return render(request, "comparator/invoice_confirm_delete.html", {"invoice": invoice})
+
+
 def _private_file_response(field_file):
     if not field_file or not field_file.name:
         raise Http404
@@ -675,6 +707,8 @@ def invoice_process(request, pk):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
     invoice = get_object_or_404(Invoice, pk=pk)
+    if invoice.lines.exists() and request.POST.get("confirm_replace") != "1":
+        return render(request, "comparator/invoice_confirm_reprocess.html", {"invoice": invoice})
     try:
         process_invoice(invoice, force_ocr=bool(invoice.document or invoice.pages.exists()))
         messages.success(request, "Factura a fost reprocesată local.")
@@ -687,6 +721,11 @@ def invoice_process(request, pk):
 
 
 def _save_line(form, invoice=None):
+    previous = None
+    if form.instance.pk:
+        previous = InvoiceLine.objects.filter(pk=form.instance.pk).values(
+            "matched_product_id", "needs_review"
+        ).first()
     user_confirmed = not form.cleaned_data.get("needs_review", True)
     line = form.save(commit=False)
     if invoice:
@@ -706,6 +745,10 @@ def _save_line(form, invoice=None):
         line.match_score = 100
     line.save()
     metro_offer = sync_metro_offer_from_line(line)
+    if previous and not previous["needs_review"] and (
+        previous["matched_product_id"] != line.matched_product_id or line.needs_review
+    ):
+        reconcile_derived_metro_offer(line.invoice, previous["matched_product_id"])
     sync_supplier_offer_from_line(line)
     if line.matched_product_id and not line.needs_review:
         ProductAlias.objects.update_or_create(
@@ -746,7 +789,7 @@ def invoice_lines_review(request, pk):
         if not form.instance.pk:
             continue
         if form.cleaned_data.get("DELETE"):
-            form.instance.delete()
+            delete_invoice_line(form.instance)
             continue
         _save_line(form)
         saved += 1
@@ -827,6 +870,6 @@ def line_delete(request, pk):
         return HttpResponseNotAllowed(["POST"])
     line = get_object_or_404(InvoiceLine, pk=pk)
     invoice_id = line.invoice_id
-    line.delete()
+    delete_invoice_line(line)
     messages.success(request, "Linia a fost ștearsă.")
     return redirect("comparator:invoice_detail", pk=invoice_id)

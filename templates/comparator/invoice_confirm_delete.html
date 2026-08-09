@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Șterge documentul · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Acțiune ireversibilă</p><h1>Șterge documentul?</h1><p>{{ invoice.supplier }} · {{ invoice.number|default:"fără număr" }} · {{ invoice.issued_at|date:"d.m.Y" }}</p></div></div>
+<section class="panel form-panel danger-panel">
+  <p>Vor fi șterse documentul, imaginile/PDF-urile, liniile și prețurile derivate direct din acest document. Catalogul de produse nu va fi șters.</p>
+  <form method="post">{% csrf_token %}
+    <div class="field"><label for="confirmation">Scrie <strong>STERGE</strong> pentru confirmare</label><input id="confirmation" name="confirmation" autocomplete="off" required>{% if confirmation_error %}<span class="error">Confirmarea nu este corectă.</span>{% endif %}</div>
+    <div class="form-actions"><button class="button danger" type="submit">Șterge definitiv</button><a class="button" href="{% url 'comparator:invoice_detail' invoice.pk %}">Renunță</a></div>
+  </form>
+</section>
+{% endblock %}
