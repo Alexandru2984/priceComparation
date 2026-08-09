@@ -38,6 +38,7 @@
   </main>
   <footer>{% if user.is_staff %}Zonă privată · {{ user.username }}{% else %}Mod public demonstrativ · fără date reale{% endif %}</footer>
   <script src="{% static 'app.js' %}" defer></script>
+  <script src="{% static 'product_autocomplete.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

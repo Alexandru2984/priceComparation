@@ -1,0 +1,5 @@
+{% if page_obj.has_other_pages %}<nav class="pagination" aria-label="Paginare">
+  {% if page_obj.has_previous %}<a class="button small" href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.previous_page_number }}">← Anterior</a>{% endif %}
+  <span>Pagina <strong>{{ page_obj.number }}</strong> din {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} rezultate</span>
+  {% if page_obj.has_next %}<a class="button small" href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.next_page_number }}">Următor →</a>{% endif %}
+</nav>{% endif %}

@@ -7,4 +7,5 @@
   <table><thead><tr><th>Produs</th><th>Categorie</th><th>EAN</th><th>Unitate</th><th>Ultimul preț METRO</th><th>Preț bază</th></tr></thead>
   <tbody>{% for product, offer in rows %}<tr><td><a href="{% url 'comparator:product_detail' product.pk %}"><strong>{{ product.name }}</strong></a><small>{{ product.brand }}</small></td><td>{{ product.category|default:"Altele" }}</td><td>{{ product.ean|default:"—" }}</td><td>{{ product.get_base_unit_display }}</td><td>{% if offer %}{{ offer.price_gross|floatformat:2 }} lei · {{ offer.valid_from|date:"d.m.Y" }}<small>{{ offer.source }}</small>{% else %}<span class="muted">Lipsește</span>{% endif %}</td><td>{% if offer %}<strong>{{ offer.price_per_base_unit|floatformat:2 }} lei/{{ product.base_unit }}</strong>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="empty">Niciun produs urmărit.</td></tr>{% endfor %}</tbody></table>
 </section>
+{% include "comparator/partials/pagination.html" %}
 {% endblock %}

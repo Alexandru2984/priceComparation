@@ -12,6 +12,7 @@ from .models import (
 )
 from .validators import MAX_DOCUMENT_TOTAL_SIZE, validate_csv_upload, validate_document_upload
 from .services.barcodes import is_valid_gtin, normalize_barcode
+from .widgets import ProductAutocompleteWidget, set_product_widget_label
 
 
 class DateInput(forms.DateInput):
@@ -40,10 +41,18 @@ class ProductForm(forms.ModelForm):
 
 
 class MetroOfferForm(forms.ModelForm):
+    product = forms.ModelChoiceField(
+        label="Produs", queryset=Product.objects.filter(active=True), widget=ProductAutocompleteWidget()
+    )
+
     class Meta:
         model = MetroOffer
         fields = ["product", "units_per_package", "unit_size", "price_gross", "valid_from", "source", "active"]
         widgets = {"valid_from": DateInput()}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        set_product_widget_label(self.fields["product"], getattr(self.instance, "product", None))
 
 
 class MetroImportForm(forms.Form):
@@ -101,6 +110,12 @@ class InvoiceForm(forms.ModelForm):
 
 
 class InvoiceLineForm(forms.ModelForm):
+    matched_product = forms.ModelChoiceField(
+        label="Produs asociat",
+        queryset=Product.objects.filter(active=True),
+        required=False,
+        widget=ProductAutocompleteWidget(),
+    )
     discount_gross = forms.DecimalField(label="Reducere linie", required=False, initial=0, min_value=0)
     deposit_gross = forms.DecimalField(label="SGR/garanție", required=False, initial=0, min_value=0)
     class Meta:
@@ -113,6 +128,9 @@ class InvoiceLineForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        set_product_widget_label(
+            self.fields["matched_product"], getattr(self.instance, "matched_product", None)
+        )
         self.fields["matched_product"].help_text = "Pentru un document METRO poți lăsa gol și debifa «necesită verificare»; produsul va fi creat automat."
         self.fields["needs_review"].help_text = "Debifează numai după ce ai verificat cantitatea, ambalarea și prețul."
 
@@ -127,6 +145,10 @@ InvoiceLineFormSet = forms.modelformset_factory(InvoiceLine, form=InvoiceLineFor
 
 
 class PriceAlertForm(forms.ModelForm):
+    product = forms.ModelChoiceField(
+        label="Produs", queryset=Product.objects.filter(active=True), widget=ProductAutocompleteWidget()
+    )
+
     class Meta:
         model = PriceAlert
         fields = ["product", "target_price", "note", "active"]
@@ -139,6 +161,10 @@ class ShoppingListForm(forms.ModelForm):
 
 
 class ShoppingListItemForm(forms.ModelForm):
+    product = forms.ModelChoiceField(
+        label="Produs", queryset=Product.objects.filter(active=True), widget=ProductAutocompleteWidget()
+    )
+
     class Meta:
         model = ShoppingListItem
         fields = ["product", "quantity", "purchased"]

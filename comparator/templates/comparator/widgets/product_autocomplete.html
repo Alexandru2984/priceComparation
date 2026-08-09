@@ -1,0 +1,5 @@
+<div class="product-autocomplete" data-product-autocomplete data-search-url="{{ widget.search_url }}">
+  <input type="hidden" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}>
+  <input type="search" id="{{ widget.search_id }}" class="product-autocomplete-search" value="{{ widget.label }}" placeholder="Scrie minimum 2 caractere..." autocomplete="off" aria-label="Caută produs" aria-expanded="false">
+  <div class="product-autocomplete-results" role="listbox" hidden></div>
+</div>

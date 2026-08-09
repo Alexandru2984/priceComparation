@@ -14,7 +14,7 @@
     <form method="post" action="{% url 'comparator:barcode_assign' %}">{% csrf_token %}
       <div class="field"><label for="barcode-code">EAN/GTIN</label><input id="barcode-code" name="code" inputmode="numeric" autocomplete="off" maxlength="18" required></div>
       <div id="barcode-result" class="barcode-result muted">Scanează sau introdu codul manual.</div>
-      <div class="field"><label for="barcode-product">Asociază unui produs</label><select id="barcode-product" name="product" required><option value="">Alege produsul...</option>{% for product in products %}<option value="{{ product.pk }}">{{ product.name }}{% if product.brand %} · {{ product.brand }}{% endif %}{% if product.ean %} · {{ product.ean }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="field"><label>Asociază unui produs</label><div class="product-autocomplete" data-product-autocomplete data-search-url="{% url 'comparator:product_search' %}"><input type="hidden" id="barcode-product" name="product" required><input type="search" class="product-autocomplete-search" placeholder="Caută produs..." autocomplete="off" aria-label="Caută produs" aria-expanded="false"><div class="product-autocomplete-results" role="listbox" hidden></div></div></div>
       <div class="form-actions"><button class="button primary">Salvează EAN</button></div>
     </form>
   </section>

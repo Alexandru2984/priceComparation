@@ -6,9 +6,10 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.conf import settings
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -104,7 +105,9 @@ def _filtered_products(request):
     category = request.GET.get("category", "").strip()
     products = Product.objects.prefetch_related("metro_offers")
     if query:
-        products = products.filter(name__icontains=query)
+        products = products.filter(
+            Q(name__icontains=query) | Q(brand__icontains=query) | Q(ean__icontains=query)
+        )
     if category:
         products = products.filter(category=category)
     return products, query, category
@@ -112,8 +115,9 @@ def _filtered_products(request):
 
 def product_list(request):
     products, query, category = _filtered_products(request)
+    page_obj = Paginator(products, 100).get_page(request.GET.get("page"))
     rows = []
-    for product in products:
+    for product in page_obj:
         offer = product.current_metro_offer()
         rows.append((product, offer))
     return render(
@@ -121,12 +125,41 @@ def product_list(request):
         "comparator/product_list.html",
         {
             "rows": rows,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
             "query": query,
             "selected_category": category,
             "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
         },
     )
+
+
+def _page_query(request):
+    params = request.GET.copy()
+    params.pop("page", None)
+    return params.urlencode()
+
+
+def product_search(request):
+    query = request.GET.get("q", "").strip()[:100]
+    if len(query) < 2:
+        return JsonResponse({"products": []})
+    products = Product.objects.filter(active=True).filter(
+        Q(name__icontains=query)
+        | Q(brand__icontains=query)
+        | Q(ean__icontains=query)
+        | Q(codes__code__icontains=query)
+    ).distinct().order_by("name", "brand")[:20]
+    result = []
+    for product in products:
+        label = product.name
+        if product.brand:
+            label += f" · {product.brand}"
+        if product.ean:
+            label += f" · {product.ean}"
+        result.append({"id": product.pk, "label": label, "unit": product.base_unit})
+    return JsonResponse({"products": result})
 
 
 def catalog_export(request, file_format):
@@ -178,7 +211,12 @@ def price_alert_list(request):
         messages.success(request, "Alerta de preț a fost salvată.")
         return redirect("comparator:price_alert_list")
     alerts = PriceAlert.objects.select_related("product")
-    return render(request, "comparator/price_alert_list.html", {"alerts": alerts, "form": form})
+    page_obj = Paginator(alerts, 50).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/price_alert_list.html",
+        {"alerts": page_obj, "page_obj": page_obj, "page_query": _page_query(request), "form": form},
+    )
 
 
 def price_alert_delete(request, pk):
@@ -246,7 +284,16 @@ def shopping_list_item_delete(request, pk):
 
 
 def metro_list(request):
+    query = request.GET.get("q", "").strip()
+    category = request.GET.get("category", "").strip()
     offers = MetroOffer.objects.select_related("product")
+    if query:
+        offers = offers.filter(
+            Q(product__name__icontains=query) | Q(product__brand__icontains=query) | Q(source__icontains=query)
+        )
+    if category:
+        offers = offers.filter(product__category=category)
+    page_obj = Paginator(offers, 100).get_page(request.GET.get("page"))
     confirmed_document_lines = InvoiceLine.objects.filter(
         invoice__supplier__is_metro=True, needs_review=False, matched_product__isnull=False
     ).count()
@@ -254,7 +301,12 @@ def metro_list(request):
         request,
         "comparator/metro_list.html",
         {
-            "offers": offers,
+            "offers": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
+            "query": query,
+            "selected_category": category,
+            "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
         },
@@ -391,14 +443,15 @@ def metro_scrape_mass_start(request):
 def metro_scrape_detail(request, pk):
     job = get_object_or_404(MetroScrapeJob, pk=pk)
     rows = job.products.select_related("matched_product")
-    products = Product.objects.filter(active=True)
+    page_obj = Paginator(rows, 100).get_page(request.GET.get("page"))
     return render(
         request,
         "comparator/metro_scrape_detail.html",
         {
             "job": job,
-            "rows": rows,
-            "catalog_products": products,
+            "rows": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
             "base_units": BaseUnit.choices,
             "search_terms": job.terms.all(),
         },
@@ -582,8 +635,7 @@ def invoice_lines_review(request, pk):
 
 
 def barcode_scanner(request):
-    products = Product.objects.filter(active=True).only("id", "name", "brand", "ean").order_by("name")
-    return render(request, "comparator/barcode_scanner.html", {"products": products})
+    return render(request, "comparator/barcode_scanner.html")
 
 
 def barcode_lookup(request):
@@ -607,13 +659,17 @@ def barcode_assign(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
     code = normalize_barcode(request.POST.get("code"))
-    product = get_object_or_404(Product, pk=request.POST.get("product"), active=True)
+    product_id = request.POST.get("product", "").strip()
+    product = Product.objects.filter(pk=product_id, active=True).first() if product_id.isdigit() else None
+    if not product:
+        messages.error(request, "Alege produsul pentru acest cod de bare.")
+        return redirect("comparator:barcode_scanner")
     if not is_valid_gtin(code):
         messages.error(request, "Cod EAN/GTIN invalid. Verifică scanarea.")
     else:
         try:
             assign_ean(product, code)
-        except Exception as exc:
+        except ValidationError as exc:
             messages.error(request, str(exc))
         else:
             messages.success(request, f"EAN {code} a fost asociat produsului {product.name}.")

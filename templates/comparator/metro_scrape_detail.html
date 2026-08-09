@@ -22,11 +22,12 @@
     <td><input class="price-input" name="price_{{ row.pk }}" value="{{ row.price_gross|floatformat:2 }}" {% if row.imported %}disabled{% endif %}> lei</td>
     <td><strong>{{ row.price_per_base_unit|floatformat:2 }} lei/{{ row.base_unit }}</strong></td>
     <td>{{ row.store_name|default:"Nedetectat" }}</td>
-    <td><select name="product_{{ row.pk }}" {% if row.imported %}disabled{% endif %}><option value="">Creează produs nou</option>{% for product in catalog_products %}<option value="{{ product.pk }}" {% if row.matched_product_id == product.pk %}selected{% endif %}>{{ product.name }}</option>{% endfor %}</select><small>scor {{ row.match_score }}%</small></td>
+    <td>{% if row.imported %}{{ row.matched_product.name|default:"Produs creat" }}{% else %}<div class="product-autocomplete" data-product-autocomplete data-search-url="{% url 'comparator:product_search' %}"><input type="hidden" name="product_{{ row.pk }}" value="{{ row.matched_product_id|default:'' }}"><input type="search" class="product-autocomplete-search" value="{{ row.matched_product.name|default:'' }}" placeholder="Caută produs..." autocomplete="off" aria-label="Caută produs" aria-expanded="false"><div class="product-autocomplete-results" role="listbox" hidden></div></div>{% endif %}<small>scor {{ row.match_score }}%</small></td>
     <td>{% if row.imported %}<span class="badge processed">Importat</span>{% else %}<span class="badge review">De verificat</span>{% endif %}</td>
   </tr>{% empty %}<tr><td colspan="9" class="empty">Nu ai capturat produse încă.</td></tr>{% endfor %}
   </tbody></table>
 </section>
+{% include "comparator/partials/pagination.html" %}
 {% if rows %}<div class="form-actions"><button class="button primary">Importă produsele selectate</button></div>{% endif %}
 </form>
 {% endblock %}
