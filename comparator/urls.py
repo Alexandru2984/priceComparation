@@ -36,6 +36,12 @@ urlpatterns = [
     path("stoc/<int:pk>/editeaza/", staff_member_required(views.inventory_item_edit), name="inventory_item_edit"),
     path("stoc/<int:pk>/miscare/", staff_member_required(views.stock_movement_create), name="stock_movement_create"),
     path("metro/", staff_member_required(views.metro_list), name="metro_list"),
+    path("metro/abateri/", staff_member_required(views.metro_price_anomalies), name="metro_price_anomalies"),
+    path(
+        "metro/abateri/<int:pk>/revizuieste/",
+        staff_member_required(views.metro_price_anomaly_review),
+        name="metro_price_anomaly_review",
+    ),
     path("metro/adauga/", staff_member_required(views.metro_offer_create), name="metro_offer_create"),
     path("metro/importa/", staff_member_required(views.metro_import), name="metro_import"),
     path("metro/sincronizeaza-documente/", staff_member_required(views.metro_sync_documents), name="metro_sync_documents"),

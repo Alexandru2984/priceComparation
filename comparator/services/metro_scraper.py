@@ -24,6 +24,7 @@ from comparator.models import (
     BaseUnit,
     MetroOffer,
     MetroOfferTier,
+    MetroPriceAnomaly,
     MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
@@ -40,6 +41,16 @@ logger = logging.getLogger(__name__)
 
 def metro_offer_source(store_name):
     return f"Selenium {store_name or 'METRO'}"[:120]
+
+
+def _lowest_price_per_base(price, volume_prices, units_per_package, unit_size):
+    package_prices = [Decimal(price)]
+    for tier in volume_prices or []:
+        tier_price = _decimal(tier.get("price_gross")) if isinstance(tier, dict) else None
+        if tier_price is not None:
+            package_prices.append(tier_price)
+    base_quantity = Decimal(units_per_package) * Decimal(unit_size)
+    return min(package_prices) / base_quantity if base_quantity else None
 
 
 def update_metro_product_state(row, product):
@@ -74,6 +85,35 @@ def update_metro_product_state(row, product):
         or state.last_unit_size != row.unit_size
         or state.last_base_unit != row.base_unit
     )
+    old_base_price = _lowest_price_per_base(
+        state.last_price_gross,
+        state.last_volume_prices,
+        state.last_units_per_package,
+        state.last_unit_size,
+    )
+    new_base_price = _lowest_price_per_base(
+        row.price_gross,
+        row.volume_prices,
+        row.units_per_package,
+        row.unit_size,
+    )
+    if old_base_price and new_base_price:
+        change_percent = (new_base_price - old_base_price) / old_base_price * Decimal("100")
+        if abs(change_percent) >= settings.METRO_PRICE_ANOMALY_PERCENT:
+            MetroPriceAnomaly.objects.update_or_create(
+                state=state,
+                job=row.job,
+                defaults={
+                    "product": product,
+                    "old_price_per_base": old_base_price,
+                    "new_price_per_base": new_base_price,
+                    "change_percent": change_percent,
+                    "status": MetroPriceAnomaly.Status.OPEN,
+                    "note": "",
+                    "reviewed_at": None,
+                    "reviewed_by": None,
+                },
+            )
     state.product = product
     state.last_seen_at = row.captured_at
     state.last_seen_job = row.job
@@ -119,6 +159,7 @@ def finalize_catalog_job(job):
         return job
     complete = (
         job.status == MetroScrapeJob.Status.COMPLETED
+        and job.scan_type == MetroScrapeJob.ScanType.FULL
         and job.total_queries > 0
         and job.completed_queries == job.total_queries
         and not job.terms.exclude(status=MetroScrapeTerm.Status.COMPLETED).exists()
@@ -713,9 +754,21 @@ def launch_scrape_job(job):
         )
 
 
-def launch_mass_catalog_job(job, store_query=""):
+def _launch_catalog_process(job, arguments, log_prefix):
     log_dir = Path(settings.MEDIA_ROOT) / "metro_scraper"
     log_dir.mkdir(parents=True, exist_ok=True)
+    with (log_dir / f"{log_prefix}-job-{job.pk}.log").open("ab") as log_file:
+        subprocess.Popen(  # nosec B603
+            arguments,
+            cwd=settings.BASE_DIR,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+
+def launch_mass_catalog_job(job, store_query=""):
     arguments = [
         sys.executable,
         str(Path(settings.BASE_DIR) / "manage.py"),
@@ -729,15 +782,27 @@ def launch_mass_catalog_job(job, store_query=""):
     ]
     if store_query:
         arguments.extend(["--store", store_query])
-    with (log_dir / f"mass-job-{job.pk}.log").open("ab") as log_file:
-        subprocess.Popen(  # nosec B603
-            arguments,
-            cwd=settings.BASE_DIR,
-            stdin=subprocess.DEVNULL,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+    _launch_catalog_process(job, arguments, "mass")
+
+
+def launch_targeted_catalog_job(job, terms, store_query=""):
+    arguments = [
+        sys.executable,
+        str(Path(settings.BASE_DIR) / "manage.py"),
+        "metro_seed_catalog",
+        *terms,
+        "--resume",
+        str(job.pk),
+        "--limit-per-search",
+        "8",
+        "--delay",
+        "0.8",
+        "--retries",
+        "3",
+    ]
+    if store_query:
+        arguments.extend(["--store", store_query])
+    _launch_catalog_process(job, arguments, "targeted")
 
 
 @transaction.atomic

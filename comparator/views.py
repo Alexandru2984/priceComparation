@@ -33,6 +33,7 @@ from .forms import (
     SupplierForm,
 )
 from .models import (
+    AutomationRun,
     BaseUnit,
     DocumentPage,
     Invoice,
@@ -41,6 +42,7 @@ from .models import (
     InventoryItem,
     MetroOffer,
     MetroOfferTier,
+    MetroPriceAnomaly,
     MetroProductState,
     MetroScrapeJob,
     PriceAlert,
@@ -106,6 +108,10 @@ def dashboard(request):
             "metro_changes": recent_metro_changes(),
             "quality": catalog_quality_summary(),
             "matching_quality": matching_quality_summary(),
+            "open_metro_anomalies": MetroPriceAnomaly.objects.filter(
+                status=MetroPriceAnomaly.Status.OPEN
+            ).count(),
+            "recent_automation": AutomationRun.objects.select_related("metro_job")[:5],
         },
     )
 
@@ -586,6 +592,44 @@ def metro_offer_create(request):
     return render(request, "comparator/form.html", {"form": form, "title": "Preț METRO nou"})
 
 
+def metro_price_anomalies(request):
+    status = request.GET.get("status", MetroPriceAnomaly.Status.OPEN)
+    if status not in MetroPriceAnomaly.Status.values and status != "ALL":
+        status = MetroPriceAnomaly.Status.OPEN
+    anomalies = MetroPriceAnomaly.objects.select_related("product", "state", "job", "reviewed_by")
+    if status != "ALL":
+        anomalies = anomalies.filter(status=status)
+    page_obj = Paginator(anomalies, 100).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/metro_price_anomalies.html",
+        {
+            "anomalies": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
+            "selected_status": status,
+            "status_choices": MetroPriceAnomaly.Status.choices,
+        },
+    )
+
+
+def metro_price_anomaly_review(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    anomaly = get_object_or_404(MetroPriceAnomaly, pk=pk)
+    status = request.POST.get("status", "")
+    if status not in {MetroPriceAnomaly.Status.CONFIRMED, MetroPriceAnomaly.Status.DISMISSED}:
+        messages.error(request, "Selectează o decizie validă pentru abatere.")
+        return redirect("comparator:metro_price_anomalies")
+    anomaly.status = status
+    anomaly.note = request.POST.get("note", "").strip()[:300]
+    anomaly.reviewed_by = request.user
+    anomaly.reviewed_at = timezone.now()
+    anomaly.save(update_fields=["status", "note", "reviewed_by", "reviewed_at"])
+    messages.success(request, "Abaterea de preț a fost revizuită.")
+    return redirect("comparator:metro_price_anomalies")
+
+
 def _decimal(value, default="1"):
     try:
         return Decimal((value or default).strip().replace(" ", "").replace(",", "."))
@@ -706,7 +750,10 @@ def metro_scrape_mass_start(request):
     if active:
         messages.warning(request, "Există deja o scanare activă.")
         return redirect("comparator:metro_scrape_detail", pk=active.pk)
-    job = MetroScrapeJob.objects.create(start_url=settings.METRO_START_URL)
+    job = MetroScrapeJob.objects.create(
+        start_url=settings.METRO_START_URL,
+        scan_type=MetroScrapeJob.ScanType.FULL,
+    )
     try:
         launch_mass_catalog_job(job, settings.METRO_STORE_QUERY)
     except Exception as exc:

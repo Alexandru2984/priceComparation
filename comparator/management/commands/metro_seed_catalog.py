@@ -64,7 +64,10 @@ class Command(BaseCommand):
                     "O scanare finalizată nu poate fi refolosită pentru catalog. Pornește una nouă fără --resume."
                 )
         else:
-            job = MetroScrapeJob.objects.create(start_url=settings.METRO_START_URL)
+            job = MetroScrapeJob.objects.create(
+                start_url=settings.METRO_START_URL,
+                scan_type=(MetroScrapeJob.ScanType.TARGETED if options["terms"] else MetroScrapeJob.ScanType.FULL),
+            )
         job.status = MetroScrapeJob.Status.RUNNING
         job.started_at = job.started_at or timezone.now()
         job.finished_at = None

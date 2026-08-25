@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the PriceMatch backup every day
+Description=Run PriceMatch maintenance every day
 
 [Timer]
 OnCalendar=*-*-* 03:30:00

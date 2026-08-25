@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    AutomationRun,
     DocumentPage,
     Invoice,
     InvoiceLine,
@@ -8,6 +9,7 @@ from .models import (
     InventoryItem,
     MetroOffer,
     MetroOfferTier,
+    MetroPriceAnomaly,
     MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
@@ -96,3 +98,5 @@ admin.site.register(ShoppingListItem)
 admin.site.register(InventoryItem)
 admin.site.register(StockMovement)
 admin.site.register(PushSubscription)
+admin.site.register(MetroPriceAnomaly)
+admin.site.register(AutomationRun)

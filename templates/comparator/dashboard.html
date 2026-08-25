@@ -25,6 +25,7 @@
   <article class="{% if quality.total %}warn{% endif %}"><strong>{{ quality.total }}</strong><span>semnale de calitate a datelor</span></article>
 </section>
 {% if matching_quality.total %}<section class="sync-banner"><div><strong>Calitate potriviri: {% if matching_quality.observed_precision != None %}{{ matching_quality.observed_precision|floatformat:1 }}% confirmate fără corecție{% else %}în curs de măsurare{% endif %}</strong><span>{{ matching_quality.confirmed }} linii confirmate · {{ matching_quality.needs_review }} de verificat · scor mediu {{ matching_quality.average_score|floatformat:1 }}%</span></div><a class="button" href="{% url 'comparator:matching_quality' %}">Deschide centrul</a></section>{% endif %}
+{% if open_metro_anomalies %}<section class="sync-banner"><div><strong>{{ open_metro_anomalies }} abateri mari de preț METRO cer verificare</strong><span>Pragul elimină zgomotul obișnuit și scoate în față posibile schimbări de ambalaj sau capturi eronate.</span></div><a class="button" href="{% url 'comparator:metro_price_anomalies' %}">Verifică abaterile</a></section>{% endif %}
 
 <div class="grid two">
   <section class="panel">
@@ -62,4 +63,5 @@
 </div>
 
 {% if quality.total %}<section class="panel quality-panel"><div class="panel-head"><h2>Calitatea catalogului</h2></div><div class="quality-grid"><span><strong>{{ quality.duplicates }}</strong> posibile duplicate</span><span><strong>{{ quality.missing_prices }}</strong> fără preț</span><span><strong>{{ quality.missing_categories }}</strong> fără categorie</span><span><strong>{{ quality.suspicious_prices }}</strong> prețuri suspecte</span></div></section>{% endif %}
+{% if recent_automation %}<section class="panel quality-panel"><div class="panel-head"><h2>Automatizări recente</h2></div><div class="list">{% for run in recent_automation %}<div class="list-row"><div><strong>{{ run.get_kind_display }}</strong><small>{{ run.summary|default:"În curs" }}{% if run.metro_job_id %} · scanarea #{{ run.metro_job_id }}{% endif %}</small></div><span class="badge {{ run.status|lower }}">{{ run.get_status_display }}</span></div>{% endfor %}</div></section>{% endif %}
 {% endblock %}

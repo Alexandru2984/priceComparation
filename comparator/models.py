@@ -224,6 +224,11 @@ class MetroOfferTier(models.Model):
 
 
 class MetroScrapeJob(models.Model):
+    class ScanType(models.TextChoices):
+        MANUAL = "MANUAL", "Manuală"
+        TARGETED = "TARGETED", "Catalog urmărit"
+        FULL = "FULL", "Catalog complet"
+
     class Status(models.TextChoices):
         PENDING = "PENDING", "În așteptare"
         RUNNING = "RUNNING", "Browser deschis"
@@ -231,6 +236,7 @@ class MetroScrapeJob(models.Model):
         ERROR = "ERROR", "Eroare"
 
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    scan_type = models.CharField(max_length=10, choices=ScanType.choices, default=ScanType.MANUAL, db_index=True)
     start_url = models.URLField(max_length=500)
     captured_count = models.PositiveIntegerField(default=0)
     imported_count = models.PositiveIntegerField(default=0)
@@ -365,6 +371,69 @@ class MetroProductState(models.Model):
 
     def __str__(self):
         return f"{self.product.name} · {self.store_name}"
+
+
+class MetroPriceAnomaly(models.Model):
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "De verificat"
+        CONFIRMED = "CONFIRMED", "Confirmată"
+        DISMISSED = "DISMISSED", "Ignorată"
+
+    state = models.ForeignKey(MetroProductState, on_delete=models.CASCADE, related_name="price_anomalies")
+    job = models.ForeignKey(MetroScrapeJob, on_delete=models.CASCADE, related_name="price_anomalies")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="metro_price_anomalies")
+    old_price_per_base = models.DecimalField(max_digits=14, decimal_places=4)
+    new_price_per_base = models.DecimalField(max_digits=14, decimal_places=4)
+    change_percent = models.DecimalField(max_digits=9, decimal_places=2)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN, db_index=True)
+    note = models.CharField(max_length=300, blank=True)
+    detected_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_metro_price_anomalies",
+    )
+
+    class Meta:
+        ordering = ["-detected_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["state", "job"], name="unique_metro_price_anomaly_per_job")
+        ]
+
+    def __str__(self):
+        return f"{self.product.name}: {self.change_percent:+.2f}%"
+
+
+class AutomationRun(models.Model):
+    class Kind(models.TextChoices):
+        MAINTENANCE = "MAINTENANCE", "Mentenanță zilnică"
+
+    class Status(models.TextChoices):
+        RUNNING = "RUNNING", "În curs"
+        COMPLETED = "COMPLETED", "Finalizată"
+        ERROR = "ERROR", "Eroare"
+
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.MAINTENANCE)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.RUNNING)
+    metro_job = models.ForeignKey(
+        MetroScrapeJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="automation_runs",
+    )
+    summary = models.TextField(blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} · {self.get_status_display()}"
 
 
 class ProductAlias(models.Model):

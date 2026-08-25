@@ -216,6 +216,11 @@ Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru loca�
 ```dotenv
 METRO_STORE_QUERY=Targoviste
 PREFERRED_METRO_STORE=METRO PUNCT TARGOVISTE
+METRO_AUTOMATION_ENABLED=0
+METRO_FULL_SCAN_INTERVAL_DAYS=7
+METRO_TARGETED_SCAN_INTERVAL_HOURS=24
+METRO_TARGETED_SCAN_MAX_PRODUCTS=150
+METRO_PRICE_ANOMALY_PERCENT=40
 ```
 
 Ofertele celorlalte magazine sunt păstrate, dar comparațiile folosesc cu prioritate magazinul preferat.
@@ -330,17 +335,17 @@ Restaurarea șterge datele curente și cere confirmarea explicită:
 .venv/bin/python manage.py restore_pricematch backups/pricematch-AAAALLZZ-HHMMSS --confirm RESTORE
 ```
 
-Pentru cron sau un timer systemd, comanda periodică face întâi backupul și poate porni apoi scanarea:
+Pentru cron sau timerul systemd inclus, comanda periodică face backupul, verifică alertele și pornește cel mult o scanare METRO:
 
 ```bash
-# backup zilnic
-.venv/bin/python manage.py pricematch_maintenance
+# mentenanță zilnică + scanare țintită/completă numai când este scadentă
+.venv/bin/python manage.py pricematch_maintenance --scheduled-metro
 
 # backup + actualizare completă METRO
 .venv/bin/python manage.py pricematch_maintenance --scan-metro --store Targoviste
 ```
 
-Nu suprapune două scanări Selenium și păstrează directorul `backups/` în afara Git, pe un disc separat.
+Scanarea țintită caută produsele active din stoc și listele de cumpărături; cea completă rulează implicit la 7 zile. Aplicația refuză suprapunerea scanărilor și trimite schimbările mai mari decât `METRO_PRICE_ANOMALY_PERCENT` în pagina „Abateri de preț”. Păstrează directorul `backups/` în afara Git, pe un disc separat.
 
 ## Teste
 
