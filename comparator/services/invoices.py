@@ -17,6 +17,7 @@ from comparator.models import (
 from .matching import apply_match
 from .ocr import extract_text, merge_ocr_pages
 from .parser import parse_invoice_text
+from .inventory import sync_stock_from_line
 
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,7 @@ def restore_invoice_revision(revision, created_by=None):
     for line in restored_lines:
         sync_metro_offer_from_line(line)
         sync_supplier_offer_from_line(line)
+        sync_stock_from_line(line)
     return invoice
 
 

@@ -5,6 +5,7 @@ from .models import (
     Invoice,
     InvoiceLine,
     InvoiceRevision,
+    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroProductState,
@@ -18,6 +19,7 @@ from .models import (
     PushSubscription,
     ShoppingList,
     ShoppingListItem,
+    StockMovement,
     Supplier,
     SupplierOffer,
 )
@@ -91,4 +93,6 @@ admin.site.register(SupplierOffer)
 admin.site.register(PriceAlert)
 admin.site.register(ShoppingList)
 admin.site.register(ShoppingListItem)
+admin.site.register(InventoryItem)
+admin.site.register(StockMovement)
 admin.site.register(PushSubscription)

@@ -22,12 +22,14 @@ from .forms import (
     DocumentPagesForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
+    InventoryItemForm,
     MetroImportForm,
     MetroOfferForm,
     PriceAlertForm,
     ProductForm,
     ShoppingListForm,
     ShoppingListItemForm,
+    StockMovementForm,
     SupplierForm,
 )
 from .models import (
@@ -36,6 +38,7 @@ from .models import (
     Invoice,
     InvoiceLine,
     InvoiceRevision,
+    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroProductState,
@@ -47,6 +50,7 @@ from .models import (
     PushSubscription,
     ShoppingList,
     ShoppingListItem,
+    StockMovement,
     Supplier,
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
@@ -61,6 +65,7 @@ from .services.invoices import (
     sync_metro_offer_from_line,
     sync_supplier_offer_from_line,
 )
+from .services.inventory import create_replenishment_list, inventory_with_balance, sync_invoice_stock, sync_stock_from_line
 from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import import_scraped_rows, launch_mass_catalog_job, launch_scrape_job
@@ -239,10 +244,17 @@ def product_detail(request, pk):
         pk=pk,
     )
     history, minimum, maximum = product_history(product)
+    inventory = inventory_with_balance(InventoryItem.objects.filter(product=product)).first()
     return render(
         request,
         "comparator/product_detail.html",
-        {"product": product, "history": history, "minimum": minimum, "maximum": maximum},
+        {
+            "product": product,
+            "history": history,
+            "minimum": minimum,
+            "maximum": maximum,
+            "inventory": inventory,
+        },
     )
 
 
@@ -403,6 +415,76 @@ def shopping_list_item_delete(request, pk):
     list_id = item.shopping_list_id
     item.delete()
     return redirect("comparator:shopping_list_detail", pk=list_id)
+
+
+def inventory_index(request):
+    instance = None
+    posted_product = request.POST.get("product", "") if request.method == "POST" else ""
+    if posted_product.isdigit():
+        instance = InventoryItem.objects.filter(product_id=posted_product).first()
+    form = InventoryItemForm(request.POST or None, instance=instance)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Politica de stoc a fost salvată.")
+        return redirect("comparator:inventory_index")
+    all_items = list(inventory_with_balance(InventoryItem.objects.filter(active=True)))
+    low_count = sum(item.is_low for item in all_items)
+    low_only = request.GET.get("low") == "1"
+    items = [item for item in all_items if item.is_low] if low_only else all_items
+    page_obj = Paginator(items, 100).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/inventory_list.html",
+        {
+            "form": form,
+            "items": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
+            "low_only": low_only,
+            "low_count": low_count,
+            "recent_movements": StockMovement.objects.select_related(
+                "inventory_item__product", "invoice_line__invoice"
+            )[:12],
+        },
+    )
+
+
+def inventory_item_edit(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    form = InventoryItemForm(request.POST or None, instance=item)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Politica de stoc a fost actualizată.")
+        return redirect("comparator:inventory_index")
+    return render(request, "comparator/form.html", {"form": form, "title": "Editează politica de stoc"})
+
+
+def stock_movement_create(request, pk):
+    item = get_object_or_404(InventoryItem.objects.select_related("product"), pk=pk)
+    form = StockMovementForm(request.POST or None)
+    if form.is_valid():
+        movement = form.save(commit=False)
+        movement.inventory_item = item
+        movement.created_by = request.user
+        movement.save()
+        messages.success(request, "Mișcarea de stoc a fost înregistrată.")
+        return redirect("comparator:inventory_index")
+    return render(
+        request,
+        "comparator/form.html",
+        {"form": form, "title": f"Mișcare stoc · {item.product.name}"},
+    )
+
+
+def inventory_replenishment_create(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    shopping_list = create_replenishment_list()
+    if not shopping_list:
+        messages.info(request, "Niciun produs nu este sub stocul minim.")
+        return redirect("comparator:inventory_index")
+    messages.success(request, f"Lista «{shopping_list.name}» a fost generată din stoc.")
+    return redirect("comparator:shopping_list_detail", pk=shopping_list.pk)
 
 
 def metro_list(request):
@@ -737,7 +819,8 @@ def invoice_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     form = InvoiceEditForm(request.POST or None, instance=invoice)
     if form.is_valid():
-        form.save()
+        invoice = form.save()
+        sync_invoice_stock(invoice)
         messages.success(request, "Datele documentului au fost actualizate.")
         return redirect("comparator:invoice_detail", pk=invoice.pk)
     return render(request, "comparator/form.html", {"form": form, "title": "Editează documentul"})
@@ -899,6 +982,7 @@ def _save_line(form, invoice=None):
     ):
         reconcile_derived_metro_offer(line.invoice, previous["matched_product_id"])
     sync_supplier_offer_from_line(line)
+    sync_stock_from_line(line)
     if line.matched_product_id and not line.needs_review:
         ProductAlias.objects.update_or_create(
             supplier=line.invoice.supplier,

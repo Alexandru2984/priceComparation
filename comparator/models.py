@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_CEILING
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.db.models.functions import Lower
 
 from .catalog import CATEGORY_CHOICES
@@ -377,6 +377,11 @@ class Invoice(models.Model):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
     processing_error = models.TextField(blank=True)
     notes = models.TextField("observații", blank=True)
+    receive_into_stock = models.BooleanField(
+        "recepționează în stoc",
+        default=False,
+        help_text="Bifează numai pentru achiziții care trebuie adăugate la stocul curent.",
+    )
     transport_gross = models.DecimalField(
         "transport cu TVA", max_digits=12, decimal_places=2, default=0,
         validators=[MinValueValidator(Decimal("0"))],
@@ -728,6 +733,95 @@ class ShoppingListItem(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["shopping_list", "product"], name="unique_product_per_shopping_list")
         ]
+
+
+class InventoryItem(models.Model):
+    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="inventory")
+    minimum_quantity = models.DecimalField(
+        "stoc minim",
+        max_digits=14,
+        decimal_places=3,
+        default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    target_quantity = models.DecimalField(
+        "stoc țintă",
+        max_digits=14,
+        decimal_places=3,
+        default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    shelf_life_days = models.PositiveIntegerField("valabilitate orientativă în zile", null=True, blank=True)
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["product__name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(target_quantity__gte=models.F("minimum_quantity")),
+                name="inventory_target_at_least_minimum",
+            )
+        ]
+
+    @property
+    def current_quantity(self):
+        annotated = getattr(self, "_current_quantity", None)
+        if annotated is not None:
+            return annotated
+        return self.movements.aggregate(total=Sum("quantity_delta"))["total"] or Decimal("0")
+
+    @property
+    def replenishment_quantity(self):
+        current = self.current_quantity
+        if not self.active or current > self.minimum_quantity:
+            return Decimal("0")
+        return max(self.target_quantity - current, Decimal("0"))
+
+    @property
+    def is_low(self):
+        return self.active and self.current_quantity <= self.minimum_quantity
+
+    def __str__(self):
+        return f"{self.product.name}: {self.current_quantity} {self.product.base_unit}"
+
+
+class StockMovement(models.Model):
+    class Reason(models.TextChoices):
+        OPENING = "OPENING", "Stoc inițial"
+        RECEIPT = "RECEIPT", "Recepție document"
+        SALE = "SALE", "Vânzare"
+        WASTE = "WASTE", "Pierdere / expirare"
+        ADJUSTMENT = "ADJUSTMENT", "Ajustare inventar"
+
+    inventory_item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name="movements")
+    quantity_delta = models.DecimalField("modificare cantitate", max_digits=14, decimal_places=3)
+    reason = models.CharField(max_length=12, choices=Reason.choices)
+    invoice_line = models.OneToOneField(
+        InvoiceLine,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="stock_movement",
+    )
+    note = models.CharField("explicație", max_length=240, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="stock_movements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(condition=~Q(quantity_delta=0), name="stock_movement_nonzero")
+        ]
+
+    def __str__(self):
+        return f"{self.inventory_item.product.name}: {self.quantity_delta:+}"
 
     def __str__(self):
         return f"{self.product} × {self.quantity}"

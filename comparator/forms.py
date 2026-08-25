@@ -3,12 +3,14 @@ from django import forms
 from .models import (
     Invoice,
     InvoiceLine,
+    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     PriceAlert,
     Product,
     ShoppingList,
     ShoppingListItem,
+    StockMovement,
     Supplier,
 )
 from .validators import (
@@ -156,7 +158,7 @@ class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
         model = Invoice
         fields = [
             "document_type", "supplier", "number", "issued_at", "transport_gross",
-            "document_discount_gross", "document_total_gross", "ocr_text", "notes",
+            "document_discount_gross", "document_total_gross", "receive_into_stock", "ocr_text", "notes",
         ]
         widgets = {
             "issued_at": DateInput(),
@@ -190,6 +192,7 @@ class InvoiceEditForm(InvoiceIdentityValidationMixin, forms.ModelForm):
             "transport_gross",
             "document_discount_gross",
             "document_total_gross",
+            "receive_into_stock",
             "notes",
         ]
         widgets = {"issued_at": DateInput()}
@@ -263,3 +266,29 @@ class ShoppingListItemForm(forms.ModelForm):
     class Meta:
         model = ShoppingListItem
         fields = ["product", "quantity", "purchased"]
+
+
+class InventoryItemForm(forms.ModelForm):
+    product = forms.ModelChoiceField(
+        label="Produs", queryset=Product.objects.filter(active=True), widget=ProductAutocompleteWidget()
+    )
+
+    class Meta:
+        model = InventoryItem
+        fields = ["product", "minimum_quantity", "target_quantity", "shelf_life_days", "active"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        set_product_widget_label(self.fields["product"], getattr(self.instance, "product", None))
+
+
+class StockMovementForm(forms.ModelForm):
+    class Meta:
+        model = StockMovement
+        fields = ["quantity_delta", "reason", "note"]
+
+    def clean_quantity_delta(self):
+        value = self.cleaned_data["quantity_delta"]
+        if value == 0:
+            raise forms.ValidationError("Modificarea nu poate fi zero.")
+        return value
