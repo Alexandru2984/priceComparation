@@ -66,16 +66,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='metroscrapejob',
-            name='package_changes_count',
-            field=models.PositiveIntegerField(default=0),
-        ),
-        migrations.AddField(
-            model_name='metroscrapejob',
-            name='price_changes_count',
-            field=models.PositiveIntegerField(default=0),
-        ),
-        migrations.AddField(
-            model_name='metroscrapejob',
             name='new_products_count',
             field=models.PositiveIntegerField(default=0),
         ),
