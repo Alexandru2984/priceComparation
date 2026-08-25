@@ -71,14 +71,12 @@ class Command(BaseCommand):
         job.error = ""
         job.save(update_fields=["status", "started_at", "finished_at", "error"])
 
-        incremental_imported = 0
-
         def show_progress(index, total, term, count):
-            nonlocal incremental_imported
             if not options["no_import"]:
-                incremental_imported += import_scraped_rows(job.products.filter(imported=False))
+                import_scraped_rows(job.products.filter(imported=False))
+                job.refresh_from_db(fields=["imported_count"])
             self.stdout.write(
-                f"[{index}/{total}] {term}: {count} produse unice, {incremental_imported} importate"
+                f"[{index}/{total}] {term}: {count} produse unice, {job.imported_count} importate"
             )
 
         try:
@@ -98,7 +96,12 @@ class Command(BaseCommand):
                 raise CommandError(
                     "METRO nu a returnat produse cu preț. Deschide o scanare vizibilă și selectează magazinul."
                 )
-            imported = 0 if options["no_import"] else incremental_imported + import_scraped_rows(job.products.all())
+            if options["no_import"]:
+                imported = 0
+            else:
+                import_scraped_rows(job.products.all())
+                job.refresh_from_db(fields=["imported_count"])
+                imported = job.imported_count
             failed = job.terms.filter(status=MetroScrapeTerm.Status.ERROR).count()
             job.status = MetroScrapeJob.Status.ERROR if failed else MetroScrapeJob.Status.COMPLETED
             job.error = f"{failed} căutări au eșuat; reia scanarea cu --resume {job.pk}." if failed else ""
