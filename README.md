@@ -164,7 +164,7 @@ profilul Chrome:
 .venv/bin/python manage.py metro_seed_catalog
 ```
 
-Comanda caută automat peste 200 de familii de produse. Implicit încarcă toate cardurile disponibile
+Comanda caută automat peste 300 de familii de produse. Implicit încarcă toate cardurile disponibile
 pentru fiecare căutare, deduplică după codul intern METRO și salvează progresul fiecărui termen. Dacă
 Chrome sau rețeaua se opresc, reia exact scanarea rămasă:
 
@@ -197,6 +197,17 @@ Lista implicită acoperă lactate, băuturi, fructe și legume, băcănie, conse
 snacks, igienă, curățenie, cafea și ceai, sosuri, panificație, congelate, carne și pește, produse pentru
 copii, hrană pentru animale și consumabile de menaj. Folosește o întârziere de cel puțin 0,3 secunde;
 valoarea implicită de 0,8 secunde evită încărcarea agresivă a site-ului.
+
+### Prospețime și disponibilitate METRO
+
+Fiecare cod METRO este urmărit separat pentru fiecare magazin: prima observare, ultima observare, ultimul
+preț, ambalarea și numărul de scanări consecutive în care a lipsit. Un produs este marcat indisponibil și
+ofertele lui nu mai intră în comparații numai după două scanări complete consecutive în care nu apare.
+Scanările manuale, parțiale sau cu termeni eșuați nu marchează produse ca lipsă.
+
+Dacă produsul reapare, oferta este reactivată automat. Pagina `Prețuri METRO` arată ultima observare,
+produsele indisponibile și catalogul mai vechi de 14 zile, iar detaliul fiecărei scanări complete raportează
+produsele noi, reapărute, prețurile și ambalările schimbate. Istoricul ofertelor rămâne în PostgreSQL.
 
 Magazinul folosit automat este configurat prin `METRO_STORE_QUERY`. Pentru locația curentă:
 
