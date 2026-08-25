@@ -162,6 +162,13 @@ class MetroScrapeJob(models.Model):
     error = models.TextField(blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    lifecycle_finalized_at = models.DateTimeField(null=True, blank=True)
+    new_products_count = models.PositiveIntegerField(default=0)
+    reactivated_products_count = models.PositiveIntegerField(default=0)
+    missing_products_count = models.PositiveIntegerField(default=0)
+    unavailable_products_count = models.PositiveIntegerField(default=0)
+    price_changes_count = models.PositiveIntegerField(default=0)
+    package_changes_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -228,6 +235,55 @@ class MetroScrapedProduct(models.Model):
 
     def __str__(self):
         return f"{self.name} · {self.price_gross} lei"
+
+
+class MetroProductState(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="metro_states")
+    external_id = models.CharField("cod METRO", max_length=80)
+    store_name = models.CharField("magazin", max_length=120, db_index=True)
+    first_seen_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField()
+    first_seen_job = models.ForeignKey(
+        MetroScrapeJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="first_seen_states",
+    )
+    last_seen_job = models.ForeignKey(
+        MetroScrapeJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="last_seen_states",
+    )
+    reactivated_in_job = models.ForeignKey(
+        MetroScrapeJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reactivated_states",
+    )
+    consecutive_misses = models.PositiveSmallIntegerField(default=0)
+    available = models.BooleanField(default=True, db_index=True)
+    last_price_gross = models.DecimalField(max_digits=12, decimal_places=2)
+    last_units_per_package = models.DecimalField(max_digits=10, decimal_places=3, default=1)
+    last_unit_size = models.DecimalField(max_digits=10, decimal_places=3, default=1)
+    last_base_unit = models.CharField(max_length=3, choices=BaseUnit.choices, default=BaseUnit.PIECE)
+    last_package_text = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        ordering = ["store_name", "product__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store_name", "external_id"],
+                name="unique_metro_product_state_per_store",
+            )
+        ]
+        indexes = [models.Index(fields=["store_name", "available", "last_seen_at"])]
+
+    def __str__(self):
+        return f"{self.product.name} · {self.store_name}"
 
 
 class ProductAlias(models.Model):

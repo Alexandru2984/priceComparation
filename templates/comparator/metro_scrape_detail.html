@@ -6,6 +6,7 @@
   <a class="button" href="{% url 'comparator:metro_scrape_list' %}">Toate scanările</a>
 </div>
 {% if job.error %}<div class="message error">{{ job.error }}</div>{% endif %}
+{% if job.lifecycle_finalized_at %}<section class="stats compact-stats lifecycle-stats"><article><strong>{{ job.new_products_count }}</strong><span>produse noi · {{ job.reactivated_products_count }} reapărute</span></article><article><strong>{{ job.price_changes_count }}</strong><span>prețuri schimbate · {{ job.package_changes_count }} ambalări schimbate</span></article><article class="{% if job.missing_products_count %}warn{% endif %}"><strong>{{ job.missing_products_count }}</strong><span>lipsă în această scanare · {{ job.unavailable_products_count }} marcate indisponibile</span></article></section>{% endif %}
 {% if job.status == 'PENDING' or job.status == 'RUNNING' %}
   <section class="sync-banner" data-auto-refresh><div><strong>Browserul este activ</strong><span>Navighează în Chrome și folosește panoul verde. Această pagină se actualizează automat.</span></div></section>
 {% endif %}

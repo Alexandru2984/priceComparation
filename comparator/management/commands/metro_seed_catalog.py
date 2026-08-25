@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from comparator.catalog import CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
 from comparator.models import MetroScrapeJob, MetroScrapeTerm
-from comparator.services.metro_scraper import capture_search_terms, import_scraped_rows
+from comparator.services.metro_scraper import capture_search_terms, finalize_catalog_job, import_scraped_rows
 
 
 DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
@@ -59,6 +59,10 @@ class Command(BaseCommand):
                 job = MetroScrapeJob.objects.get(pk=options["resume"])
             except MetroScrapeJob.DoesNotExist as exc:
                 raise CommandError("Scanarea cerută nu există.") from exc
+            if job.lifecycle_finalized_at and options["refresh_completed"]:
+                raise CommandError(
+                    "O scanare finalizată nu poate fi refolosită pentru catalog. Pornește una nouă fără --resume."
+                )
         else:
             job = MetroScrapeJob.objects.create(start_url=settings.METRO_START_URL)
         job.status = MetroScrapeJob.Status.RUNNING
@@ -100,6 +104,8 @@ class Command(BaseCommand):
             job.error = f"{failed} căutări au eșuat; reia scanarea cu --resume {job.pk}." if failed else ""
             job.finished_at = timezone.now()
             job.save(update_fields=["status", "error", "finished_at"])
+            if not options["no_import"] and job.status == MetroScrapeJob.Status.COMPLETED:
+                job = finalize_catalog_job(job)
             message = f"Gata: {captured} capturate, {imported} importate, {failed} căutări eșuate. Job #{job.pk}."
             self.stdout.write(self.style.WARNING(message) if failed else self.style.SUCCESS(message))
         except Exception as exc:

@@ -2,7 +2,7 @@ import csv
 import io
 import json
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -11,9 +11,10 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .forms import (
     InvoiceForm,
@@ -36,6 +37,7 @@ from .models import (
     InvoiceLine,
     InvoiceRevision,
     MetroOffer,
+    MetroProductState,
     MetroScrapeJob,
     PriceAlert,
     Product,
@@ -378,7 +380,15 @@ def shopping_list_item_delete(request, pk):
 def metro_list(request):
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
+    availability = request.GET.get("availability", "active").strip()
     offers = MetroOffer.objects.select_related("product")
+    if availability == "inactive":
+        offers = offers.filter(active=False)
+    elif availability == "all":
+        pass
+    else:
+        availability = "active"
+        offers = offers.filter(active=True)
     if query:
         offers = offers.filter(
             Q(product__name__icontains=query) | Q(product__brand__icontains=query) | Q(source__icontains=query)
@@ -389,6 +399,19 @@ def metro_list(request):
     confirmed_document_lines = InvoiceLine.objects.filter(
         invoice__supplier__is_metro=True, needs_review=False, matched_product__isnull=False
     ).count()
+    tracked_store = settings.PREFERRED_METRO_STORE.strip()
+    states = MetroProductState.objects.all()
+    if tracked_store:
+        states = states.filter(store_name__iexact=tracked_store)
+    freshness = states.aggregate(total=Count("id"), last_seen=Max("last_seen_at"))
+    freshness.update(
+        available=states.filter(available=True).count(),
+        unavailable=states.filter(available=False).count(),
+        stale=states.filter(
+            available=True,
+            last_seen_at__lt=timezone.now() - timedelta(days=14),
+        ).count(),
+    )
     return render(
         request,
         "comparator/metro_list.html",
@@ -398,9 +421,11 @@ def metro_list(request):
             "page_query": _page_query(request),
             "query": query,
             "selected_category": category,
+            "availability": availability,
             "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
+            "freshness": freshness,
         },
     )
 

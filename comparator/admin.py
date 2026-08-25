@@ -6,6 +6,7 @@ from .models import (
     InvoiceLine,
     InvoiceRevision,
     MetroOffer,
+    MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
     MetroScrapeTerm,
@@ -71,6 +72,7 @@ class InvoiceRevisionAdmin(admin.ModelAdmin):
 
 admin.site.register(Supplier)
 admin.site.register(MetroOffer)
+admin.site.register(MetroProductState)
 admin.site.register(ProductAlias)
 admin.site.register(MetroScrapeJob)
 admin.site.register(MetroScrapedProduct)

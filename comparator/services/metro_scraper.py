@@ -12,6 +12,7 @@ from urllib.parse import urlencode, urlparse
 import pandas as pd
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchWindowException, WebDriverException
@@ -22,6 +23,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from comparator.models import (
     BaseUnit,
     MetroOffer,
+    MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
     MetroScrapeTerm,
@@ -33,6 +35,128 @@ from .matching import suggest_product
 
 
 logger = logging.getLogger(__name__)
+
+
+def metro_offer_source(store_name):
+    return f"Selenium {store_name or 'METRO'}"[:120]
+
+
+def update_metro_product_state(row, product):
+    store_name = (row.store_name or row.job.store_name or "METRO").strip()[:120]
+    state = MetroProductState.objects.select_for_update().filter(
+        store_name=store_name,
+        external_id=row.external_id,
+    ).first()
+    if state is None:
+        return MetroProductState.objects.create(
+            product=product,
+            external_id=row.external_id,
+            store_name=store_name,
+            first_seen_at=row.captured_at,
+            last_seen_at=row.captured_at,
+            first_seen_job=row.job,
+            last_seen_job=row.job,
+            last_price_gross=row.price_gross,
+            last_units_per_package=row.units_per_package,
+            last_unit_size=row.unit_size,
+            last_base_unit=row.base_unit,
+            last_package_text=row.package_text,
+        )
+    was_unavailable = not state.available
+    price_changed = state.last_price_gross != row.price_gross
+    package_changed = (
+        state.last_units_per_package != row.units_per_package
+        or state.last_unit_size != row.unit_size
+        or state.last_base_unit != row.base_unit
+    )
+    state.product = product
+    state.last_seen_at = row.captured_at
+    state.last_seen_job = row.job
+    state.reactivated_in_job = row.job if was_unavailable else state.reactivated_in_job
+    state.consecutive_misses = 0
+    state.available = True
+    state.last_price_gross = row.price_gross
+    state.last_units_per_package = row.units_per_package
+    state.last_unit_size = row.unit_size
+    state.last_base_unit = row.base_unit
+    state.last_package_text = row.package_text
+    state.save(
+        update_fields=[
+            "product",
+            "last_seen_at",
+            "last_seen_job",
+            "reactivated_in_job",
+            "consecutive_misses",
+            "available",
+            "last_price_gross",
+            "last_units_per_package",
+            "last_unit_size",
+            "last_base_unit",
+            "last_package_text",
+        ]
+    )
+    counters = {}
+    if price_changed:
+        counters["price_changes_count"] = F("price_changes_count") + 1
+    if package_changed:
+        counters["package_changes_count"] = F("package_changes_count") + 1
+    if counters:
+        MetroScrapeJob.objects.filter(pk=row.job_id).update(**counters)
+    return state
+
+
+@transaction.atomic
+def finalize_catalog_job(job):
+    job = MetroScrapeJob.objects.select_for_update().get(pk=job.pk)
+    if job.lifecycle_finalized_at:
+        return job
+    complete = (
+        job.status == MetroScrapeJob.Status.COMPLETED
+        and job.total_queries > 0
+        and job.completed_queries == job.total_queries
+        and not job.terms.exclude(status=MetroScrapeTerm.Status.COMPLETED).exists()
+        and job.products.exists()
+        and not job.products.filter(imported=False).exists()
+        and bool(job.store_name.strip())
+    )
+    if not complete:
+        return job
+
+    missing_states = list(
+        MetroProductState.objects.select_for_update()
+        .filter(store_name=job.store_name, available=True)
+        .exclude(last_seen_job=job)
+    )
+    newly_unavailable_product_ids = []
+    for state in missing_states:
+        state.consecutive_misses += 1
+        if state.consecutive_misses >= 2:
+            state.available = False
+            newly_unavailable_product_ids.append(state.product_id)
+        state.save(update_fields=["consecutive_misses", "available"])
+
+    if newly_unavailable_product_ids:
+        MetroOffer.objects.filter(
+            product_id__in=newly_unavailable_product_ids,
+            source=metro_offer_source(job.store_name),
+            active=True,
+        ).update(active=False)
+
+    job.new_products_count = MetroProductState.objects.filter(first_seen_job=job).count()
+    job.reactivated_products_count = MetroProductState.objects.filter(reactivated_in_job=job).count()
+    job.missing_products_count = len(missing_states)
+    job.unavailable_products_count = len(newly_unavailable_product_ids)
+    job.lifecycle_finalized_at = timezone.now()
+    job.save(
+        update_fields=[
+            "new_products_count",
+            "reactivated_products_count",
+            "missing_products_count",
+            "unavailable_products_count",
+            "lifecycle_finalized_at",
+        ]
+    )
+    return job
 
 
 CARD_DATA_SCRIPT = """
@@ -584,7 +708,7 @@ def import_scraped_rows(rows):
             supplier=None,
             defaults={"product": product},
         )
-        source = f"Selenium {row.store_name or 'METRO'}"[:120]
+        source = metro_offer_source(row.store_name or row.job.store_name)
         MetroOffer.objects.update_or_create(
             product=product,
             valid_from=today,
@@ -599,6 +723,7 @@ def import_scraped_rows(rows):
         row.matched_product = product
         row.imported = True
         row.save(update_fields=["matched_product", "imported"])
+        update_metro_product_state(row, product)
         touched_jobs.add(row.job_id)
         imported += 1
     for job_id in touched_jobs:
