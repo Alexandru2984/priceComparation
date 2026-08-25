@@ -24,6 +24,7 @@
   <article class="{% if triggered_alerts %}warn{% endif %}"><strong>{{ triggered_alerts|length }}</strong><span>alerte declanșate</span></article>
   <article class="{% if quality.total %}warn{% endif %}"><strong>{{ quality.total }}</strong><span>semnale de calitate a datelor</span></article>
 </section>
+{% if matching_quality.total %}<section class="sync-banner"><div><strong>Calitate potriviri: {% if matching_quality.observed_precision != None %}{{ matching_quality.observed_precision|floatformat:1 }}% confirmate fără corecție{% else %}în curs de măsurare{% endif %}</strong><span>{{ matching_quality.confirmed }} linii confirmate · {{ matching_quality.needs_review }} de verificat · scor mediu {{ matching_quality.average_score|floatformat:1 }}%</span></div><a class="button" href="{% url 'comparator:matching_quality' %}">Deschide centrul</a></section>{% endif %}
 
 <div class="grid two">
   <section class="panel">

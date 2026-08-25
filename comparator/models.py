@@ -495,6 +495,13 @@ class InvoiceRevision(models.Model):
 
 
 class InvoiceLine(models.Model):
+    class MatchMethod(models.TextChoices):
+        NONE = "NONE", "Fără potrivire"
+        CODE = "CODE", "Cod exact"
+        ALIAS = "ALIAS", "Alias învățat"
+        FUZZY = "FUZZY", "Denumire și gramaj"
+        MANUAL = "MANUAL", "Confirmare manuală"
+
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
     original_name = models.CharField("denumire de pe factură", max_length=240)
     ean = models.CharField("EAN / cod produs", max_length=80, blank=True, db_index=True)
@@ -540,6 +547,10 @@ class InvoiceLine(models.Model):
     )
     matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines")
     match_score = models.PositiveSmallIntegerField(default=0)
+    match_gap = models.PositiveSmallIntegerField(default=0)
+    match_method = models.CharField(max_length=10, choices=MatchMethod.choices, default=MatchMethod.NONE)
+    match_candidates = models.JSONField(default=list, blank=True)
+    match_corrected = models.BooleanField(default=False)
     needs_review = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

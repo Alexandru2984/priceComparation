@@ -66,6 +66,7 @@ from .services.matching import apply_match
 from .services.metro_scraper import import_scraped_rows, launch_mass_catalog_job, launch_scrape_job
 from .services.insights import (
     catalog_quality_summary,
+    matching_quality_summary,
     product_history,
     recent_metro_changes,
     shopping_recommendation,
@@ -97,6 +98,26 @@ def dashboard(request):
             "triggered_alerts": alerts[:6],
             "metro_changes": recent_metro_changes(),
             "quality": catalog_quality_summary(),
+            "matching_quality": matching_quality_summary(),
+        },
+    )
+
+
+def matching_quality(request):
+    lines = (
+        InvoiceLine.objects.select_related("invoice", "invoice__supplier", "matched_product")
+        .filter(needs_review=True)
+        .order_by("-invoice__issued_at", "id")
+    )
+    page_obj = Paginator(lines, 100).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/matching_quality.html",
+        {
+            "summary": matching_quality_summary(),
+            "lines": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
         },
     )
 
@@ -848,7 +869,16 @@ def _save_line(form, invoice=None):
     if invoice:
         line.invoice = invoice
     if line.matched_product_id:
-        line.match_score = 100
+        best_candidate_id = (
+            line.match_candidates[0].get("product_id")
+            if line.match_candidates
+            else None
+        )
+        if best_candidate_id != line.matched_product_id:
+            line.match_score = 100
+            line.match_gap = 100
+            line.match_method = InvoiceLine.MatchMethod.MANUAL
+            line.match_corrected = bool(best_candidate_id)
     else:
         apply_match(line)
     if user_confirmed:
@@ -860,6 +890,8 @@ def _save_line(form, invoice=None):
             base_unit=line.base_unit,
         )
         line.match_score = 100
+        line.match_gap = 100
+        line.match_method = InvoiceLine.MatchMethod.MANUAL
     line.save()
     metro_offer = sync_metro_offer_from_line(line)
     if previous and not previous["needs_review"] and (

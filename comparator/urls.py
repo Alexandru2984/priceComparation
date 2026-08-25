@@ -8,6 +8,7 @@ app_name = "comparator"
 
 urlpatterns = [
     path("", staff_member_required(views.dashboard), name="dashboard"),
+    path("calitate-potriviri/", staff_member_required(views.matching_quality), name="matching_quality"),
     path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
     path("furnizori/adauga/", staff_member_required(views.supplier_create), name="supplier_create"),
     path("catalog/", staff_member_required(views.product_list), name="product_list"),

@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from comparator.models import Invoice, InvoiceLine, Product, Supplier
 from comparator.services.invoices import process_invoice, sync_metro_offer_from_line
-from comparator.services.matching import normalize_name, suggest_product
+from comparator.services.matching import apply_match, normalize_name, rank_product_candidates, suggest_product
 from comparator.services.ocr import extract_text
 from comparator.services.parser import parse_heuristic
 
@@ -28,6 +28,9 @@ TOTAL 304.00"""
     def test_normalizes_diacritics_and_packaging_words(self):
         self.assertEqual(normalize_name("Zahăr pungă 1 KG"), "zahar 1")
 
+    def test_normalization_preserves_zero_digits_in_gramage(self):
+        self.assertEqual(normalize_name("Iaurt 500 g"), "iaurt 500")
+
     def test_parses_receipt_line_with_line_total(self):
         products = parse_heuristic("Coca Cola 2L  2 x 7,90 15,80")
         self.assertEqual(len(products), 1)
@@ -41,6 +44,36 @@ class MatchingTests(TestCase):
         match, score = suggest_product("Ulei Flr Soar Floriol 1L")
         self.assertEqual(match, product)
         self.assertGreaterEqual(score, 65)
+
+    def test_packaging_score_prefers_correct_size(self):
+        small = Product.objects.create(name="Coca Cola SGR 0,5 L", base_unit="L")
+        large = Product.objects.create(name="Coca Cola SGR 2 L", base_unit="L")
+        candidates = rank_product_candidates(
+            "Coca Cola 2L",
+            base_unit="L",
+            unit_size=Decimal("2"),
+        )
+        self.assertEqual(candidates[0]["product"], large)
+        self.assertGreater(candidates[0]["score"], next(row["score"] for row in candidates if row["product"] == small))
+
+    def test_ambiguous_match_is_left_for_review(self):
+        supplier = Supplier.objects.create(name="Furnizor ambiguu")
+        Product.objects.create(name="Lapte integral Brand A 1 L", base_unit="L")
+        Product.objects.create(name="Lapte integral Brand B 1 L", base_unit="L")
+        invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 25))
+        line = InvoiceLine(
+            invoice=invoice,
+            original_name="Lapte integral 1 L",
+            quantity=1,
+            units_per_package=1,
+            unit_size=1,
+            base_unit="L",
+            unit_price_gross=5,
+        )
+        apply_match(line)
+        self.assertTrue(line.needs_review)
+        self.assertEqual(len(line.match_candidates), 2)
+        self.assertLess(line.match_gap, 7)
 
 
 class InvoiceProcessingTests(TestCase):

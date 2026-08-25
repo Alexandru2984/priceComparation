@@ -147,6 +147,7 @@ OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "1") == "1"
 OCR_LANGUAGE = os.getenv("OCR_LANGUAGE", "ron+eng")
 MATCH_AUTO_THRESHOLD = int(os.getenv("MATCH_AUTO_THRESHOLD", "82"))
 MATCH_REVIEW_THRESHOLD = int(os.getenv("MATCH_REVIEW_THRESHOLD", "65"))
+MATCH_AMBIGUITY_GAP = int(os.getenv("MATCH_AMBIGUITY_GAP", "7"))
 METRO_START_URL = os.getenv("METRO_START_URL", "https://produse.metro.ro/shop")
 METRO_BROWSER_PROFILE = Path(os.getenv("METRO_BROWSER_PROFILE", BASE_DIR / "data" / "metro_chrome_profile"))
 METRO_SCRAPE_TIMEOUT_MINUTES = int(os.getenv("METRO_SCRAPE_TIMEOUT_MINUTES", "20"))

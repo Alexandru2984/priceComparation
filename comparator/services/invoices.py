@@ -41,6 +41,10 @@ def _serialize_invoice_line(line):
         "line_total_gross": str(line.line_total_gross) if line.line_total_gross is not None else None,
         "matched_product_id": line.matched_product_id,
         "match_score": line.match_score,
+        "match_gap": line.match_gap,
+        "match_method": line.match_method,
+        "match_candidates": line.match_candidates,
+        "match_corrected": line.match_corrected,
         "needs_review": line.needs_review,
     }
     data.update({field: str(getattr(line, field)) for field in LINE_DECIMAL_FIELDS})
@@ -237,6 +241,14 @@ def restore_invoice_revision(revision, created_by=None):
             ),
             matched_product_id=product_id if product_id in existing_product_ids else None,
             match_score=int(item.get("match_score", 0)) if product_exists else 0,
+            match_gap=int(item.get("match_gap", 0)) if product_exists else 0,
+            match_method=(
+                item.get("match_method")
+                if item.get("match_method") in InvoiceLine.MatchMethod.values
+                else InvoiceLine.MatchMethod.NONE
+            ),
+            match_candidates=item.get("match_candidates", []) if product_exists else [],
+            match_corrected=bool(item.get("match_corrected", False)) if product_exists else False,
             needs_review=bool(item.get("needs_review", True)) or not product_exists,
             **{field: Decimal(str(item[field])) for field in LINE_DECIMAL_FIELDS},
         )

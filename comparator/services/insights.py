@@ -4,10 +4,10 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Count, Max
+from django.db.models import Avg, Count, Max
 from django.utils import timezone
 
-from comparator.models import MetroOffer, Product, SupplierOffer
+from comparator.models import InvoiceLine, MetroOffer, Product, SupplierOffer
 from .matching import normalize_name
 
 
@@ -168,3 +168,29 @@ def catalog_quality_summary():
     }
     cache.set(cache_key, result, 300)
     return result
+
+
+def matching_quality_summary():
+    lines = InvoiceLine.objects.all()
+    confirmed = lines.filter(needs_review=False)
+    evaluated = confirmed.exclude(match_method=InvoiceLine.MatchMethod.NONE)
+    corrected = evaluated.filter(match_corrected=True).count()
+    evaluated_count = evaluated.count()
+    aggregates = lines.aggregate(total=Count("id"), average_score=Avg("match_score"))
+    return {
+        "total": aggregates["total"],
+        "average_score": aggregates["average_score"] or Decimal("0"),
+        "needs_review": lines.filter(needs_review=True).count(),
+        "unmatched": lines.filter(matched_product__isnull=True).count(),
+        "confirmed": confirmed.count(),
+        "exact": lines.filter(
+            match_method__in=[InvoiceLine.MatchMethod.CODE, InvoiceLine.MatchMethod.ALIAS]
+        ).count(),
+        "fuzzy": lines.filter(match_method=InvoiceLine.MatchMethod.FUZZY).count(),
+        "corrected": corrected,
+        "observed_precision": (
+            Decimal(evaluated_count - corrected) / Decimal(evaluated_count) * 100
+            if evaluated_count
+            else None
+        ),
+    }

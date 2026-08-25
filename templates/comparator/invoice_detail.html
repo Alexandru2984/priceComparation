@@ -44,7 +44,7 @@
         <td><div class="inline-fields">{{ form.units_per_package }} × {{ form.unit_size }} {{ form.base_unit }}</div>{{ form.units_per_package.errors }}{{ form.unit_size.errors }}{{ form.base_unit.errors }}</td>
         <td><div class="inline-fields">{{ form.unit_price_gross }} lei · TVA {{ form.vat_rate }}%</div>{{ form.line_total_gross }}{{ form.unit_price_gross.errors }}{{ form.vat_rate.errors }}</td>
         <td><div class="inline-fields">− {{ form.discount_gross }} + {{ form.deposit_gross }}</div>{{ form.discount_gross.errors }}{{ form.deposit_gross.errors }}</td>
-        <td>{{ form.matched_product }}{{ form.matched_product.errors }}<small>Potrivire curentă: {{ form.instance.match_score }}%</small></td>
+        <td>{{ form.matched_product }}{{ form.matched_product.errors }}<small>Potrivire: {{ form.instance.get_match_method_display }} · {{ form.instance.match_score }}%{% if form.instance.match_gap %} · avans {{ form.instance.match_gap }}p{% endif %}</small>{% if form.instance.match_candidates %}<details><summary>Alternative calculate</summary>{% for candidate in form.instance.match_candidates %}<small>{{ candidate.score }}% · {{ candidate.name }}{% if candidate.brand %} · {{ candidate.brand }}{% endif %} · {{ candidate.reason }}</small>{% endfor %}</details>{% endif %}</td>
         <td>{{ form.needs_review }}<small>Bifat = încă necesită verificare</small></td>
         <td>{{ form.DELETE }}</td>
       </tr>{% endfor %}</tbody>
@@ -62,7 +62,7 @@
       <td><strong>{{ line.original_name }}</strong><small>{{ line.quantity|floatformat:-3 }} × {{ line.units_per_package|floatformat:-3 }} × {{ line.unit_size|floatformat:-3 }} {{ line.base_unit }}</small>{% for warning in line.data_warnings %}<small class="anomaly">⚠ {{ warning }}</small>{% endfor %}</td>
       <td>{{ line.total_base_quantity|floatformat:-3 }} {{ line.base_unit }}</td>
       <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.merchandise_total_net|floatformat:2 }} lei fără TVA · cost efectiv cu transport</small></td>
-      <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>scor {{ line.match_score }}%</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
+      <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>{{ line.get_match_method_display }} · scor {{ line.match_score }}%{% if line.match_corrected %} · corectat manual{% elif line.match_gap %} · avans {{ line.match_gap }}p{% endif %}</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
       <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }} · {{ result.metro_packages }} pachet{{ result.metro_packages|pluralize:"e" }} METRO{% if result.metro_volume_applied %} · preț de volum aplicat{% endif %}</small>{% else %}—{% endif %}</td>
       <td>{% if result %}<strong>{{ result.percent|floatformat:1 }}%</strong><small>{{ result.total_impact|floatformat:2 }} lei total</small>{% else %}—{% endif %}</td>
       <td>{% if line.needs_review %}<span class="badge review">Verifică</span>{% elif result %}<span class="badge {{ result.status|lower }}">{{ result.status }}</span>{% else %}<span class="badge new">Fără preț</span>{% endif %}</td>
