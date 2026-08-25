@@ -30,7 +30,10 @@ class DateInput(forms.DateInput):
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
-        fields = ["name", "tax_id", "is_metro", "notes"]
+        fields = [
+            "name", "tax_id", "is_metro", "minimum_order_gross", "transport_gross",
+            "free_transport_from", "notes",
+        ]
 
 
 class ProductForm(forms.ModelForm):
@@ -255,7 +258,7 @@ class PriceAlertForm(forms.ModelForm):
 class ShoppingListForm(forms.ModelForm):
     class Meta:
         model = ShoppingList
-        fields = ["name"]
+        fields = ["name", "budget_gross"]
 
 
 class ShoppingListItemForm(forms.ModelForm):
@@ -265,7 +268,7 @@ class ShoppingListItemForm(forms.ModelForm):
 
     class Meta:
         model = ShoppingListItem
-        fields = ["product", "quantity", "purchased"]
+        fields = ["product", "quantity", "priority", "purchased"]
 
 
 class InventoryItemForm(forms.ModelForm):

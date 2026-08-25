@@ -21,6 +21,33 @@ class Supplier(models.Model):
     tax_id = models.CharField("CUI", max_length=30, blank=True)
     is_metro = models.BooleanField("este METRO", default=False, help_text="Documentele confirmate de la acest furnizor actualizează prețurile METRO.")
     notes = models.TextField("observații", blank=True)
+    minimum_order_gross = models.DecimalField(
+        "comandă minimă cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    transport_gross = models.DecimalField(
+        "transport standard cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    free_transport_from = models.DecimalField(
+        "transport gratuit de la",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+
+    def delivery_cost_for(self, subtotal):
+        if self.free_transport_from is not None and subtotal >= self.free_transport_from:
+            return Decimal("0")
+        return self.transport_gross
 
     class Meta:
         ordering = ["name"]
@@ -709,6 +736,14 @@ class PushSubscription(models.Model):
 
 class ShoppingList(models.Model):
     name = models.CharField(max_length=180)
+    budget_gross = models.DecimalField(
+        "buget cu TVA",
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     archived = models.BooleanField(default=False)
 
@@ -720,6 +755,11 @@ class ShoppingList(models.Model):
 
 
 class ShoppingListItem(models.Model):
+    class Priority(models.IntegerChoices):
+        HIGH = 1, "Urgent"
+        NORMAL = 2, "Normal"
+        LOW = 3, "Poate aștepta"
+
     shopping_list = models.ForeignKey(ShoppingList, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="shopping_items")
     quantity = models.DecimalField(
@@ -727,6 +767,7 @@ class ShoppingListItem(models.Model):
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     purchased = models.BooleanField(default=False)
+    priority = models.PositiveSmallIntegerField("prioritate", choices=Priority.choices, default=Priority.NORMAL)
 
     class Meta:
         ordering = ["product__name"]

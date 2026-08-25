@@ -27,6 +27,7 @@ urlpatterns = [
     path("notificari/test/", staff_member_required(views.push_test), name="push_test"),
     path("cumparaturi/", staff_member_required(views.shopping_list_index), name="shopping_list_index"),
     path("cumparaturi/<int:pk>/", staff_member_required(views.shopping_list_detail), name="shopping_list_detail"),
+    path("cumparaturi/<int:pk>/editeaza/", staff_member_required(views.shopping_list_edit), name="shopping_list_edit"),
     path("cumparaturi/articol/<int:pk>/bifeaza/", staff_member_required(views.shopping_list_item_toggle), name="shopping_list_item_toggle"),
     path("cumparaturi/articol/<int:pk>/sterge/", staff_member_required(views.shopping_list_item_delete), name="shopping_list_item_delete"),
     path("stoc/", staff_member_required(views.inventory_index), name="inventory_index"),

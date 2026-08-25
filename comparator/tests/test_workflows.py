@@ -26,7 +26,7 @@ from comparator.models import (
     SupplierOffer,
 )
 from comparator.services.barcodes import assign_ean, is_valid_gtin
-from comparator.services.insights import shopping_recommendation
+from comparator.services.insights import optimize_shopping_list, shopping_recommendation
 from comparator.services.invoices import sync_supplier_offer_from_line
 from comparator.services.matching import suggest_product
 from comparator.services.metro_scraper import store_captured_rows
@@ -190,6 +190,98 @@ class ShoppingAndAlertTests(TestCase):
         self.assertEqual(result["best"]["package_count"], 3)
         self.assertTrue(result["best"]["volume_applied"])
         self.assertEqual(result["total"], Decimal("30.00"))
+
+    def test_supplier_offer_rounds_requirement_to_whole_packages(self):
+        supplier = Supplier.objects.create(name="Furnizor baxuri")
+        product = Product.objects.create(name="Produs la bax", base_unit="BUC")
+        invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 25))
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            original_name=product.name,
+            quantity=1,
+            units_per_package=6,
+            unit_size=1,
+            unit_price_gross=30,
+            matched_product=product,
+            needs_review=False,
+        )
+        sync_supplier_offer_from_line(line)
+        shopping_list = ShoppingList.objects.create(name="Baxuri")
+        item = ShoppingListItem.objects.create(shopping_list=shopping_list, product=product, quantity=7)
+
+        result = shopping_recommendation(item)
+
+        self.assertEqual(result["best"]["package_count"], 2)
+        self.assertEqual(result["total"], Decimal("60.0000"))
+
+    def test_optimizer_accounts_for_transport_once_per_supplier(self):
+        supplier = Supplier.objects.create(name="Furnizor cu transport", transport_gross=20)
+        product = Product.objects.create(name="Produs transport", base_unit="BUC")
+        MetroOffer.objects.create(product=product, price_gross=10, valid_from=date(2026, 8, 25))
+        invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 25))
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            original_name=product.name,
+            quantity=1,
+            unit_price_gross=8,
+            matched_product=product,
+            needs_review=False,
+        )
+        sync_supplier_offer_from_line(line)
+        shopping_list = ShoppingList.objects.create(name="Transport")
+        ShoppingListItem.objects.create(shopping_list=shopping_list, product=product, quantity=1)
+
+        result = optimize_shopping_list(shopping_list)
+
+        self.assertEqual(result["rows"][0][1]["best"]["kind"], "METRO")
+        self.assertEqual(result["total"], Decimal("10.00"))
+
+    def test_optimizer_rejects_supplier_below_minimum_order(self):
+        supplier = Supplier.objects.create(name="Furnizor cu minim", minimum_order_gross=100)
+        product = Product.objects.create(name="Produs minim", base_unit="BUC")
+        MetroOffer.objects.create(product=product, price_gross=10, valid_from=date(2026, 8, 25))
+        invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 25))
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            original_name=product.name,
+            quantity=1,
+            unit_price_gross=8,
+            matched_product=product,
+            needs_review=False,
+        )
+        sync_supplier_offer_from_line(line)
+        shopping_list = ShoppingList.objects.create(name="Minim")
+        ShoppingListItem.objects.create(shopping_list=shopping_list, product=product, quantity=1)
+
+        result = optimize_shopping_list(shopping_list)
+
+        self.assertEqual(result["rows"][0][1]["best"]["kind"], "METRO")
+        self.assertFalse(result["has_minimum_warnings"])
+
+    def test_budget_defers_low_priority_before_urgent_items(self):
+        urgent = Product.objects.create(name="Urgent", base_unit="BUC")
+        optional = Product.objects.create(name="Opțional", base_unit="BUC")
+        MetroOffer.objects.create(product=urgent, price_gross=10, valid_from=date(2026, 8, 25))
+        MetroOffer.objects.create(product=optional, price_gross=8, valid_from=date(2026, 8, 25))
+        shopping_list = ShoppingList.objects.create(name="Buget", budget_gross=10)
+        ShoppingListItem.objects.create(
+            shopping_list=shopping_list,
+            product=urgent,
+            quantity=1,
+            priority=ShoppingListItem.Priority.HIGH,
+        )
+        ShoppingListItem.objects.create(
+            shopping_list=shopping_list,
+            product=optional,
+            quantity=1,
+            priority=ShoppingListItem.Priority.LOW,
+        )
+
+        result = optimize_shopping_list(shopping_list)
+        deferred_product_ids = [item.product_id for item, row in result["rows"] if row["deferred"]]
+
+        self.assertEqual(deferred_product_ids, [optional.pk])
+        self.assertEqual(result["total"], Decimal("10.00"))
 
 
 class BulkReviewAndScannerViewsTests(TestCase):

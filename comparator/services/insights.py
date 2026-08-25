@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 from django.conf import settings
 from django.core.cache import cache
@@ -41,7 +41,7 @@ def current_source_options(product, quantity=None):
         )
 
     cutoff = timezone.localdate() - timedelta(days=settings.SUPPLIER_PRICE_MAX_AGE_DAYS)
-    offers = product.supplier_offers.select_related("supplier").filter(valid_from__gte=cutoff).order_by(
+    offers = product.supplier_offers.select_related("supplier", "invoice_line").filter(valid_from__gte=cutoff).order_by(
         "supplier_id", "-valid_from", "price_per_base_unit"
     )
     seen = set()
@@ -49,14 +49,25 @@ def current_source_options(product, quantity=None):
         if offer.supplier_id in seen or offer.supplier.is_metro:
             continue
         seen.add(offer.supplier_id)
+        package_quantity = offer.invoice_line.units_per_package * offer.invoice_line.unit_size
+        package_count = (
+            max(1, int((quantity / package_quantity).to_integral_value(rounding=ROUND_CEILING)))
+            if quantity is not None and package_quantity
+            else None
+        )
+        package_price = offer.price_per_base_unit * package_quantity
         options.append(
             {
                 "kind": "SUPPLIER",
                 "source": offer.supplier.name,
                 "price": offer.price_per_base_unit,
-                "package_count": None,
+                "package_count": package_count,
+                "package_quantity": package_quantity,
+                "package_price": package_price,
                 "volume_applied": False,
-                "total": offer.price_per_base_unit * quantity if quantity is not None else None,
+                "total": package_count * package_price if package_count is not None else None,
+                "supplier_id": offer.supplier_id,
+                "supplier": offer.supplier,
                 "valid_from": offer.valid_from,
             }
         )
@@ -80,6 +91,162 @@ def shopping_recommendation(item):
         "options": options,
         "total": best["total"],
         "saving": worst["total"] - best["total"] if len(options) > 1 else Decimal("0"),
+    }
+
+
+def _build_source_orders(rows):
+    orders = {}
+    for result in rows.values():
+        option = result["best"]
+        if not option:
+            continue
+        key = f"supplier:{option['supplier_id']}" if option.get("supplier_id") else f"source:{option['source']}"
+        order = orders.setdefault(
+            key,
+            {
+                "source": option["source"],
+                "supplier": option.get("supplier"),
+                "subtotal": Decimal("0"),
+                "transport": Decimal("0"),
+                "total": Decimal("0"),
+                "below_minimum": False,
+                "item_count": 0,
+            },
+        )
+        order["subtotal"] += option["total"]
+        order["item_count"] += 1
+    for order in orders.values():
+        supplier = order["supplier"]
+        if supplier:
+            order["transport"] = supplier.delivery_cost_for(order["subtotal"])
+            order["below_minimum"] = order["subtotal"] < supplier.minimum_order_gross
+        order["total"] = order["subtotal"] + order["transport"]
+    return list(orders.values())
+
+
+def _orders_total(orders):
+    return sum((order["total"] for order in orders), Decimal("0"))
+
+
+def _optimize_assignments(items):
+    rows = {}
+    for item in items:
+        options = current_source_options(item.product, item.quantity)
+        rows[item.pk] = {"options": options, "best": options[0] if options else None}
+
+    invalid_suppliers = set()
+    for _ in range(5):
+        orders = _build_source_orders(rows)
+        newly_invalid = {
+            order["supplier"].pk
+            for order in orders
+            if order["supplier"] and order["below_minimum"]
+        }
+        if not newly_invalid - invalid_suppliers:
+            invalid_suppliers |= newly_invalid
+            break
+        invalid_suppliers |= newly_invalid
+        for result in rows.values():
+            current = result["best"]
+            if current and current.get("supplier_id") in invalid_suppliers:
+                replacement = next(
+                    (
+                        option for option in result["options"]
+                        if option.get("supplier_id") not in invalid_suppliers
+                    ),
+                    None,
+                )
+                if replacement:
+                    result["best"] = replacement
+
+    # Transportul se plătește o singură dată pe comandă. Pornim de la cele mai
+    # ieftine linii și căutăm mutări care reduc costul întregului coș.
+    for _ in range(max(len(rows) * 2, 1)):
+        current_orders = _build_source_orders(rows)
+        current_total = _orders_total(current_orders)
+        best_move = None
+        best_total = current_total
+        for item_id, result in rows.items():
+            original = result["best"]
+            for option in result["options"]:
+                if option is original or option.get("supplier_id") in invalid_suppliers:
+                    continue
+                result["best"] = option
+                candidate_orders = _build_source_orders(rows)
+                if any(order["below_minimum"] for order in candidate_orders):
+                    continue
+                candidate_total = _orders_total(candidate_orders)
+                if candidate_total < best_total:
+                    best_total = candidate_total
+                    best_move = (item_id, option)
+            result["best"] = original
+        if best_move is None:
+            break
+        rows[best_move[0]]["best"] = best_move[1]
+
+    return rows, _build_source_orders(rows)
+
+
+def optimize_shopping_list(shopping_list):
+    items = list(
+        shopping_list.items.select_related("product").prefetch_related(
+            "product__metro_offers__volume_tiers",
+            "product__supplier_offers__supplier",
+            "product__supplier_offers__invoice_line",
+        )
+    )
+    active_items = [item for item in items if not item.purchased]
+    rows, orders = _optimize_assignments(active_items)
+    for item in items:
+        if item.pk not in rows:
+            options = current_source_options(item.product, item.quantity)
+            rows[item.pk] = {"options": options, "best": options[0] if options else None}
+    total = _orders_total(orders)
+    deferred_ids = set()
+    budget = shopping_list.budget_gross
+    if budget is not None and total > budget:
+        defer_order = sorted(
+            active_items,
+            key=lambda item: (
+                -item.priority,
+                -(rows[item.pk]["best"]["total"] if rows[item.pk]["best"] else Decimal("0")),
+            ),
+        )
+        for deferred in defer_order:
+            deferred_ids.add(deferred.pk)
+            remaining = [item for item in active_items if item.pk not in deferred_ids]
+            remaining_rows, remaining_orders = _optimize_assignments(remaining)
+            remaining_total = _orders_total(remaining_orders)
+            if remaining_total <= budget:
+                for item in remaining:
+                    rows[item.pk] = remaining_rows[item.pk]
+                orders, total = remaining_orders, remaining_total
+                break
+    output_rows = []
+    potential_saving = Decimal("0")
+    for item in items:
+        result = rows[item.pk]
+        result["deferred"] = item.pk in deferred_ids
+        result["total"] = (
+            result["best"]["total"]
+            if result["best"] and not result["deferred"] and not item.purchased
+            else None
+        )
+        if len(result["options"]) > 1 and not result["deferred"] and not item.purchased:
+            result["saving"] = result["options"][-1]["total"] - result["best"]["total"]
+            potential_saving += result["saving"]
+        else:
+            result["saving"] = Decimal("0") if result["best"] else None
+        output_rows.append((item, result))
+    return {
+        "rows": output_rows,
+        "orders": orders,
+        "total": total,
+        "potential_saving": potential_saving,
+        "budget": budget,
+        "budget_remaining": budget - total if budget is not None else None,
+        "deferred_count": len(deferred_ids),
+        "has_minimum_warnings": any(order["below_minimum"] for order in orders),
     }
 
 

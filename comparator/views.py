@@ -72,9 +72,9 @@ from .services.metro_scraper import import_scraped_rows, launch_mass_catalog_job
 from .services.insights import (
     catalog_quality_summary,
     matching_quality_summary,
+    optimize_shopping_list,
     product_history,
     recent_metro_changes,
-    shopping_recommendation,
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
 
@@ -379,24 +379,40 @@ def shopping_list_detail(request, pk):
         ShoppingListItem.objects.update_or_create(
             shopping_list=shopping_list,
             product=item.product,
-            defaults={"quantity": item.quantity, "purchased": item.purchased},
+            defaults={
+                "quantity": item.quantity,
+                "priority": item.priority,
+                "purchased": item.purchased,
+            },
         )
         messages.success(request, "Produsul a fost adăugat în listă.")
         return redirect("comparator:shopping_list_detail", pk=pk)
-    rows = [(item, shopping_recommendation(item)) for item in shopping_list.items.select_related("product")]
-    estimated_total = sum((result["total"] or Decimal("0") for _, result in rows), Decimal("0"))
-    potential_saving = sum((result["saving"] or Decimal("0") for _, result in rows), Decimal("0"))
+    analysis = optimize_shopping_list(shopping_list)
     return render(
         request,
         "comparator/shopping_list_detail.html",
         {
             "shopping_list": shopping_list,
-            "rows": rows,
+            "rows": analysis["rows"],
             "form": form,
-            "estimated_total": estimated_total,
-            "potential_saving": potential_saving,
+            "estimated_total": analysis["total"],
+            "potential_saving": analysis["potential_saving"],
+            "orders": analysis["orders"],
+            "budget_remaining": analysis["budget_remaining"],
+            "deferred_count": analysis["deferred_count"],
+            "has_minimum_warnings": analysis["has_minimum_warnings"],
         },
     )
+
+
+def shopping_list_edit(request, pk):
+    shopping_list = get_object_or_404(ShoppingList, pk=pk)
+    form = ShoppingListForm(request.POST or None, instance=shopping_list)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Lista și bugetul au fost actualizate.")
+        return redirect("comparator:shopping_list_detail", pk=pk)
+    return render(request, "comparator/form.html", {"form": form, "title": "Editează lista și bugetul"})
 
 
 def shopping_list_item_toggle(request, pk):
