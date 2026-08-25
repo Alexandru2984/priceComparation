@@ -8,6 +8,7 @@ if (root) {
   const codeInput = document.getElementById("barcode-code");
   const result = document.getElementById("barcode-result");
   const product = document.getElementById("barcode-product");
+  const expectedProduct = root.dataset.expectedProduct || "";
   let stream = null;
   let timer = null;
   let detector = null;
@@ -20,11 +21,18 @@ if (root) {
     });
     const data = await response.json();
     if (data.found) {
+      if (expectedProduct && String(data.product.id) !== expectedProduct) {
+        result.textContent = `Conflict: codul aparține deja produsului ${data.product.name}. Nu a fost schimbată selecția.`;
+        result.className = "barcode-result warning";
+        return;
+      }
       product.value = String(data.product.id);
       result.textContent = `Găsit: ${data.product.name}${data.product.brand ? ` · ${data.product.brand}` : ""}`;
       result.className = "barcode-result success";
     } else {
-      result.textContent = "Cod nou. Alege produsul căruia vrei să-i atribui EAN-ul.";
+      result.textContent = expectedProduct
+        ? "Cod nou. Va fi atribuit produsului selectat după salvare."
+        : "Cod nou. Alege produsul căruia vrei să-i atribui EAN-ul.";
       result.className = "barcode-result warning";
     }
   };

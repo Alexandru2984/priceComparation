@@ -66,7 +66,7 @@
       <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }} · {{ result.metro_packages }} pachet{{ result.metro_packages|pluralize:"e" }} METRO{% if result.metro_volume_applied %} · preț de volum aplicat{% endif %}</small>{% else %}—{% endif %}</td>
       <td>{% if result %}<strong>{{ result.percent|floatformat:1 }}%</strong><small>{{ result.total_impact|floatformat:2 }} lei total</small>{% else %}—{% endif %}</td>
       <td>{% if line.needs_review %}<span class="badge review">Verifică</span>{% elif result %}<span class="badge {{ result.status|lower }}">{{ result.status }}</span>{% else %}<span class="badge new">Fără preț</span>{% endif %}</td>
-      <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a><form method="post" action="{% url 'comparator:line_delete' line.pk %}" data-confirm="Ștergi linia?">{% csrf_token %}<button class="link danger">Șterge</button></form></td>
+      <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a>{% if line.matched_product and not line.matched_product.ean %}<a href="{% url 'comparator:barcode_scanner' %}?line={{ line.pk }}">Scanează EAN</a>{% endif %}<form method="post" action="{% url 'comparator:line_delete' line.pk %}" data-confirm="Ștergi linia?">{% csrf_token %}<button class="link danger">Șterge</button></form></td>
     </tr>
   {% empty %}<tr><td colspan="8" class="empty">Nu există linii. Adaugă-le manual sau procesează documentul.</td></tr>{% endfor %}
   </tbody></table>

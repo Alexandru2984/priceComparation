@@ -953,7 +953,23 @@ def invoice_lines_review(request, pk):
 
 
 def barcode_scanner(request):
-    return render(request, "comparator/barcode_scanner.html")
+    selected_line = None
+    selected_product = None
+    line_id = request.GET.get("line", "")
+    product_id = request.GET.get("product", "")
+    if line_id.isdigit():
+        selected_line = get_object_or_404(
+            InvoiceLine.objects.select_related("matched_product", "invoice"),
+            pk=line_id,
+        )
+        selected_product = selected_line.matched_product
+    elif product_id.isdigit():
+        selected_product = get_object_or_404(Product, pk=product_id, active=True)
+    return render(
+        request,
+        "comparator/barcode_scanner.html",
+        {"selected_product": selected_product, "selected_line": selected_line},
+    )
 
 
 def barcode_lookup(request):
@@ -978,6 +994,7 @@ def barcode_assign(request):
         return HttpResponseNotAllowed(["POST"])
     code = normalize_barcode(request.POST.get("code"))
     product_id = request.POST.get("product", "").strip()
+    line_id = request.POST.get("line", "").strip()
     product = Product.objects.filter(pk=product_id, active=True).first() if product_id.isdigit() else None
     if not product:
         messages.error(request, "Alege produsul pentru acest cod de bare.")
@@ -991,6 +1008,18 @@ def barcode_assign(request):
             messages.error(request, str(exc))
         else:
             messages.success(request, f"EAN {code} a fost asociat produsului {product.name}.")
+            if line_id.isdigit():
+                line = InvoiceLine.objects.select_related("invoice").filter(
+                    pk=line_id,
+                    matched_product=product,
+                ).first()
+                if line:
+                    line.ean = code
+                    line.save(update_fields=["ean"])
+                    sync_supplier_offer_from_line(line)
+                    messages.success(request, "Codul a fost memorat și pentru furnizorul documentului.")
+                    return redirect("comparator:invoice_detail", pk=line.invoice_id)
+            return redirect("comparator:product_detail", pk=product.pk)
     return redirect("comparator:barcode_scanner")
 
 

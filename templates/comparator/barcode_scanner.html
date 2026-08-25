@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head"><div><p class="eyebrow">Catalog</p><h1>Scanner de coduri de bare</h1><p>Deschide pagina de pe telefon, permite accesul la cameră și îndreaptă codul spre imagine. Funcționează local în browserele care oferă BarcodeDetector.</p></div><a class="button" href="{% url 'comparator:product_list' %}">Înapoi la catalog</a></div>
 
-<div class="grid two barcode-layout" data-barcode-scanner data-lookup-url="{% url 'comparator:barcode_lookup' %}">
+<div class="grid two barcode-layout" data-barcode-scanner data-lookup-url="{% url 'comparator:barcode_lookup' %}" data-expected-product="{{ selected_product.pk|default:'' }}">
   <section class="panel scanner-panel">
     <video id="barcode-video" playsinline muted></video>
     <div class="form-actions"><button class="button primary" type="button" id="start-scanner">Pornește camera</button><button class="button" type="button" id="stop-scanner" disabled>Oprește</button></div>
@@ -12,9 +12,10 @@
   </section>
   <section class="panel form-panel">
     <form method="post" action="{% url 'comparator:barcode_assign' %}">{% csrf_token %}
+      {% if selected_line %}<input type="hidden" name="line" value="{{ selected_line.pk }}">{% endif %}
       <div class="field"><label for="barcode-code">EAN/GTIN</label><input id="barcode-code" name="code" inputmode="numeric" autocomplete="off" maxlength="18" required></div>
       <div id="barcode-result" class="barcode-result muted">Scanează sau introdu codul manual.</div>
-      <div class="field"><label>Asociază unui produs</label><div class="product-autocomplete" data-product-autocomplete data-search-url="{% url 'comparator:product_search' %}"><input type="hidden" id="barcode-product" name="product" required><input type="search" class="product-autocomplete-search" placeholder="Caută produs..." autocomplete="off" aria-label="Caută produs" aria-expanded="false"><div class="product-autocomplete-results" role="listbox" hidden></div></div></div>
+      <div class="field"><label>Asociază unui produs</label><div class="product-autocomplete" data-product-autocomplete data-search-url="{% url 'comparator:product_search' %}"><input type="hidden" id="barcode-product" name="product" value="{{ selected_product.pk|default:'' }}" required><input type="search" class="product-autocomplete-search" value="{{ selected_product.name|default:'' }}" placeholder="Caută produs..." autocomplete="off" aria-label="Caută produs" aria-expanded="false"><div class="product-autocomplete-results" role="listbox" hidden></div></div>{% if selected_line %}<small>Recepție din {{ selected_line.invoice }} · {{ selected_line.original_name }}</small>{% endif %}</div>
       <div class="form-actions"><button class="button primary">Salvează EAN</button></div>
     </form>
   </section>

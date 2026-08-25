@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -91,3 +92,29 @@ class InvoiceAutocompleteTests(TestCase):
             "/app/catalog/ean/asociaza/", {"code": "4006381333931", "product": ""}
         )
         self.assertRedirects(response, "/app/catalog/scaneaza-ean/")
+
+    def test_receiving_scan_prefills_product_and_learns_supplier_code(self):
+        supplier = Supplier.objects.create(name="Furnizor recepție")
+        product = Product.objects.create(name="Produs recepționat", base_unit="BUC")
+        invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 25))
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            original_name="PROD REC",
+            quantity=1,
+            unit_price_gross=Decimal("5"),
+            matched_product=product,
+            needs_review=False,
+        )
+        response = self.client.get(f"/app/catalog/scaneaza-ean/?line={line.pk}")
+        self.assertContains(response, "Produs recepționat")
+
+        response = self.client.post(
+            "/app/catalog/ean/asociaza/",
+            {"code": "4006381333931", "product": product.pk, "line": line.pk},
+        )
+
+        self.assertRedirects(response, f"/app/facturi/{invoice.pk}/")
+        line.refresh_from_db()
+        product.refresh_from_db()
+        self.assertEqual(product.ean, "4006381333931")
+        self.assertEqual(line.ean, "4006381333931")
