@@ -20,7 +20,11 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - notificări Web Push locale, fără API plătit, verificate automat la 15 minute;
 - liste de cumpărături care recomandă cea mai ieftină sursă recentă;
 - scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
-- backup comprimat, verificat SHA-256 și restaurare explicită.
+- stoc auditat, reaprovizionare și optimizarea comenzilor după bax, transport, prag și buget;
+- marjă netă cu TVA, pierderi estimate și recomandare de preț la raft;
+- scanări METRO automate țintite/complet și coadă pentru abateri mari de preț;
+- MFA cu aplicație TOTP pentru publicare pe internet;
+- backup comprimat, verificat SHA-256 și restaurare izolată de test.
 - paginare pentru cataloagele mari și căutare locală autocomplete, fără încărcarea miilor de opțiuni în HTML.
 
 ## Instalare rapidă pe Ubuntu/Debian
@@ -52,6 +56,11 @@ Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și n
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
 `DB_USER` la utilizatorul Linux care rulează aplicația. SQLite rămâne disponibil cu `DB_ENGINE=sqlite`.
 
+Pentru acces din internet setează `MFA_REQUIRED=1`. După autentificarea cu parola, aplicația te trimite la
+`/account/two_factor/setup/`: scanează codul QR cu o aplicație TOTP și salvează codurile de recuperare în
+afara calculatorului. Linkul `MFA` din bara privată permite regenerarea codurilor sau administrarea
+dispozitivului. Nu păstra codurile de recuperare în același director cu backupurile.
+
 Pentru dezvoltare, aplicația poate fi pornită simplu cu:
 
 ```bash
@@ -62,7 +71,7 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
 
 ## Flux recomandat pentru primele facturi și bonuri
 
-1. Autentifică-te la `http://127.0.0.1:8010/admin/login/`, apoi intră în `/app/`.
+1. Autentifică-te la `http://127.0.0.1:8010/account/login/`, apoi intră în `/app/`.
 2. Adaugă furnizorii din `Furnizori → Furnizor nou`; marchează separat furnizorul METRO.
 3. Din `Documente → Document nou`, alege factură sau bon și încarcă PDF/JPG/PNG ori lipește textul.
 4. Pentru un bon lung, selectează până la 12 fotografii în ordinea de sus în jos.
@@ -292,7 +301,7 @@ Serviciile instalate sunt:
 
 - `pricematch.service`: Gunicorn, pornit automat la boot;
 - `pricematch-alerts.timer`: verifică alertele la fiecare 15 minute;
-- `pricematch-backup.timer`: creează backupul zilnic în jurul orei 03:30.
+- `pricematch-backup.timer`: face mentenanța zilnică în jurul orei 03:30 (backup, scanarea METRO scadentă și verificarea alertelor).
 
 PostgreSQL și Ollama ascultă în continuare numai pe localhost. Dacă activezi UFW ulterior, permite porturile
 TCP 80 și 443 numai din subrețeaua locală, nu expune portul 8010 și nu configura port-forwarding în router.
@@ -333,6 +342,13 @@ Restaurarea șterge datele curente și cere confirmarea explicită:
 
 ```bash
 .venv/bin/python manage.py restore_pricematch backups/pricematch-AAAALLZZ-HHMMSS --confirm RESTORE
+```
+
+Verificarea sigură restaurează backupul într-o bază SQLite temporară, rulează verificările Django și șterge
+baza temporară, fără să atingă PostgreSQL sau documentele curente:
+
+```bash
+.venv/bin/python manage.py verify_backup_restore backups/pricematch-AAAALLZZ-HHMMSS
 ```
 
 Pentru cron sau timerul systemd inclus, comanda periodică face backupul, verifică alertele și pornește cel mult o scanare METRO:

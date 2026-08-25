@@ -9,6 +9,7 @@ pandas>=3.0,<4
 psycopg[binary]>=3.2,<4
 python-dotenv>=1.1,<2
 django-axes>=8.3,<9
+django-two-factor-auth[phonenumberslite]>=1.18.1,<2
 gunicorn>=23,<24
 openpyxl>=3.1,<4
 whitenoise>=6.9,<7

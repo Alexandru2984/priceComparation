@@ -1,3 +1,20 @@
+from comparator.auth import enforce_mfa
+
+
+class AdminMFAEnforcementMiddleware:
+    """Apply the same mandatory MFA policy to Django admin URLs."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.path.startswith("/admin/"):
+            mfa_response = enforce_mfa(request)
+            if mfa_response:
+                return mfa_response
+        return self.get_response(request)
+
+
 class SecurityHeadersMiddleware:
     """Add restrictive browser policies to both public and private responses."""
 

@@ -451,5 +451,6 @@ class OCRAndBackupTests(TestCase):
             self.assertEqual(len(backups), 1)
             manifest = json.loads((backups[0] / "manifest.json").read_text(encoding="utf-8"))
             self.assertIn("data.json.gz", manifest["files"])
+            call_command("verify_backup_restore", backups[0], verbosity=0)
             with self.assertRaises(CommandError):
                 call_command("restore_pricematch", backups[0])

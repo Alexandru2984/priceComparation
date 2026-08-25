@@ -1,13 +1,14 @@
 # Audit de securitate și publicare
 
-Data ultimei actualizări: 8 august 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
+Data ultimei actualizări: 26 august 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
 fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 
 ## Măsuri implementate
 
 - pagina `/` folosește numai date demonstrative hardcodate și nu citește catalogul privat;
 - toate rutele `/app/` cer un utilizator activ cu `is_staff=True`;
-- loginul este furnizat de Django Admin, cu validatori de parolă și minimum 12 caractere;
+- loginul unic este furnizat de `django-two-factor-auth`, cu parolă de minimum 12 caractere și TOTP;
+- `MFA_REQUIRED=1` impune înrolarea și o sesiune OTP verificată pe toate rutele `/app/` și `/admin/`;
 - `django-axes` blochează temporar combinația utilizator/IP după 5 autentificări eșuate;
 - CSRF este activ pe toate formularele, iar operațiile distructive folosesc POST;
 - documentele nu mai sunt servite direct din `MEDIA_URL`; descărcarea cere autentificare staff;
@@ -20,6 +21,7 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 - camera este permisă prin Permissions-Policy exclusiv pe pagina privată a scannerului EAN;
 - EAN/GTIN este validat prin cifra de control, iar codurile duplicate sunt refuzate;
 - backupurile locale sunt comprimate, au permisiuni restrictive și manifest SHA-256;
+- `verify_backup_restore` probează restaurarea completă într-o bază temporară izolată;
 - restaurarea refuză arhive cu căi nesigure și cere confirmarea literală `RESTORE`;
 - secretele și configurația bazei rămân în `.env`, exclus din Git;
 - `pip-audit` nu a găsit vulnerabilități cunoscute în dependențele declarate;
@@ -38,6 +40,7 @@ DJANGO_ALLOWED_HOSTS=preturi.exemplu.ro
 DJANGO_CSRF_TRUSTED_ORIGINS=https://preturi.exemplu.ro
 DJANGO_TRUST_PROXY=1
 DJANGO_SECURE_SSL_REDIRECT=1
+MFA_REQUIRED=1
 METRO_SCRAPER_ENABLED=0
 OLLAMA_ENABLED=0
 ```
@@ -63,17 +66,18 @@ exclusiv prin HTTPS, setează `DJANGO_HSTS_SECONDS=31536000`, `DJANGO_HSTS_INCLU
 
 ## Backup și operare
 
-- rulează zilnic `.venv/bin/python manage.py backup_pricematch` și copiază backupul pe alt disc;
+- rulează zilnic `.venv/bin/python manage.py pricematch_maintenance --scheduled-metro` și copiază backupul pe alt disc;
 - pentru redundanță PostgreSQL poți păstra și `pg_dump -Fc pricecompare > pricecompare.dump`;
 - backupul aplicației include `media/`, dar discul extern trebuie criptat și accesul limitat;
-- testează restaurarea, nu doar crearea backupului;
+- testează periodic restaurarea cu `.venv/bin/python manage.py verify_backup_restore <director-backup>`;
+- backupul conține și secretele dispozitivelor TOTP; protejează-l și criptează discul extern;
 - rotește `DJANGO_SECRET_KEY` și parola bazei dacă există suspiciune de compromitere;
 - verifică periodic tabelele `axes_accessattempt` și `axes_accesslog`;
 - rulează `clearsessions` periodic pentru eliminarea sesiunilor expirate.
 
 ## Riscuri reziduale și condiții de publicare
 
-- autentificarea multifactor nu este încă implementată; pentru acces din internet este următoarea măsură recomandată;
+- MFA protejează aplicația, dar securitatea contului depinde de păstrarea separată a parolei, telefonului și codurilor de recuperare;
 - OCR procesează formate complexe cu biblioteci native; uploadul este limitat la staff, dar procesul ar trebui rulat
   cu utilizator Linux neprivilegiat și fără acces la alte directoare;
 - acesta este un audit automat și de cod, nu un test de penetrare extern pe infrastructura finală;

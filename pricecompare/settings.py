@@ -1,4 +1,5 @@
 import os
+import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -12,6 +13,7 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 PRODUCTION = os.getenv("DJANGO_PRODUCTION", "1" if not DEBUG else "0") == "1"
+TESTING = os.getenv("DJANGO_TESTING", "0") == "1" or "test" in sys.argv
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
 CSRF_TRUSTED_ORIGINS = [
     origin.strip() for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
@@ -27,6 +29,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_otp",
+    "django_otp.plugins.otp_static",
+    "django_otp.plugins.otp_totp",
+    "two_factor",
     "axes",
     "comparator",
 ]
@@ -38,6 +44,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
+    "pricecompare.middleware.AdminMFAEnforcementMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
@@ -93,9 +101,13 @@ AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
-LOGIN_URL = "/admin/login/"
+LOGIN_URL = "two_factor:login"
 LOGIN_REDIRECT_URL = "/app/"
 LOGOUT_REDIRECT_URL = "/"
+OTP_LOGIN_URL = "two_factor:login"
+OTP_TOTP_ISSUER = "PriceMatch"
+MFA_REQUIRED = os.getenv("MFA_REQUIRED", "1" if PRODUCTION else "0") == "1" and not TESTING
+TWO_FACTOR_PATCH_ADMIN = True
 
 AXES_ONLY_ADMIN_SITE = True
 AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
@@ -114,7 +126,7 @@ CSRF_COOKIE_SECURE = PRODUCTION
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
-SECURE_SSL_REDIRECT = PRODUCTION and os.getenv("DJANGO_SECURE_SSL_REDIRECT", "1") == "1"
+SECURE_SSL_REDIRECT = PRODUCTION and not TESTING and os.getenv("DJANGO_SECURE_SSL_REDIRECT", "1") == "1"
 SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "3600")) if PRODUCTION else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = PRODUCTION and os.getenv("DJANGO_HSTS_INCLUDE_SUBDOMAINS", "0") == "1"
 SECURE_HSTS_PRELOAD = PRODUCTION and os.getenv("DJANGO_HSTS_PRELOAD", "0") == "1"

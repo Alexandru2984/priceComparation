@@ -7,7 +7,7 @@
     <h1>Compară prețurile înainte să cumperi marfa.</h1>
     <p>Această pagină folosește exclusiv exemple statice. Facturile, furnizorii și prețurile reale sunt disponibile numai administratorului autentificat.</p>
   </div>
-  <div class="actions"><a class="button primary" href="{% url 'admin:login' %}?next={% url 'comparator:dashboard' %}">Autentificare administrator</a></div>
+  <div class="actions"><a class="button primary" href="{% url 'two_factor:login' %}?next={% url 'comparator:dashboard' %}">Autentificare administrator</a></div>
 </section>
 <section class="demo-notice"><strong>Date demonstrative</strong><span>Nicio valoare de mai jos nu provine din baza privată a magazinului.</span></section>
 <section class="stats">

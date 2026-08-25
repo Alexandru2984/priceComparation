@@ -5,6 +5,8 @@ from tempfile import TemporaryDirectory
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
+from django_otp import DEVICE_ID_SESSION_KEY
+from django_otp.plugins.otp_totp.models import TOTPDevice
 from PIL import Image
 
 from comparator.models import DocumentPage, Invoice, Product, Supplier
@@ -33,16 +35,36 @@ class AccessControlTests(TestCase):
 
     def test_anonymous_user_is_redirected_from_private_app(self):
         response = self.client.get("/app/")
-        self.assertRedirects(response, "/admin/login/?next=/app/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/account/login/?next=/app/", fetch_redirect_response=False)
 
     def test_non_staff_user_cannot_open_private_app(self):
         self.client.force_login(self.regular)
         response = self.client.get("/app/")
-        self.assertRedirects(response, "/admin/login/?next=/app/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/account/login/?next=/app/", fetch_redirect_response=False)
 
     def test_staff_user_can_open_private_app(self):
         self.client.force_login(self.staff)
         self.assertEqual(self.client.get("/app/").status_code, 200)
+
+    @override_settings(MFA_REQUIRED=True)
+    def test_online_mode_forces_staff_without_device_to_enroll_mfa(self):
+        self.client.force_login(self.staff)
+        response = self.client.get("/app/")
+        self.assertRedirects(
+            response,
+            "/account/two_factor/setup/?next=/app/",
+            fetch_redirect_response=False,
+        )
+
+    @override_settings(MFA_REQUIRED=True)
+    def test_verified_mfa_session_can_open_app_and_admin(self):
+        device = TOTPDevice.objects.create(user=self.staff, name="Telefon", confirmed=True)
+        self.client.force_login(self.staff)
+        session = self.client.session
+        session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+        session.save()
+        self.assertEqual(self.client.get("/app/").status_code, 200)
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
 
     def test_security_headers_are_present(self):
         response = self.client.get("/")

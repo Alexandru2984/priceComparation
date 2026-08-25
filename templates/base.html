@@ -27,10 +27,11 @@
         <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
+      <a href="{% url 'two_factor:profile' %}">MFA</a>
       <form method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button class="link" type="submit">Ieșire</button></form>
     {% else %}
       <nav><a href="{% url 'public_demo' %}">Demo public</a></nav>
-      <a class="button primary small" href="{% url 'admin:login' %}?next={% url 'comparator:dashboard' %}">Login admin</a>
+      <a class="button primary small" href="{% url 'two_factor:login' %}?next={% url 'comparator:dashboard' %}">Login admin</a>
     {% endif %}
   </header>
 
