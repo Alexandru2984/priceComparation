@@ -31,6 +31,7 @@ urlpatterns = [
     path("cumparaturi/articol/<int:pk>/bifeaza/", staff_member_required(views.shopping_list_item_toggle), name="shopping_list_item_toggle"),
     path("cumparaturi/articol/<int:pk>/sterge/", staff_member_required(views.shopping_list_item_delete), name="shopping_list_item_delete"),
     path("stoc/", staff_member_required(views.inventory_index), name="inventory_index"),
+    path("marje/", staff_member_required(views.margin_analysis), name="margin_analysis"),
     path("stoc/reaprovizionare/", staff_member_required(views.inventory_replenishment_create), name="inventory_replenishment_create"),
     path("stoc/<int:pk>/editeaza/", staff_member_required(views.inventory_item_edit), name="inventory_item_edit"),
     path("stoc/<int:pk>/miscare/", staff_member_required(views.stock_movement_create), name="stock_movement_create"),

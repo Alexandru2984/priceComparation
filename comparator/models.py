@@ -793,6 +793,52 @@ class InventoryItem(models.Model):
         validators=[MinValueValidator(Decimal("0"))],
     )
     shelf_life_days = models.PositiveIntegerField("valabilitate orientativă în zile", null=True, blank=True)
+    retail_price_gross = models.DecimalField(
+        "preț vânzare cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Prețul unei unități vândute la raft.",
+    )
+    retail_unit_size = models.DecimalField(
+        "cantitate de bază per unitate vândută",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
+        validators=[MinValueValidator(Decimal("0.001"))],
+        help_text="De exemplu 2 pentru o sticlă de 2 L sau 0,4 pentru 400 g.",
+    )
+    retail_vat_rate = models.DecimalField(
+        "TVA vânzare %",
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+    )
+    purchase_vat_rate = models.DecimalField(
+        "TVA achiziție %",
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+        help_text="Folosit pentru calculul marjei nete; verifică valoarea din factura furnizorului.",
+    )
+    target_margin_percent = models.DecimalField(
+        "marjă țintă %",
+        max_digits=5,
+        decimal_places=2,
+        default=20,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("99.99"))],
+    )
+    expected_waste_percent = models.DecimalField(
+        "pierderi estimate %",
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("99.99"))],
+    )
     active = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -278,7 +278,19 @@ class InventoryItemForm(forms.ModelForm):
 
     class Meta:
         model = InventoryItem
-        fields = ["product", "minimum_quantity", "target_quantity", "shelf_life_days", "active"]
+        fields = [
+            "product",
+            "minimum_quantity",
+            "target_quantity",
+            "shelf_life_days",
+            "retail_price_gross",
+            "retail_unit_size",
+            "retail_vat_rate",
+            "purchase_vat_rate",
+            "target_margin_percent",
+            "expected_waste_percent",
+            "active",
+        ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

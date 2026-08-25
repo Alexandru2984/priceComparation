@@ -13,6 +13,7 @@ from django.test import TestCase
 from comparator.models import (
     Invoice,
     InvoiceLine,
+    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroScrapeJob,
@@ -26,7 +27,7 @@ from comparator.models import (
     SupplierOffer,
 )
 from comparator.services.barcodes import assign_ean, is_valid_gtin
-from comparator.services.insights import optimize_shopping_list, shopping_recommendation
+from comparator.services.insights import optimize_shopping_list, profitability_analysis, shopping_recommendation
 from comparator.services.invoices import sync_supplier_offer_from_line
 from comparator.services.matching import suggest_product
 from comparator.services.metro_scraper import store_captured_rows
@@ -282,6 +283,49 @@ class ShoppingAndAlertTests(TestCase):
 
         self.assertEqual(deferred_product_ids, [optional.pk])
         self.assertEqual(result["total"], Decimal("10.00"))
+
+
+class RetailMarginTests(TestCase):
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            username="margin-admin", password="A-test-password-2026!", is_staff=True
+        )
+        self.client.force_login(self.staff)
+
+    def test_margin_uses_net_vat_values_sale_unit_and_expected_waste(self):
+        product = Product.objects.create(name="Produs marjă", base_unit="L")
+        MetroOffer.objects.create(product=product, price_gross=11, valid_from=date(2026, 8, 25))
+        item = InventoryItem.objects.create(
+            product=product,
+            retail_price_gross=Decimal("35.70"),
+            retail_unit_size=2,
+            purchase_vat_rate=10,
+            retail_vat_rate=19,
+            expected_waste_percent=20,
+            target_margin_percent=25,
+        )
+
+        result = profitability_analysis(item)
+
+        self.assertEqual(result["cost_per_sale_gross"], Decimal("22"))
+        self.assertEqual(result["effective_cost_net"], Decimal("25"))
+        self.assertEqual(result["retail_net"], Decimal("30"))
+        self.assertAlmostEqual(result["margin_percent"], Decimal("16.6667"), places=4)
+        self.assertAlmostEqual(result["recommended_retail_gross"], Decimal("39.6667"), places=4)
+        self.assertEqual(result["status"], "BELOW_TARGET")
+
+    def test_margin_is_incomplete_without_retail_price(self):
+        product = Product.objects.create(name="Produs fără raft", base_unit="BUC")
+        MetroOffer.objects.create(product=product, price_gross=5, valid_from=date(2026, 8, 25))
+        result = profitability_analysis(InventoryItem.objects.create(product=product))
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertIsNone(result["margin_percent"])
+
+    def test_staff_can_open_margin_analysis(self):
+        product = Product.objects.create(name="Produs afișat în marje", base_unit="BUC")
+        InventoryItem.objects.create(product=product, retail_price_gross=10)
+        response = self.client.get("/app/marje/", secure=True)
+        self.assertContains(response, product.name)
 
 
 class BulkReviewAndScannerViewsTests(TestCase):

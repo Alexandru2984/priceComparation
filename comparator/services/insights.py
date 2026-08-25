@@ -94,6 +94,78 @@ def shopping_recommendation(item):
     }
 
 
+def profitability_analysis(inventory_item):
+    options = current_source_options(inventory_item.product)
+    best = options[0] if options else None
+    retail_gross = inventory_item.retail_price_gross
+    result = {
+        "source": best["source"] if best else None,
+        "cost_per_base_gross": best["price"] if best else None,
+        "cost_per_sale_gross": None,
+        "cost_per_sale_net": None,
+        "effective_cost_net": None,
+        "retail_gross": retail_gross,
+        "retail_net": None,
+        "margin_amount_net": None,
+        "margin_percent": None,
+        "recommended_retail_gross": None,
+        "status": "INCOMPLETE",
+    }
+    if not best or retail_gross is None:
+        return result
+
+    hundred = Decimal("100")
+    cost_gross = best["price"] * inventory_item.retail_unit_size
+    purchase_vat_divisor = Decimal("1") + inventory_item.purchase_vat_rate / hundred
+    retail_vat_divisor = Decimal("1") + inventory_item.retail_vat_rate / hundred
+    sellable_fraction = Decimal("1") - inventory_item.expected_waste_percent / hundred
+    target_fraction = Decimal("1") - inventory_item.target_margin_percent / hundred
+    cost_net = cost_gross / purchase_vat_divisor
+    effective_cost_net = cost_net / sellable_fraction
+    retail_net = retail_gross / retail_vat_divisor
+    margin_amount = retail_net - effective_cost_net
+    margin_percent = margin_amount / retail_net * hundred if retail_net else Decimal("0")
+    recommended_net = effective_cost_net / target_fraction
+    recommended_gross = recommended_net * retail_vat_divisor
+
+    result.update(
+        {
+            "cost_per_sale_gross": cost_gross,
+            "cost_per_sale_net": cost_net,
+            "effective_cost_net": effective_cost_net,
+            "retail_net": retail_net,
+            "margin_amount_net": margin_amount,
+            "margin_percent": margin_percent,
+            "recommended_retail_gross": recommended_gross,
+            "status": (
+                "LOSS"
+                if margin_amount < 0
+                else "BELOW_TARGET"
+                if margin_percent < inventory_item.target_margin_percent
+                else "ON_TARGET"
+            ),
+        }
+    )
+    return result
+
+
+def profitability_summary(items):
+    rows = [(item, profitability_analysis(item)) for item in items]
+    complete = [analysis for _, analysis in rows if analysis["margin_percent"] is not None]
+    return {
+        "rows": rows,
+        "configured_count": len(complete),
+        "incomplete_count": len(rows) - len(complete),
+        "loss_count": sum(analysis["status"] == "LOSS" for analysis in complete),
+        "below_target_count": sum(analysis["status"] == "BELOW_TARGET" for analysis in complete),
+        "average_margin": (
+            sum((analysis["margin_percent"] for analysis in complete), Decimal("0")) / len(complete)
+            if complete
+            else None
+        ),
+    }
+
+
 def _build_source_orders(rows):
     orders = {}
     for result in rows.values():

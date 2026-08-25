@@ -73,6 +73,8 @@ from .services.insights import (
     catalog_quality_summary,
     matching_quality_summary,
     optimize_shopping_list,
+    profitability_analysis,
+    profitability_summary,
     product_history,
     recent_metro_changes,
 )
@@ -245,6 +247,7 @@ def product_detail(request, pk):
     )
     history, minimum, maximum = product_history(product)
     inventory = inventory_with_balance(InventoryItem.objects.filter(product=product)).first()
+    profitability = profitability_analysis(inventory) if inventory else None
     return render(
         request,
         "comparator/product_detail.html",
@@ -254,6 +257,7 @@ def product_detail(request, pk):
             "minimum": minimum,
             "maximum": maximum,
             "inventory": inventory,
+            "profitability": profitability,
         },
     )
 
@@ -473,6 +477,23 @@ def inventory_item_edit(request, pk):
         messages.success(request, "Politica de stoc a fost actualizată.")
         return redirect("comparator:inventory_index")
     return render(request, "comparator/form.html", {"form": form, "title": "Editează politica de stoc"})
+
+
+def margin_analysis(request):
+    query = request.GET.get("q", "").strip()
+    items = InventoryItem.objects.select_related("product").filter(active=True)
+    if query:
+        items = items.filter(Q(product__name__icontains=query) | Q(product__brand__icontains=query))
+    summary = profitability_summary(items)
+    status_order = {"LOSS": 0, "BELOW_TARGET": 1, "INCOMPLETE": 2, "ON_TARGET": 3}
+    summary["rows"].sort(
+        key=lambda row: (
+            status_order[row[1]["status"]],
+            row[1]["margin_percent"] if row[1]["margin_percent"] is not None else Decimal("0"),
+            row[0].product.name,
+        )
+    )
+    return render(request, "comparator/margin_analysis.html", {"summary": summary, "query": query})
 
 
 def stock_movement_create(request, pk):
