@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
-from comparator.models import Invoice, InvoiceLine, MetroOffer, Product, Supplier
+from comparator.models import Invoice, InvoiceLine, MetroOffer, MetroOfferTier, Product, Supplier
 
 
 class ComparisonTests(TestCase):
@@ -48,6 +48,37 @@ class ComparisonTests(TestCase):
         self.assertEqual(result["invoice_price"], Decimal("3.95"))
         self.assertEqual(result["total_impact"], Decimal("2.70"))
         self.assertEqual(result["status"], "MAI_SCUMP")
+
+    def test_comparison_applies_volume_price_only_after_package_threshold(self):
+        bulk_offer = self.product.metro_offers.get(units_per_package=6)
+        MetroOfferTier.objects.create(
+            offer=bulk_offer,
+            min_packages=2,
+            price_gross=Decimal("36.00"),
+        )
+        line = InvoiceLine.objects.create(
+            invoice=self.invoice,
+            original_name="Coca Cola 2L baxuri",
+            quantity=12,
+            units_per_package=1,
+            unit_size=2,
+            base_unit="L",
+            unit_price_gross=Decimal("7.00"),
+            matched_product=self.product,
+            needs_review=False,
+        )
+
+        result = line.comparison()
+
+        self.assertEqual(result["metro_packages"], 2)
+        self.assertTrue(result["metro_volume_applied"])
+        self.assertEqual(result["metro_price"], Decimal("3.00"))
+
+    def test_volume_price_is_not_used_below_threshold(self):
+        offer = self.product.metro_offers.get(units_per_package=6)
+        MetroOfferTier.objects.create(offer=offer, min_packages=2, price_gross=Decimal("36.00"))
+        self.assertEqual(offer.price_for_packages(1), Decimal("42.00"))
+        self.assertEqual(offer.price_for_packages(2), Decimal("36.00"))
 
     @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
     def test_current_offer_prefers_configured_store(self):

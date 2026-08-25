@@ -124,9 +124,11 @@ Poți începe cu [sample_data/metro_prices.csv](sample_data/metro_prices.csv). C
 - `base_unit`: `BUC`, `KG` sau `L`
 - `price_gross`
 
-Coloanele opționale sunt `brand`, `ean`, `units_per_package`, `unit_size`, `valid_from` și `source`.
+Coloanele opționale sunt `brand`, `ean`, `units_per_package`, `unit_size`, `volume_min_packages`, `volume_price_gross`, `valid_from` și `source`.
 
 Exemplu: un bax cu 6 sticle de 2 L are `units_per_package=6`, `unit_size=2`, iar `price_gross` este prețul întregului bax.
+
+Pentru prețurile METRO care scad la volum, `volume_min_packages=3` și `volume_price_gross=38.50` înseamnă că de la trei baxuri prețul fiecărui bax devine 38,50 lei. Scanarea Selenium citește automat etichetele METRO de forma „preț pentru 3+”, le păstrează separat pentru fiecare magazin și aplică pragul numai când factura sau lista de cumpărături conține cantitatea necesară.
 
 ### Sincronizare din bonurile și facturile METRO
 

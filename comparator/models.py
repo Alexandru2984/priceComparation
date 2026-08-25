@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -53,7 +53,7 @@ class Product(models.Model):
         suffix = f" · {self.brand}" if self.brand else ""
         return f"{self.name}{suffix} ({self.base_unit})"
 
-    def current_metro_offer(self):
+    def current_metro_offer(self, base_quantity=None):
         prefetched = getattr(self, "_prefetched_objects_cache", {}).get("metro_offers")
         if prefetched is None:
             offers = list(self.metro_offers.filter(active=True))
@@ -69,7 +69,11 @@ class Product(models.Model):
         latest_date = max(offer.valid_from for offer in offers)
         return min(
             (offer for offer in offers if offer.valid_from == latest_date),
-            key=lambda offer: offer.price_per_base_unit,
+            key=lambda offer: (
+                offer.price_per_base_unit_for_quantity(base_quantity)
+                if base_quantity is not None
+                else offer.price_per_base_unit
+            ),
         )
 
 
@@ -140,8 +144,56 @@ class MetroOffer(models.Model):
         total = self.total_base_quantity
         return self.price_gross / total if total else Decimal("0")
 
+    def package_count_for_quantity(self, base_quantity):
+        total = self.total_base_quantity
+        if not total or base_quantity is None:
+            return 1
+        requested = max(Decimal(str(base_quantity)), Decimal("0"))
+        return max(1, int((requested / total).to_integral_value(rounding=ROUND_CEILING)))
+
+    def price_for_packages(self, package_count):
+        eligible = [tier for tier in self.volume_tiers.all() if tier.min_packages <= package_count]
+        return max(eligible, key=lambda tier: tier.min_packages).price_gross if eligible else self.price_gross
+
+    def price_per_base_unit_for_quantity(self, base_quantity):
+        total = self.total_base_quantity
+        if not total:
+            return Decimal("0")
+        return self.price_for_packages(self.package_count_for_quantity(base_quantity)) / total
+
     def __str__(self):
         return f"{self.product.name}: {self.price_gross} lei / pachet"
+
+
+class MetroOfferTier(models.Model):
+    offer = models.ForeignKey(MetroOffer, on_delete=models.CASCADE, related_name="volume_tiers")
+    min_packages = models.PositiveIntegerField(
+        "de la pachete",
+        validators=[MinValueValidator(2)],
+    )
+    price_gross = models.DecimalField(
+        "preț pachet cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    label = models.CharField("text METRO", max_length=120, blank=True)
+
+    class Meta:
+        ordering = ["min_packages"]
+        constraints = [
+            models.UniqueConstraint(fields=["offer", "min_packages"], name="unique_metro_volume_tier")
+        ]
+        verbose_name = "prag de volum METRO"
+        verbose_name_plural = "praguri de volum METRO"
+
+    @property
+    def price_per_base_unit(self):
+        total = self.offer.total_base_quantity
+        return self.price_gross / total if total else Decimal("0")
+
+    def __str__(self):
+        return f"{self.min_packages}+ pachete: {self.price_gross} lei / pachet"
 
 
 class MetroScrapeJob(models.Model):
@@ -215,6 +267,7 @@ class MetroScrapedProduct(models.Model):
     base_unit = models.CharField(max_length=3, choices=BaseUnit.choices, default=BaseUnit.PIECE)
     category = models.CharField(max_length=80, choices=CATEGORY_CHOICES, blank=True, db_index=True)
     price_gross = models.DecimalField("preț cu TVA", max_digits=12, decimal_places=2)
+    volume_prices = models.JSONField("praguri de volum", default=list, blank=True)
     matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="metro_scrape_rows")
     match_score = models.PositiveSmallIntegerField(default=0)
     imported = models.BooleanField(default=False)
@@ -267,6 +320,7 @@ class MetroProductState(models.Model):
     consecutive_misses = models.PositiveSmallIntegerField(default=0)
     available = models.BooleanField(default=True, db_index=True)
     last_price_gross = models.DecimalField(max_digits=12, decimal_places=2)
+    last_volume_prices = models.JSONField(default=list, blank=True)
     last_units_per_package = models.DecimalField(max_digits=10, decimal_places=3, default=1)
     last_unit_size = models.DecimalField(max_digits=10, decimal_places=3, default=1)
     last_base_unit = models.CharField(max_length=3, choices=BaseUnit.choices, default=BaseUnit.PIECE)
@@ -527,14 +581,16 @@ class InvoiceLine(models.Model):
     def best_metro_offer(self):
         if not self.matched_product_id:
             return None
-        return self.matched_product.current_metro_offer()
+        return self.matched_product.current_metro_offer(self.total_base_quantity)
 
     def comparison(self):
         offer = self.best_metro_offer()
         if not offer or self.matched_product.base_unit != self.base_unit:
             return None
         invoice_price = self.price_per_base_unit
-        metro_price = offer.price_per_base_unit
+        metro_packages = offer.package_count_for_quantity(self.total_base_quantity)
+        metro_price = offer.price_per_base_unit_for_quantity(self.total_base_quantity)
+        metro_volume_applied = offer.price_for_packages(metro_packages) != offer.price_gross
         difference = invoice_price - metro_price
         percent = (difference / metro_price * 100) if metro_price else Decimal("0")
         total_impact = difference * self.total_base_quantity
@@ -548,6 +604,8 @@ class InvoiceLine(models.Model):
             "offer": offer,
             "invoice_price": invoice_price,
             "metro_price": metro_price,
+            "metro_packages": metro_packages,
+            "metro_volume_applied": metro_volume_applied,
             "difference": difference,
             "percent": percent,
             "total_impact": total_impact,

@@ -23,6 +23,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from comparator.models import (
     BaseUnit,
     MetroOffer,
+    MetroOfferTier,
     MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
@@ -57,13 +58,17 @@ def update_metro_product_state(row, product):
             first_seen_job=row.job,
             last_seen_job=row.job,
             last_price_gross=row.price_gross,
+            last_volume_prices=row.volume_prices,
             last_units_per_package=row.units_per_package,
             last_unit_size=row.unit_size,
             last_base_unit=row.base_unit,
             last_package_text=row.package_text,
         )
     was_unavailable = not state.available
-    price_changed = state.last_price_gross != row.price_gross
+    price_changed = (
+        state.last_price_gross != row.price_gross
+        or state.last_volume_prices != row.volume_prices
+    )
     package_changed = (
         state.last_units_per_package != row.units_per_package
         or state.last_unit_size != row.unit_size
@@ -76,6 +81,7 @@ def update_metro_product_state(row, product):
     state.consecutive_misses = 0
     state.available = True
     state.last_price_gross = row.price_gross
+    state.last_volume_prices = row.volume_prices
     state.last_units_per_package = row.units_per_package
     state.last_unit_size = row.unit_size
     state.last_base_unit = row.base_unit
@@ -89,6 +95,7 @@ def update_metro_product_state(row, product):
             "consecutive_misses",
             "available",
             "last_price_gross",
+            "last_volume_prices",
             "last_units_per_package",
             "last_unit_size",
             "last_base_unit",
@@ -172,7 +179,9 @@ return Array.from(document.querySelectorAll('.sd-articlecard')).map(card => {
     product_url: link.href,
     package_text: packageNode ? packageNode.textContent.trim() : '',
     store_text: storeNode ? storeNode.textContent.trim() : '',
-    price_text: priceNode.textContent.trim()
+    price_text: priceNode.textContent.trim(),
+    volume_price_texts: Array.from(card.querySelectorAll('.bulk-discount-label'))
+      .map(node => node.textContent.trim())
   };
 }).filter(Boolean);
 """
@@ -230,6 +239,31 @@ def _decimal(value):
 def _price_from_text(text):
     matches = re.findall(r"(\d+(?:[.,]\d+)?)\s*(?:RON|LEI)", text or "", flags=re.IGNORECASE)
     return _decimal(matches[-1]) if matches else None
+
+
+def _volume_prices_from_texts(texts):
+    tiers = {}
+    if not isinstance(texts, (list, tuple)):
+        return []
+    for raw_text in texts:
+        label = " ".join(str(raw_text or "").split())[:120]
+        match = re.search(
+            r"(\d+(?:[.,]\d+)?)\s*(?:RON|LEI).*?pentru\s+(\d+)\s*\+",
+            label,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            continue
+        price = _decimal(match.group(1))
+        min_packages = int(match.group(2))
+        if price is None or min_packages < 2:
+            continue
+        tiers[min_packages] = {
+            "min_packages": min_packages,
+            "price_gross": f"{price:.2f}",
+            "label": label,
+        }
+    return [tiers[key] for key in sorted(tiers)]
 
 
 def _store_from_text(text):
@@ -310,6 +344,7 @@ def normalize_dom_rows(raw_rows):
                 "unit_size": size,
                 "base_unit": base_unit,
                 "price_gross": row["price_gross"],
+                "volume_prices": _volume_prices_from_texts(row.get("volume_price_texts")),
             }
         )
     return result
@@ -573,11 +608,34 @@ def store_captured_rows(job, rows):
         # are not safe enough to merge catalog rows without human confirmation.
         if score < 100:
             product = None
-        MetroScrapedProduct.objects.update_or_create(
+        previous = MetroScrapedProduct.objects.filter(
+            job=job,
+            external_id=data["external_id"],
+        ).values(
+            "price_gross",
+            "volume_prices",
+            "units_per_package",
+            "unit_size",
+            "base_unit",
+            "imported",
+        ).first()
+        captured, _ = MetroScrapedProduct.objects.update_or_create(
             job=job,
             external_id=data["external_id"],
             defaults={**data, "matched_product": product, "match_score": score},
         )
+        pricing_fields = (
+            "price_gross",
+            "volume_prices",
+            "units_per_package",
+            "unit_size",
+            "base_unit",
+        )
+        if previous and previous["imported"] and any(
+            previous[field] != getattr(captured, field) for field in pricing_fields
+        ):
+            captured.imported = False
+            captured.save(update_fields=["imported"])
     job.captured_count = job.products.count()
     job.save(update_fields=["captured_count"])
     return job.captured_count
@@ -709,7 +767,7 @@ def import_scraped_rows(rows):
             defaults={"product": product},
         )
         source = metro_offer_source(row.store_name or row.job.store_name)
-        MetroOffer.objects.update_or_create(
+        offer, _ = MetroOffer.objects.update_or_create(
             product=product,
             valid_from=today,
             source=source,
@@ -719,6 +777,18 @@ def import_scraped_rows(rows):
                 "price_gross": row.price_gross,
                 "active": True,
             },
+        )
+        offer.volume_tiers.all().delete()
+        MetroOfferTier.objects.bulk_create(
+            [
+                MetroOfferTier(
+                    offer=offer,
+                    min_packages=tier["min_packages"],
+                    price_gross=Decimal(tier["price_gross"]),
+                    label=tier.get("label", "")[:120],
+                )
+                for tier in row.volume_prices
+            ]
         )
         row.matched_product = product
         row.imported = True

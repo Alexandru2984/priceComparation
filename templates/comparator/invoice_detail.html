@@ -63,7 +63,7 @@
       <td>{{ line.total_base_quantity|floatformat:-3 }} {{ line.base_unit }}</td>
       <td><strong>{{ line.price_per_base_unit|floatformat:2 }} lei/{{ line.base_unit }}</strong><small>{{ line.merchandise_total_net|floatformat:2 }} lei fără TVA · cost efectiv cu transport</small></td>
       <td>{% if line.matched_product %}{{ line.matched_product.name }}<small>scor {{ line.match_score }}%</small>{% else %}<span class="muted">Neasociat</span>{% endif %}</td>
-      <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }}</small>{% else %}—{% endif %}</td>
+      <td>{% if result %}{{ result.metro_price|floatformat:2 }} lei/{{ line.base_unit }}<small>{{ result.offer.valid_from|date:"d.m.Y" }} · {{ result.metro_packages }} pachet{{ result.metro_packages|pluralize:"e" }} METRO{% if result.metro_volume_applied %} · preț de volum aplicat{% endif %}</small>{% else %}—{% endif %}</td>
       <td>{% if result %}<strong>{{ result.percent|floatformat:1 }}%</strong><small>{{ result.total_impact|floatformat:2 }} lei total</small>{% else %}—{% endif %}</td>
       <td>{% if line.needs_review %}<span class="badge review">Verifică</span>{% elif result %}<span class="badge {{ result.status|lower }}">{{ result.status }}</span>{% else %}<span class="badge new">Fără preț</span>{% endif %}</td>
       <td class="row-actions"><a href="{% url 'comparator:line_edit' line.pk %}">Editează</a><form method="post" action="{% url 'comparator:line_delete' line.pk %}" data-confirm="Ștergi linia?">{% csrf_token %}<button class="link danger">Șterge</button></form></td>

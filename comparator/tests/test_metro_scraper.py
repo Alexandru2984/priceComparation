@@ -22,6 +22,7 @@ class MetroNormalizationTests(TestCase):
                     "package_text": "6IMP. IN FOLIE",
                     "store_text": "disponibil in METRO PALLADY",
                     "price_text": "incl. TVA 10,16 RON",
+                    "volume_price_texts": ["9,45 RON pentru 3+"],
                 }
             ]
         )
@@ -32,6 +33,10 @@ class MetroNormalizationTests(TestCase):
         self.assertEqual(rows[0]["unit_size"], Decimal("2"))
         self.assertEqual(rows[0]["base_unit"], "L")
         self.assertEqual(rows[0]["store_name"], "METRO PALLADY")
+        self.assertEqual(
+            rows[0]["volume_prices"],
+            [{"min_packages": 3, "price_gross": "9.45", "label": "9,45 RON pentru 3+"}],
+        )
 
     def test_variable_weight_package_uses_one_kilogram_price(self):
         units, size, base_unit = parse_measurement("Piept pui gastro 4,5 Kg", "1 KILOGRAM")
@@ -64,6 +69,9 @@ class MetroStagingTests(TestCase):
                     "unit_size": Decimal("1"),
                     "base_unit": "L",
                     "price_gross": Decimal("8.50"),
+                    "volume_prices": [
+                        {"min_packages": 6, "price_gross": "7.90", "label": "7,90 RON pentru 6+"}
+                    ],
                 }
             ],
         )
@@ -74,6 +82,9 @@ class MetroStagingTests(TestCase):
         product = Product.objects.get(name="Ulei test 1 L")
         self.assertTrue(row.imported)
         self.assertEqual(product.metro_offers.get().price_gross, Decimal("8.50"))
+        tier = product.metro_offers.get().volume_tiers.get()
+        self.assertEqual(tier.min_packages, 6)
+        self.assertEqual(tier.price_gross, Decimal("7.90"))
 
     def test_does_not_merge_a_weak_fuzzy_match(self):
         existing = Product.objects.create(name="PFANNER Suc Ananas 1 L", brand="", base_unit="L")

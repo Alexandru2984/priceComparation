@@ -6,6 +6,7 @@ from .models import (
     InvoiceLine,
     InvoiceRevision,
     MetroOffer,
+    MetroOfferTier,
     MetroProductState,
     MetroScrapeJob,
     MetroScrapedProduct,
@@ -29,6 +30,11 @@ admin.site.index_title = "Datele private ale magazinului"
 
 class MetroOfferInline(admin.TabularInline):
     model = MetroOffer
+    extra = 0
+
+
+class MetroOfferTierInline(admin.TabularInline):
+    model = MetroOfferTier
     extra = 0
 
 
@@ -71,7 +77,10 @@ class InvoiceRevisionAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Supplier)
-admin.site.register(MetroOffer)
+@admin.register(MetroOffer)
+class MetroOfferAdmin(admin.ModelAdmin):
+    list_display = ("product", "price_gross", "valid_from", "source", "active")
+    inlines = [MetroOfferTierInline]
 admin.site.register(MetroProductState)
 admin.site.register(ProductAlias)
 admin.site.register(MetroScrapeJob)

@@ -8,7 +8,7 @@ from django.test import TestCase
 from openpyxl import load_workbook
 
 from comparator.catalog import infer_category
-from comparator.models import MetroOffer, MetroScrapeJob, MetroScrapedProduct, Product
+from comparator.models import MetroOffer, MetroOfferTier, MetroScrapeJob, MetroScrapedProduct, Product
 
 
 class CategoryTests(TestCase):
@@ -62,13 +62,18 @@ class CatalogExportTests(TestCase):
         self.product = Product.objects.create(
             name="Chipsuri test 100 g", category="Snacks", base_unit="KG"
         )
-        MetroOffer.objects.create(
+        offer = MetroOffer.objects.create(
             product=self.product,
             units_per_package=1,
             unit_size=Decimal("0.1"),
             price_gross=Decimal("5.50"),
             valid_from=date(2026, 7, 15),
             source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        MetroOfferTier.objects.create(
+            offer=offer,
+            min_packages=4,
+            price_gross=Decimal("4.80"),
         )
 
     def test_catalog_can_be_filtered_by_category(self):
@@ -84,6 +89,7 @@ class CatalogExportTests(TestCase):
         self.assertEqual(workbook.sheetnames, ["Catalog curent", "Toate ofertele"])
         self.assertEqual(workbook["Catalog curent"]["A2"].value, "Chipsuri test 100 g")
         self.assertEqual(workbook["Catalog curent"]["D2"].value, "Snacks")
+        self.assertIn("4+ pachete", workbook["Catalog curent"]["J2"].value)
 
     def test_csv_export_is_excel_compatible(self):
         response = self.client.get("/app/catalog/export/csv/?category=Snacks")
@@ -91,3 +97,4 @@ class CatalogExportTests(TestCase):
         self.assertTrue(response.content.startswith(b"\xef\xbb\xbf"))
         self.assertIn("Chipsuri test 100 g".encode(), response.content)
         self.assertIn(b";", response.content)
+        self.assertIn(b"4+ pachete", response.content)

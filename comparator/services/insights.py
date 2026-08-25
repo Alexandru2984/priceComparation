@@ -22,15 +22,20 @@ def _catalog_cache_key(prefix):
     )
 
 
-def current_source_options(product):
+def current_source_options(product, quantity=None):
     options = []
-    metro = product.current_metro_offer()
+    metro = product.current_metro_offer(quantity)
     if metro:
+        package_count = metro.package_count_for_quantity(quantity)
+        package_price = metro.price_for_packages(package_count)
         options.append(
             {
                 "kind": "METRO",
                 "source": metro.source,
-                "price": metro.price_per_base_unit,
+                "price": package_price / metro.total_base_quantity,
+                "package_count": package_count,
+                "volume_applied": package_price != metro.price_gross,
+                "total": package_count * package_price if quantity is not None else None,
                 "valid_from": metro.valid_from,
             }
         )
@@ -49,14 +54,23 @@ def current_source_options(product):
                 "kind": "SUPPLIER",
                 "source": offer.supplier.name,
                 "price": offer.price_per_base_unit,
+                "package_count": None,
+                "volume_applied": False,
+                "total": offer.price_per_base_unit * quantity if quantity is not None else None,
                 "valid_from": offer.valid_from,
             }
         )
-    return sorted(options, key=lambda item: (item["price"], -item["valid_from"].toordinal()))
+    return sorted(
+        options,
+        key=lambda item: (
+            item["total"] if item["total"] is not None else item["price"],
+            -item["valid_from"].toordinal(),
+        ),
+    )
 
 
 def shopping_recommendation(item):
-    options = current_source_options(item.product)
+    options = current_source_options(item.product, item.quantity)
     if not options:
         return {"best": None, "options": [], "total": None, "saving": None}
     best = options[0]
@@ -64,8 +78,8 @@ def shopping_recommendation(item):
     return {
         "best": best,
         "options": options,
-        "total": best["price"] * item.quantity,
-        "saving": (worst["price"] - best["price"]) * item.quantity if len(options) > 1 else Decimal("0"),
+        "total": best["total"],
+        "saving": worst["total"] - best["total"] if len(options) > 1 else Decimal("0"),
     }
 
 

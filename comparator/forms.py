@@ -4,6 +4,7 @@ from .models import (
     Invoice,
     InvoiceLine,
     MetroOffer,
+    MetroOfferTier,
     PriceAlert,
     Product,
     ShoppingList,
@@ -49,6 +50,18 @@ class MetroOfferForm(forms.ModelForm):
     product = forms.ModelChoiceField(
         label="Produs", queryset=Product.objects.filter(active=True), widget=ProductAutocompleteWidget()
     )
+    volume_min_packages = forms.IntegerField(
+        label="Preț de volum: de la câte pachete",
+        min_value=2,
+        required=False,
+    )
+    volume_price_gross = forms.DecimalField(
+        label="Preț de volum/pachet cu TVA",
+        min_value=0,
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+    )
 
     class Meta:
         model = MetroOffer
@@ -58,6 +71,24 @@ class MetroOfferForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         set_product_widget_label(self.fields["product"], getattr(self.instance, "product", None))
+
+    def clean(self):
+        cleaned = super().clean()
+        threshold = cleaned.get("volume_min_packages")
+        price = cleaned.get("volume_price_gross")
+        if (threshold is None) != (price is None):
+            raise forms.ValidationError("Completează atât pragul de pachete, cât și prețul de volum.")
+        return cleaned
+
+    def save(self, commit=True):
+        offer = super().save(commit=commit)
+        if commit and self.cleaned_data.get("volume_min_packages") is not None:
+            MetroOfferTier.objects.update_or_create(
+                offer=offer,
+                min_packages=self.cleaned_data["volume_min_packages"],
+                defaults={"price_gross": self.cleaned_data["volume_price_gross"]},
+            )
+        return offer
 
 
 class MetroImportForm(forms.Form):

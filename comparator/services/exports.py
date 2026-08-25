@@ -8,7 +8,8 @@ from openpyxl.styles import Font, PatternFill
 
 CATALOG_HEADERS = [
     "Produs", "Marcă", "EAN", "Categorie", "Unitate bază", "Preț pachet", "Bucăți/pachet",
-    "Cantitate/bucată", "Preț/unitate bază", "Sursă", "Valabil de la", "Activ",
+    "Cantitate/bucată", "Preț/unitate bază", "Praguri volum", "Cel mai mic preț/unitate",
+    "Sursă", "Valabil de la", "Activ",
 ]
 
 
@@ -20,6 +21,14 @@ def _safe_cell(value):
 
 def _catalog_row(product):
     offer = product.current_metro_offer()
+    tiers = list(offer.volume_tiers.all()) if offer else []
+    tier_summary = " | ".join(
+        f"{tier.min_packages}+ pachete: {tier.price_gross:.2f} lei"
+        for tier in tiers
+    )
+    lowest_price = min(
+        [offer.price_per_base_unit, *(tier.price_per_base_unit for tier in tiers)]
+    ) if offer else None
     return [
         product.name,
         product.brand,
@@ -30,6 +39,8 @@ def _catalog_row(product):
         offer.units_per_package if offer else None,
         offer.unit_size if offer else None,
         offer.price_per_base_unit if offer else None,
+        tier_summary,
+        lowest_price,
         offer.source if offer else "",
         offer.valid_from if offer else None,
         "Da" if product.active else "Nu",
@@ -56,10 +67,11 @@ def build_catalog_xlsx(products, offers):
     history = workbook.create_sheet("Toate ofertele")
     history_headers = [
         "Produs", "Categorie", "Unitate bază", "Preț pachet", "Bucăți/pachet", "Cantitate/bucată",
-        "Preț/unitate bază", "Sursă", "Valabil de la", "Activă",
+        "Preț/unitate bază", "Praguri volum", "Cel mai mic preț/unitate", "Sursă", "Valabil de la", "Activă",
     ]
     history.append(history_headers)
     for offer in offers:
+        tiers = list(offer.volume_tiers.all())
         history.append(
             [
                 _safe_cell(offer.product.name),
@@ -69,6 +81,11 @@ def build_catalog_xlsx(products, offers):
                 offer.units_per_package,
                 offer.unit_size,
                 offer.price_per_base_unit,
+                " | ".join(
+                    f"{tier.min_packages}+ pachete: {tier.price_gross:.2f} lei"
+                    for tier in tiers
+                ),
+                min([offer.price_per_base_unit, *(tier.price_per_base_unit for tier in tiers)]),
                 offer.source,
                 offer.valid_from,
                 "Da" if offer.active else "Nu",

@@ -14,6 +14,7 @@ from comparator.models import (
     Invoice,
     InvoiceLine,
     MetroOffer,
+    MetroOfferTier,
     MetroScrapeJob,
     PriceAlert,
     Product,
@@ -170,6 +171,25 @@ class ShoppingAndAlertTests(TestCase):
         MetroOffer.objects.create(product=product, price_gross=5, valid_from=date(2026, 8, 8))
         alert = PriceAlert.objects.create(product=product, target_price=5)
         self.assertTrue(alert.is_triggered)
+
+    def test_shopping_list_uses_metro_volume_price_and_whole_packages(self):
+        product = Product.objects.create(name="Apă bax 6 x 2 L", base_unit="L")
+        offer = MetroOffer.objects.create(
+            product=product,
+            units_per_package=6,
+            unit_size=2,
+            price_gross=Decimal("12.00"),
+            valid_from=date(2026, 8, 8),
+        )
+        MetroOfferTier.objects.create(offer=offer, min_packages=3, price_gross=Decimal("10.00"))
+        shopping_list = ShoppingList.objects.create(name="Volum")
+        item = ShoppingListItem.objects.create(shopping_list=shopping_list, product=product, quantity=25)
+
+        result = shopping_recommendation(item)
+
+        self.assertEqual(result["best"]["package_count"], 3)
+        self.assertTrue(result["best"]["volume_applied"])
+        self.assertEqual(result["total"], Decimal("30.00"))
 
 
 class BulkReviewAndScannerViewsTests(TestCase):

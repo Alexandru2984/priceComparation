@@ -37,6 +37,7 @@ from .models import (
     InvoiceLine,
     InvoiceRevision,
     MetroOffer,
+    MetroOfferTier,
     MetroProductState,
     MetroScrapeJob,
     PriceAlert,
@@ -117,7 +118,7 @@ def supplier_create(request):
 def _filtered_products(request):
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
-    products = Product.objects.prefetch_related("metro_offers")
+    products = Product.objects.prefetch_related("metro_offers__volume_tiers")
     if query:
         products = products.filter(
             Q(name__icontains=query) | Q(brand__icontains=query) | Q(ean__icontains=query)
@@ -185,8 +186,11 @@ def catalog_export(request, file_format):
         return response
     if file_format == "xlsx":
         product_ids = [product.pk for product in products]
-        offers = MetroOffer.objects.filter(product_id__in=product_ids).select_related("product").order_by(
-            "product__name", "-valid_from", "source"
+        offers = (
+            MetroOffer.objects.filter(product_id__in=product_ids)
+            .select_related("product")
+            .prefetch_related("volume_tiers")
+            .order_by("product__name", "-valid_from", "source")
         )
         response = HttpResponse(
             build_catalog_xlsx(products, offers),
@@ -209,7 +213,10 @@ def product_create(request):
 
 
 def product_detail(request, pk):
-    product = get_object_or_404(Product.objects.prefetch_related("metro_offers", "supplier_offers"), pk=pk)
+    product = get_object_or_404(
+        Product.objects.prefetch_related("metro_offers__volume_tiers", "supplier_offers"),
+        pk=pk,
+    )
     history, minimum, maximum = product_history(product)
     return render(
         request,
@@ -381,7 +388,7 @@ def metro_list(request):
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
     availability = request.GET.get("availability", "active").strip()
-    offers = MetroOffer.objects.select_related("product")
+    offers = MetroOffer.objects.select_related("product").prefetch_related("volume_tiers")
     if availability == "inactive":
         offers = offers.filter(active=False)
     elif availability == "all":
@@ -471,7 +478,7 @@ def _import_metro_file(upload):
         )
         valid_from_raw = (row.get("valid_from") or "").strip()
         valid_from = date.fromisoformat(valid_from_raw) if valid_from_raw else date.today()
-        MetroOffer.objects.create(
+        offer = MetroOffer.objects.create(
             product=product,
             units_per_package=_decimal(row.get("units_per_package")),
             unit_size=_decimal(row.get("unit_size")),
@@ -479,6 +486,21 @@ def _import_metro_file(upload):
             valid_from=valid_from,
             source=(row.get("source") or "METRO").strip(),
         )
+        tier_min = (row.get("volume_min_packages") or "").strip()
+        tier_price = (row.get("volume_price_gross") or "").strip()
+        if bool(tier_min) != bool(tier_price):
+            raise ValueError(
+                f"Linia {row_number}: completează împreună volume_min_packages și volume_price_gross."
+            )
+        if tier_min:
+            min_packages = int(tier_min)
+            if min_packages < 2:
+                raise ValueError(f"Linia {row_number}: pragul de volum trebuie să fie minimum 2.")
+            MetroOfferTier.objects.create(
+                offer=offer,
+                min_packages=min_packages,
+                price_gross=_decimal(tier_price, "0"),
+            )
         imported += 1
     return imported
 
@@ -672,7 +694,9 @@ def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related("supplier").prefetch_related("lines"), pk=pk)
     rows = [
         (line, line.comparison())
-        for line in invoice.lines.select_related("matched_product").prefetch_related("matched_product__metro_offers")
+        for line in invoice.lines.select_related("matched_product").prefetch_related(
+            "matched_product__metro_offers__volume_tiers"
+        )
     ]
     formset = InvoiceLineFormSet(queryset=invoice.lines.select_related("matched_product"), prefix="lines")
     return render(
@@ -867,7 +891,7 @@ def invoice_lines_review(request, pk):
         rows = [
             (line, line.comparison())
             for line in invoice.lines.select_related("matched_product").prefetch_related(
-                "matched_product__metro_offers"
+                "matched_product__metro_offers__volume_tiers"
             )
         ]
         messages.error(request, "Unele valori nu sunt valide. Corectează câmpurile marcate.")
