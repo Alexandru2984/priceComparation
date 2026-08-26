@@ -2,6 +2,9 @@
 
 Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu prețurile METRO. Rulează local, fără API-uri plătite.
 
+Pentru operarea zilnică, comenzile scraperului, reluarea joburilor și depanare folosește
+[Ghidul practic PriceMatch](docs/GHID_OPERARE.md).
+
 ## Ce face MVP-ul
 
 - catalog incremental de produse urmărite;
@@ -196,23 +199,28 @@ Sunt colectate numai denumirea, codul METRO din URL, ambalarea/gramajul, prețul
 momentul capturii. Imaginile și descrierile comerciale nu sunt descărcate. Înainte de import poți corecta
 orice gramaj, preț sau asociere.
 
-Pentru a popula automat un catalog inițial cu produse alimentare de bază folosind magazinul păstrat în
-profilul Chrome:
+Pentru popularea rapidă recomandată, cu 60 de căutări largi în toate categoriile:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --breadth-only --store Targoviste
+```
+
+Pentru catalogul complet folosind magazinul păstrat în profilul Chrome:
 
 ```bash
 .venv/bin/python manage.py metro_seed_catalog
 ```
 
-Comanda caută automat peste 300 de familii de produse. Implicit încarcă toate cardurile disponibile
-pentru fiecare căutare, deduplică după codul intern METRO și salvează progresul fiecărui termen. Dacă
+Comanda completă caută automat peste 500 de familii de produse. Implicit apasă toate controalele
+„Arată încă 24 rezultate”, deduplică după codul intern METRO și salvează progresul fiecărui termen. Dacă
 Chrome sau rețeaua se opresc, reia exact scanarea rămasă:
 
 ```bash
 .venv/bin/python manage.py metro_seed_catalog --resume ID_SCANARE
 ```
 
-Din interfață, `Prețuri METRO → Scanare Selenium → Catalog complet automat` pornește aceeași operație în
-fundal. Pentru o selecție proprie poți transmite termenii explicit, de exemplu:
+Din interfață, `Prețuri METRO → Scanare Selenium`, butonul `Extindere rapidă` pornește varianta recomandată,
+iar `Catalog complet` pornește toate căutările în fundal. Pentru o selecție proprie poți transmite termenii explicit, de exemplu:
 
 ```bash
 .venv/bin/python manage.py metro_seed_catalog lapte iaurt banane --limit-per-search 12
