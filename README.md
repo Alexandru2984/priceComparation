@@ -9,8 +9,11 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - facturi și bonuri introduse manual, din text OCR, imagine sau PDF;
 - bonuri lungi încărcate din maximum 12 fotografii, procesate în ordine;
 - OCR local cu Tesseract (`ron+eng`);
+- coadă PostgreSQL și worker local separat, astfel încât OCR-ul nu blochează cererea web;
+- scor de calitate per imagine/PDF, încercări OCR automate și avertismente pentru cadre slabe;
 - structurarea textului cu Ollama și JSON Schema, cu parser simplu de rezervă;
 - asociere locală fuzzy și memorarea corecțiilor;
+- profil de parsare și TVA implicit separat pentru fiecare furnizor;
 - comparație exactă per BUC/KG/L folosind `Decimal`;
 - coadă vizuală pentru potrivirile care necesită verificare.
 - actualizarea automată a prețurilor de referință din documentele METRO confirmate.
@@ -21,7 +24,9 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 - liste de cumpărături care recomandă cea mai ieftină sursă recentă;
 - scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
 - stoc auditat, reaprovizionare și optimizarea comenzilor după bax, transport, prag și buget;
+- import cu previzualizare pentru listele de preț CSV/XLSX și exporturi POS idempotente;
 - marjă netă cu TVA, pierderi estimate și recomandare de preț la raft;
+- raport operațional săptămânal în interfață și Excel, generat automat lunea;
 - scanări METRO automate țintite/complet și coadă pentru abateri mari de preț;
 - MFA cu aplicație TOTP pentru publicare pe internet;
 - backup comprimat, verificat SHA-256 și restaurare izolată de test.
@@ -77,12 +82,35 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
 4. Pentru un bon lung, selectează până la 12 fotografii în ordinea de sus în jos.
 5. Folosește tabelul `Revizuire rapidă` pentru a corecta toate liniile, apoi debifează `necesită
    verificare`. Confirmarea memorează automat aliasul și prețul furnizorului.
-6. Dacă OCR-ul nu citește corect, salvează documentul fără procesare și adaugă liniile manual.
+6. Urmărește jobul în `Documente → Inbox procesare`; pagina documentului se actualizează automat.
+7. Dacă OCR-ul nu citește corect, verifică scorul și avertismentele fiecărei imagini, apoi refotografiază
+   sau adaugă liniile manual.
 
 După salvare, secțiunea `Fișiere și ordinea OCR` permite adăugarea altor cadre, mutarea lor sus/jos și
 ștergerea unei fotografii greșite. Ordinea afișată este exact ordinea folosită de OCR. Orice modificare a
 fișierelor marchează documentul pentru reverificare; reprocesarea rămâne o acțiune separată și salvează
 automat versiunea veche a liniilor. Limitele sunt 12 fișiere, 10 MB per fișier și 50 MB cumulat.
+
+Procesarea rulează în serviciul local `pricematch-worker.service`. Joburile abandonate după o oprire sunt
+repuse automat în coadă, iar un document nu poate avea două procesări active simultan.
+
+### Liste de preț de la alți furnizori
+
+Din `Furnizori → Importă listă de preț` poți încărca CSV sau XLSX. Sunt recunoscute denumirea, prețul,
+EAN-ul, gramajul, unitatea și numărul de bucăți din bax, inclusiv cu antete uzuale în română. Aplicația
+afișează întâi erorile și potrivirile propuse. Confirmarea creează un document `Listă de preț`; ofertele
+devin utilizabile numai după ce confirmi liniile în pagina documentului.
+
+`Profil parsare` din dreptul furnizorului permite alegerea parserului local/Ollama și a unui TVA implicit.
+Pagina arată rata asocierilor corectate, scorul mediu și volumul de linii procesate.
+
+### Import de vânzări POS
+
+Din `Stoc → Importă vânzări POS` încarci CSV/XLSX cu `cantitate` și cel puțin `EAN` sau `denumire`.
+Coloanele opționale sunt data vânzării și numărul bonului. Importul are previzualizare, asociere manuală și
+aplicare explicită. Liniile fără potrivire sigură sau fără politică de stoc rămân blocate. Cantitatea scăzută
+este `unități vândute × cantitate de bază per unitate vândută`; reimportarea aceluiași export nu dublează
+mișcările de stoc.
 
 Completează și `total document cu TVA` exact cum apare tipărit. Pagina documentului compară acest total cu
 suma liniilor, reducerilor, transportului și SGR și semnalează orice diferență mai mare de 0,05 lei. Sunt
@@ -300,8 +328,10 @@ systemctl list-timers 'pricematch-*'
 Serviciile instalate sunt:
 
 - `pricematch.service`: Gunicorn, pornit automat la boot;
+- `pricematch-worker.service`: coada locală PostgreSQL pentru OCR și extragerea documentelor;
 - `pricematch-alerts.timer`: verifică alertele la fiecare 15 minute;
 - `pricematch-backup.timer`: face mentenanța zilnică în jurul orei 03:30 (backup, scanarea METRO scadentă și verificarea alertelor).
+- `pricematch-weekly-report.timer`: generează lunea raportul Excel privat în `reports/`.
 
 PostgreSQL și Ollama ascultă în continuare numai pe localhost. Dacă activezi UFW ulterior, permite porturile
 TCP 80 și 443 numai din subrețeaua locală, nu expune portul 8010 și nu configura port-forwarding în router.
@@ -367,6 +397,24 @@ Scanarea țintită caută produsele active din stoc și listele de cumpărături
 
 ```bash
 .venv/bin/python manage.py test
+```
+
+Pentru a măsura parserul pe documentele tale reale fără a le trimite nicăieri, copiază manifestul exemplu,
+adaugă lângă el fotografiile/PDF-urile și rulează:
+
+```bash
+.venv/bin/python manage.py evaluate_documents manifestul-meu.json \
+  --output-json rezultat-evaluare.json --min-recall 90 --min-price-accuracy 95
+```
+
+Formatul și metoda de etichetare sunt descrise în [docs/EVALUARE_DOCUMENTE.md](docs/EVALUARE_DOCUMENTE.md).
+Manifestul demonstrativ [sample_data/evaluation_manifest.json](sample_data/evaluation_manifest.json) are
+o bază deterministă de 100%; aceasta nu reprezintă performanța pe fotografii reale.
+
+Raportul operațional curent este disponibil în `Raport` și poate fi exportat imediat. Generatorul manual:
+
+```bash
+.venv/bin/python manage.py generate_weekly_report
 ```
 
 ## Securitate și publicare

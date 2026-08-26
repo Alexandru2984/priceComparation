@@ -1,0 +1,21 @@
+{
+  "cases": [
+    {
+      "name": "factura simpla",
+      "parser_mode": "HEURISTIC",
+      "ocr_text": "1. Coca Cola 2L - 10 bucati x 7,90 RON\n2. Zahar Margaritar 1kg - 50 kg x 4,50 RON",
+      "expected": [
+        {"original_name": "Coca Cola 2L", "quantity": 10, "unit_price_gross": 7.90, "base_unit": "L"},
+        {"original_name": "Zahar Margaritar 1kg", "quantity": 50, "unit_price_gross": 4.50, "base_unit": "KG"}
+      ]
+    },
+    {
+      "name": "bon cu EAN",
+      "parser_mode": "HEURISTIC",
+      "ocr_text": "5941234567890 IAURT NATURAL 400G 2 4,50 9,00 A",
+      "expected": [
+        {"original_name": "IAURT NATURAL 400G", "ean": "5941234567890", "quantity": 2, "unit_price_gross": 4.50, "base_unit": "KG"}
+      ]
+    }
+  ]
+}

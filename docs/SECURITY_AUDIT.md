@@ -13,7 +13,12 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 - CSRF este activ pe toate formularele, iar operațiile distructive folosesc POST;
 - documentele nu mai sunt servite direct din `MEDIA_URL`; descărcarea cere autentificare staff;
 - PDF-urile și imaginile sunt verificate după semnătură/structură, extensie, dimensiune și rezoluție;
-- limite: 10 MB/fișier, 50 MB/document, 12 fișiere și 2 MB/CSV;
+- limite: 10 MB/fișier, 50 MB/document, 12 fișiere, 2 MB/CSV METRO și 5 MB/listă CSV/XLSX;
+- fișierele XLSX acceptate nu pot conține macrocomenzi, semnătura ZIP este verificată, iar conținutul
+  decomprimat este limitat la 50 MB și 5.000 de rânduri;
+- importul POS folosește chei unice în PostgreSQL, astfel încât aceeași vânzare nu poate scădea stocul de două ori;
+- OCR-ul rulează într-un serviciu neprivilegiat separat, cu `NoNewPrivileges`, sistem read-only și acces
+  de scriere limitat la directoarele aplicației;
 - fișierele noi primesc permisiuni `0600`, directoarele `0700`, iar `start.sh` folosește `umask 077`;
 - sunt active CSP, anti-framing, `nosniff`, Referrer-Policy, Permissions-Policy și `no-store` pe zona privată;
 - modul de producție activează cookies `Secure`, redirect HTTPS și HSTS;
