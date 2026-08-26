@@ -19,6 +19,7 @@ from .validators import (
     MAX_DOCUMENT_TOTAL_SIZE,
     validate_csv_upload,
     validate_document_upload,
+    validate_price_list_upload,
 )
 from .services.barcodes import is_valid_gtin, normalize_barcode
 from .widgets import ProductAutocompleteWidget, set_product_widget_label
@@ -105,6 +106,17 @@ class MetroOfferForm(forms.ModelForm):
 
 class MetroImportForm(forms.Form):
     file = forms.FileField(label="Fișier CSV", validators=[validate_csv_upload])
+
+
+class SupplierPriceListUploadForm(forms.Form):
+    supplier = forms.ModelChoiceField(label="Furnizor", queryset=Supplier.objects.all())
+    effective_at = forms.DateField(label="Prețuri valabile la", widget=DateInput())
+    file = forms.FileField(
+        label="Listă CSV/XLSX",
+        validators=[validate_price_list_upload],
+        widget=forms.ClearableFileInput(attrs={"accept": ".csv,.xlsx"}),
+        help_text="Coloane minime: produs/denumire și preț. Opțional: EAN, gramaj, unitate, bucăți/bax.",
+    )
 
 
 class MultipleFileInput(forms.ClearableFileInput):

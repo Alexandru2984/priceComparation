@@ -32,6 +32,7 @@ from .forms import (
     StockMovementForm,
     SupplierForm,
     SupplierParsingProfileForm,
+    SupplierPriceListUploadForm,
 )
 from .models import (
     AutomationRun,
@@ -57,6 +58,7 @@ from .models import (
     StockMovement,
     Supplier,
     SupplierParsingProfile,
+    SupplierPriceImport,
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.documents import add_document_pages, delete_document_page, move_document_page
@@ -85,6 +87,7 @@ from .services.insights import (
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
 from .services.processing_queue import enqueue_document
+from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
 from .services.supplier_profiles import refresh_supplier_profile_metrics
 
 
@@ -179,6 +182,58 @@ def supplier_parsing_profile(request, pk):
         "comparator/supplier_parsing_profile.html",
         {"supplier": supplier, "profile": profile, "form": form, "recent_documents": recent_documents},
     )
+
+
+def supplier_price_import_create(request):
+    form = SupplierPriceListUploadForm(request.POST or None, request.FILES or None, initial={"effective_at": date.today()})
+    if request.method == "POST" and form.is_valid():
+        upload = form.cleaned_data["file"]
+        try:
+            rows = parse_supplier_price_list(upload, form.cleaned_data["supplier"])
+        except (ValueError, OSError) as exc:
+            form.add_error("file", str(exc))
+        else:
+            price_import = SupplierPriceImport.objects.create(
+                supplier=form.cleaned_data["supplier"],
+                effective_at=form.cleaned_data["effective_at"],
+                original_filename=Path(upload.name).name[:255],
+                rows=rows,
+                row_count=len(rows),
+                warning_count=sum(bool(row["errors"]) or row["match_score"] < 75 for row in rows),
+                created_by=request.user,
+            )
+            return redirect("comparator:supplier_price_import_detail", pk=price_import.pk)
+    recent_imports = SupplierPriceImport.objects.select_related("supplier", "imported_invoice")[:20]
+    return render(
+        request,
+        "comparator/supplier_price_import_create.html",
+        {"form": form, "recent_imports": recent_imports},
+    )
+
+
+def supplier_price_import_detail(request, pk):
+    price_import = get_object_or_404(
+        SupplierPriceImport.objects.select_related("supplier", "imported_invoice", "created_by"),
+        pk=pk,
+    )
+    return render(request, "comparator/supplier_price_import_detail.html", {"price_import": price_import})
+
+
+def supplier_price_import_confirm(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    price_import = get_object_or_404(SupplierPriceImport, pk=pk)
+    try:
+        invoice, created = create_price_list_invoice(price_import)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("comparator:supplier_price_import_detail", pk=pk)
+    messages.success(
+        request,
+        "Lista a fost transformată într-un document de revizuit."
+        if created else "Lista fusese deja importată; am deschis documentul existent.",
+    )
+    return redirect("comparator:invoice_detail", pk=invoice.pk)
 
 
 def _filtered_products(request):

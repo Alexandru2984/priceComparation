@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Import listă de preț · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Furnizori</p><h1>Importă o listă de preț</h1><p>CSV sau XLSX, maximum 5 MB și 5.000 de rânduri. Nimic nu intră în istoricul de preț înainte de confirmare.</p></div><a class="button" href="{% url 'comparator:supplier_list' %}">Furnizori</a></div>
+<section class="panel form-panel"><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="button primary">Analizează și previzualizează</button></form></section>
+<section class="panel table-wrap"><div class="panel-head"><h2>Importuri recente</h2></div><table><thead><tr><th>Fișier</th><th>Furnizor</th><th>Rânduri</th><th>Status</th><th>Data</th></tr></thead><tbody>{% for item in recent_imports %}<tr><td><a href="{% url 'comparator:supplier_price_import_detail' item.pk %}">{{ item.original_filename }}</a></td><td>{{ item.supplier }}</td><td>{{ item.row_count }}</td><td><span class="badge {{ item.status|lower }}">{{ item.get_status_display }}</span></td><td>{{ item.created_at|date:"d.m.Y H:i" }}</td></tr>{% empty %}<tr><td colspan="5" class="empty">Nicio listă importată încă.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

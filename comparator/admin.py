@@ -26,6 +26,7 @@ from .models import (
     Supplier,
     SupplierOffer,
     SupplierParsingProfile,
+    SupplierPriceImport,
 )
 
 
@@ -34,6 +35,7 @@ admin.site.site_title = "PriceMatch Admin"
 admin.site.index_title = "Datele private ale magazinului"
 
 admin.site.register(SupplierParsingProfile)
+admin.site.register(SupplierPriceImport)
 
 
 class MetroOfferInline(admin.TabularInline):

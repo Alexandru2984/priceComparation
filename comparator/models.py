@@ -496,6 +496,7 @@ class Invoice(models.Model):
     class DocumentType(models.TextChoices):
         INVOICE = "INVOICE", "Factură"
         RECEIPT = "RECEIPT", "Bon fiscal"
+        PRICE_LIST = "PRICE_LIST", "Listă de preț"
 
     class Status(models.TextChoices):
         NEW = "NEW", "Nouă"
@@ -679,6 +680,43 @@ class DocumentProcessingJob(models.Model):
 
     def __str__(self):
         return f"{self.invoice} · {self.get_status_display()}"
+
+
+class SupplierPriceImport(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Previzualizare"
+        IMPORTED = "IMPORTED", "Importată"
+        ERROR = "ERROR", "Eroare"
+
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="price_imports")
+    effective_at = models.DateField("valabilă la")
+    original_filename = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    rows = models.JSONField(default=list)
+    row_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    imported_invoice = models.OneToOneField(
+        Invoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="price_list_import",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="supplier_price_imports",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    imported_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.supplier} · {self.original_filename}"
 
 
 class InvoiceLine(models.Model):

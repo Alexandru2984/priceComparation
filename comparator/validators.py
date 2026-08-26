@@ -8,6 +8,7 @@ MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_TOTAL_SIZE = 50 * 1024 * 1024
 MAX_DOCUMENT_PAGES = 12
 MAX_CSV_SIZE = 2 * 1024 * 1024
+MAX_PRICE_LIST_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF"}
 ALLOWED_DOCUMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".pdf"}
 
@@ -58,6 +59,24 @@ def validate_csv_upload(upload):
     position = upload.tell()
     try:
         if b"\x00" in upload.read(4096):
+            raise ValidationError("Fișierul CSV conține date binare invalide.")
+    finally:
+        upload.seek(position)
+    return upload
+
+
+def validate_price_list_upload(upload):
+    extension = Path(upload.name).suffix.lower()
+    if extension not in {".csv", ".xlsx"}:
+        raise ValidationError("Lista de preț trebuie să fie CSV sau XLSX (fără macrocomenzi).")
+    if not upload.size or upload.size > MAX_PRICE_LIST_SIZE:
+        raise ValidationError("Lista de preț trebuie să aibă maximum 5 MB.")
+    position = upload.tell()
+    try:
+        header = upload.read(4096)
+        if extension == ".xlsx" and not header.startswith(b"PK"):
+            raise ValidationError("Fișierul XLSX nu are un format valid.")
+        if extension == ".csv" and b"\x00" in header:
             raise ValidationError("Fișierul CSV conține date binare invalide.")
     finally:
         upload.seek(position)
