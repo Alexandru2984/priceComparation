@@ -52,6 +52,7 @@ urlpatterns = [
     path("metro/scanari/<int:pk>/", staff_member_required(views.metro_scrape_detail), name="metro_scrape_detail"),
     path("metro/scanari/<int:pk>/importa/", staff_member_required(views.metro_scrape_import), name="metro_scrape_import"),
     path("facturi/", staff_member_required(views.invoice_list), name="invoice_list"),
+    path("facturi/inbox/", staff_member_required(views.document_inbox), name="document_inbox"),
     path("facturi/adauga/", staff_member_required(views.invoice_create), name="invoice_create"),
     path("facturi/<int:pk>/", staff_member_required(views.invoice_detail), name="invoice_detail"),
     path("facturi/<int:pk>/editeaza/", staff_member_required(views.invoice_edit), name="invoice_edit"),

@@ -36,6 +36,7 @@ from .models import (
     AutomationRun,
     BaseUnit,
     DocumentPage,
+    DocumentProcessingJob,
     Invoice,
     InvoiceLine,
     InvoiceRevision,
@@ -60,7 +61,6 @@ from .services.documents import add_document_pages, delete_document_page, move_d
 from .services.invoices import (
     delete_invoice,
     delete_invoice_line,
-    process_invoice,
     reconcile_derived_metro_offer,
     restore_invoice_revision,
     sync_all_confirmed_metro_lines,
@@ -82,6 +82,7 @@ from .services.insights import (
     recent_metro_changes,
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
+from .services.processing_queue import enqueue_document
 
 
 def dashboard(request):
@@ -838,7 +839,7 @@ def invoice_list(request):
     query = request.GET.get("q", "").strip()[:100]
     selected_status = request.GET.get("status", "").strip()
     selected_type = request.GET.get("type", "").strip()
-    invoices = Invoice.objects.select_related("supplier").prefetch_related("lines").annotate(line_count=Count("lines"))
+    invoices = Invoice.objects.select_related("supplier").prefetch_related("lines", "processing_jobs").annotate(line_count=Count("lines"))
     if query:
         invoices = invoices.filter(Q(supplier__name__icontains=query) | Q(number__icontains=query))
     if selected_status in Invoice.Status.values:
@@ -867,6 +868,24 @@ def invoice_list(request):
     )
 
 
+def document_inbox(request):
+    jobs = DocumentProcessingJob.objects.select_related("invoice", "invoice__supplier", "requested_by")
+    page_obj = Paginator(jobs, 100).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "comparator/document_inbox.html",
+        {
+            "jobs": page_obj,
+            "page_obj": page_obj,
+            "page_query": _page_query(request),
+            "active_count": jobs.filter(status__in=[
+                DocumentProcessingJob.Status.PENDING,
+                DocumentProcessingJob.Status.RUNNING,
+            ]).count(),
+        },
+    )
+
+
 def invoice_create(request):
     form = InvoiceForm(request.POST or None, request.FILES or None)
     if form.is_valid():
@@ -875,14 +894,8 @@ def invoice_create(request):
             DocumentPage.objects.create(invoice=invoice, file=upload, page_order=order)
         has_files = invoice.document or invoice.pages.exists()
         if form.cleaned_data["process_now"] and (has_files or invoice.ocr_text.strip()):
-            try:
-                process_invoice(invoice)
-                messages.success(request, "Factura a fost procesată local.")
-            except Exception as exc:
-                invoice.status = Invoice.Status.ERROR
-                invoice.processing_error = str(exc)
-                invoice.save(update_fields=["status", "processing_error"])
-                messages.warning(request, f"Factura a fost salvată, dar procesarea a eșuat: {exc}")
+            enqueue_document(invoice, requested_by=request.user)
+            messages.success(request, "Documentul a fost salvat și adăugat în coada locală de procesare.")
         else:
             messages.success(request, "Factura a fost salvată. Poți adăuga liniile manual.")
         return redirect("comparator:invoice_detail", pk=invoice.pk)
@@ -890,7 +903,10 @@ def invoice_create(request):
 
 
 def invoice_detail(request, pk):
-    invoice = get_object_or_404(Invoice.objects.select_related("supplier").prefetch_related("lines"), pk=pk)
+    invoice = get_object_or_404(
+        Invoice.objects.select_related("supplier").prefetch_related("lines", "processing_jobs"),
+        pk=pk,
+    )
     rows = [
         (line, line.comparison())
         for line in invoice.lines.select_related("matched_product").prefetch_related(
@@ -907,6 +923,7 @@ def invoice_detail(request, pk):
             "line_formset": formset,
             "page_upload_form": DocumentPagesForm(),
             "revisions": invoice.revisions.select_related("created_by")[:10],
+            "processing_job": invoice.processing_jobs.first(),
         },
     )
 
@@ -1009,18 +1026,15 @@ def invoice_process(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     if invoice.lines.exists() and request.POST.get("confirm_replace") != "1":
         return render(request, "comparator/invoice_confirm_reprocess.html", {"invoice": invoice})
-    try:
-        process_invoice(
-            invoice,
-            force_ocr=bool(invoice.document or invoice.pages.exists()),
-            created_by=request.user,
-        )
-        messages.success(request, "Factura a fost reprocesată local.")
-    except Exception as exc:
-        invoice.status = Invoice.Status.ERROR
-        invoice.processing_error = str(exc)
-        invoice.save(update_fields=["status", "processing_error"])
-        messages.error(request, str(exc))
+    job, created = enqueue_document(
+        invoice,
+        force_ocr=bool(invoice.document or invoice.pages.exists()),
+        requested_by=request.user,
+    )
+    if created:
+        messages.success(request, "Documentul a fost adăugat în coada locală pentru reprocesare.")
+    else:
+        messages.info(request, f"Documentul are deja un job activ: #{job.pk}.")
     return redirect("comparator:invoice_detail", pk=pk)
 
 

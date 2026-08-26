@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     AutomationRun,
     DocumentPage,
+    DocumentProcessingJob,
     Invoice,
     InvoiceLine,
     InvoiceRevision,
@@ -98,5 +99,6 @@ admin.site.register(ShoppingListItem)
 admin.site.register(InventoryItem)
 admin.site.register(StockMovement)
 admin.site.register(PushSubscription)
+admin.site.register(DocumentProcessingJob)
 admin.site.register(MetroPriceAnomaly)
 admin.site.register(AutomationRun)

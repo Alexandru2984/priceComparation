@@ -595,6 +595,44 @@ class InvoiceRevision(models.Model):
         return f"{self.invoice} · {self.get_reason_display()} · {self.created_at:%d.%m.%Y %H:%M}"
 
 
+class DocumentProcessingJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "În așteptare"
+        RUNNING = "RUNNING", "Se procesează"
+        COMPLETED = "COMPLETED", "Finalizat"
+        ERROR = "ERROR", "Eroare"
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="processing_jobs")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True)
+    force_ocr = models.BooleanField(default=False)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="document_processing_jobs",
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "created_at"], name="comparator__status_66c058_idx")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["invoice"],
+                condition=Q(status__in=["PENDING", "RUNNING"]),
+                name="unique_active_document_processing_job",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.invoice} · {self.get_status_display()}"
+
+
 class InvoiceLine(models.Model):
     class MatchMethod(models.TextChoices):
         NONE = "NONE", "Fără potrivire"

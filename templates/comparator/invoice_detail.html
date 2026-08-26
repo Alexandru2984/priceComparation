@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ invoice }} · PriceMatch{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -7,6 +8,7 @@
 </div>
 
 {% if invoice.processing_error %}<div class="message warning"><strong>Procesare:</strong> {{ invoice.processing_error }}</div>{% endif %}
+{% if processing_job %}<section class="sync-banner"{% if processing_job.status == 'PENDING' or processing_job.status == 'RUNNING' %} data-processing-active="1"{% endif %}><div><strong>Procesare #{{ processing_job.pk }} · {{ processing_job.get_status_display }}</strong><span>{% if processing_job.status == 'PENDING' %}Documentul așteaptă workerul local.{% elif processing_job.status == 'RUNNING' %}OCR și extragere în curs; pagina se actualizează automat.{% elif processing_job.status == 'ERROR' %}{{ processing_job.error }}{% else %}Finalizat {{ processing_job.finished_at|date:"d.m.Y H:i:s" }}{% endif %}</span></div><a class="button" href="{% url 'comparator:document_inbox' %}">Vezi inbox</a></section>{% endif %}
 {% if invoice.document_total_gross != None and not invoice.is_reconciled %}<div class="message warning"><strong>Total nealiniat:</strong> liniile și ajustările diferă cu {{ invoice.reconciliation_difference|floatformat:2 }} lei față de totalul introdus. Verifică liniile, reducerile, transportul și SGR.</div>{% endif %}
 
 <section class="stats compact-stats">
@@ -76,3 +78,4 @@
 {% if revisions %}<section class="panel revision-panel"><div class="panel-head"><h2>Versiuni anterioare</h2><span class="muted">Ultimele 10</span></div>{% for revision in revisions %}<div class="list-row"><div><strong>{{ revision.get_reason_display }}</strong><small>{{ revision.created_at|date:"d.m.Y H:i" }} · {{ revision.line_count }} linii{% if revision.created_by %} · {{ revision.created_by.username }}{% endif %}</small></div><form method="post" action="{% url 'comparator:invoice_revision_restore' invoice.pk revision.pk %}" data-confirm="Restaurezi această versiune? Versiunea curentă va fi salvată automat înainte de restaurare.">{% csrf_token %}<button class="button small">Restaurează</button></form></div>{% endfor %}</section>{% endif %}
 <div class="danger-zone"><a class="button danger" href="{% url 'comparator:invoice_delete' invoice.pk %}">Șterge documentul…</a></div>
 {% endblock %}
+{% block scripts %}{% if processing_job.status == 'PENDING' or processing_job.status == 'RUNNING' %}<script src="{% static 'processing_status.js' %}" defer></script>{% endif %}{% endblock %}
