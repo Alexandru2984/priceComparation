@@ -1,10 +1,12 @@
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product, ProductCode
 from comparator.services.metro_scraper import (
+    _load_all_visible_cards,
     import_scraped_rows,
     normalize_dom_rows,
     parse_measurement,
@@ -13,6 +15,38 @@ from comparator.services.metro_scraper import (
 
 
 class MetroNormalizationTests(TestCase):
+    def test_load_more_collects_all_search_pages(self):
+        driver = MagicMock()
+        state = {"cards": 24}
+        control = MagicMock()
+        control.is_displayed.return_value = True
+
+        def find_elements(by, selector):
+            if selector == ".sd-articlecard":
+                return [object()] * state["cards"]
+            if selector == ".mfcss_load-more-articles":
+                return [control] if state["cards"] < 72 else []
+            return []
+
+        def execute_script(script, *args):
+            if "click" in script:
+                state["cards"] += 24
+
+        driver.find_elements.side_effect = find_elements
+        driver.execute_script.side_effect = execute_script
+
+        self.assertEqual(_load_all_visible_cards(driver), 72)
+        self.assertEqual(driver.execute_script.call_count, 4)
+
+    def test_load_more_respects_targeted_result_limit(self):
+        driver = MagicMock()
+        driver.find_elements.side_effect = lambda by, selector: (
+            [object()] * 24 if selector == ".sd-articlecard" else []
+        )
+
+        self.assertEqual(_load_all_visible_cards(driver, max_cards=8), 24)
+        driver.execute_script.assert_not_called()
+
     def test_normalizes_visible_product_card_without_images(self):
         rows = normalize_dom_rows(
             [

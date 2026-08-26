@@ -391,26 +391,33 @@ def normalize_dom_rows(raw_rows):
     return result
 
 
-def _load_all_visible_cards(driver):
+def _load_all_visible_cards(driver, max_cards=0):
+    """Click METRO's explicit load-more control until all search results are present."""
     stable_rounds = 0
-    previous = 0
-    for _ in range(24):
+    for _ in range(100):
         current = len(driver.find_elements(By.CSS_SELECTOR, ".sd-articlecard"))
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        if max_cards and current >= max_cards:
+            break
+        controls = [
+            element
+            for element in driver.find_elements(By.CSS_SELECTOR, ".mfcss_load-more-articles")
+            if element.is_displayed()
+        ]
+        if not controls:
+            break
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", controls[0])
+        driver.execute_script("arguments[0].click();", controls[0])
         try:
-            WebDriverWait(driver, 1.5).until(
+            WebDriverWait(driver, 10).until(
                 lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > current
             )
         except Exception as exc:
-            logger.debug("METRO infinite-scroll wait expired: %s", exc)
+            logger.debug("METRO load-more wait expired: %s", exc)
         updated = len(driver.find_elements(By.CSS_SELECTOR, ".sd-articlecard"))
-        if updated <= previous:
-            stable_rounds += 1
-        else:
-            stable_rounds = 0
-        previous = updated
+        stable_rounds = stable_rounds + 1 if updated <= current else 0
         if stable_rounds >= 2:
             break
+    return len(driver.find_elements(By.CSS_SELECTOR, ".sd-articlecard"))
 
 
 def _displayed_search_input(driver):
@@ -599,7 +606,7 @@ def capture_search_terms(
                         lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
                         or "nu am gasit" in _plain_text(d.find_element(By.TAG_NAME, "body").text)
                     )
-                    _load_all_visible_cards(driver)
+                    _load_all_visible_cards(driver, max_cards=limit_per_search)
                     raw_rows = driver.execute_script(CARD_DATA_SCRIPT)
                     if limit_per_search:
                         raw_rows = raw_rows[:limit_per_search]

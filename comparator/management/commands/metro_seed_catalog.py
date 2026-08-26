@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from comparator.catalog import CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
+from comparator.catalog import CATEGORY_BREADTH_TERMS, CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
 from comparator.models import MetroScrapeJob, MetroScrapeTerm
 from comparator.services.metro_scraper import capture_search_terms, finalize_catalog_job, import_scraped_rows
 
@@ -15,6 +15,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("terms", nargs="*", help="Termeni de căutare; implicit se folosesc categoriile de bază.")
+        parser.add_argument(
+            "--breadth-only",
+            action="store_true",
+            help="Scanează complet numai căutările largi, pentru extinderea rapidă a catalogului.",
+        )
         parser.add_argument(
             "--limit-per-search", type=int, default=0,
             help="0 înseamnă toate cardurile încărcate; altfel limitează fiecare căutare.",
@@ -38,9 +43,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if options["terms"] and options["breadth_only"]:
+            raise CommandError("--breadth-only nu poate fi combinat cu termeni manuali.")
         if options["terms"]:
             terms = options["terms"]
             term_categories = {term: options["category"] for term in terms}
+        elif options["breadth_only"]:
+            terms = [term for category_terms in CATEGORY_BREADTH_TERMS.values() for term in category_terms]
+            term_categories = {
+                term: category for category, category_terms in CATEGORY_BREADTH_TERMS.items() for term in category_terms
+            }
         else:
             terms = DEFAULT_TERMS
             term_categories = {
@@ -66,7 +78,11 @@ class Command(BaseCommand):
         else:
             job = MetroScrapeJob.objects.create(
                 start_url=settings.METRO_START_URL,
-                scan_type=(MetroScrapeJob.ScanType.TARGETED if options["terms"] else MetroScrapeJob.ScanType.FULL),
+                scan_type=(
+                    MetroScrapeJob.ScanType.TARGETED
+                    if options["terms"] or options["breadth_only"]
+                    else MetroScrapeJob.ScanType.FULL
+                ),
             )
         job.status = MetroScrapeJob.Status.RUNNING
         job.started_at = job.started_at or timezone.now()
