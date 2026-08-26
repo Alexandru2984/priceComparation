@@ -721,6 +721,7 @@ def metro_list(request):
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
     availability = request.GET.get("availability", "active").strip()
+    volume = request.GET.get("volume", "all").strip()
     offers = MetroOffer.objects.select_related("product").prefetch_related("volume_tiers")
     if availability == "inactive":
         offers = offers.filter(active=False)
@@ -735,6 +736,12 @@ def metro_list(request):
         )
     if category:
         offers = offers.filter(product__category=category)
+    if volume == "with":
+        offers = offers.filter(volume_tiers__isnull=False).distinct()
+    elif volume == "without":
+        offers = offers.filter(volume_tiers__isnull=True)
+    else:
+        volume = "all"
     page_obj = Paginator(offers, 100).get_page(request.GET.get("page"))
     confirmed_document_lines = InvoiceLine.objects.filter(
         invoice__supplier__is_metro=True, needs_review=False, matched_product__isnull=False
@@ -762,10 +769,19 @@ def metro_list(request):
             "query": query,
             "selected_category": category,
             "availability": availability,
+            "volume": volume,
             "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
             "freshness": freshness,
+            "active_volume_offer_count": MetroOffer.objects.filter(
+                active=True,
+                source=f"Selenium {settings.PREFERRED_METRO_STORE}",
+                volume_tiers__isnull=False,
+            ).distinct().count() if settings.PREFERRED_METRO_STORE else MetroOffer.objects.filter(
+                active=True,
+                volume_tiers__isnull=False,
+            ).distinct().count(),
         },
     )
 

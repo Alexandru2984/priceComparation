@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -5,7 +6,14 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product, ProductCode
+from comparator.models import (
+    MetroOffer,
+    MetroOfferTier,
+    MetroScrapeJob,
+    MetroScrapedProduct,
+    Product,
+    ProductCode,
+)
 from comparator.services.metro_scraper import (
     _load_all_visible_cards,
     import_scraped_rows,
@@ -149,6 +157,30 @@ class MetroStagingTests(TestCase):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         self.assertEqual(self.client.get("/app/metro/scanari/").status_code, 200)
         self.assertEqual(self.client.get(f"/app/metro/scanari/{job.pk}/").status_code, 200)
+
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_metro_list_can_show_only_volume_price_offers(self):
+        volume_product = Product.objects.create(name="Produs cu prag", base_unit="BUC")
+        regular_product = Product.objects.create(name="Produs fără prag", base_unit="BUC")
+        volume_offer = MetroOffer.objects.create(
+            product=volume_product,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        MetroOfferTier.objects.create(offer=volume_offer, min_packages=3, price_gross=8)
+        MetroOffer.objects.create(
+            product=regular_product,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+
+        response = self.client.get("/app/metro/?volume=with")
+
+        self.assertContains(response, "Produs cu prag")
+        self.assertNotContains(response, "Produs fără prag")
+        self.assertContains(response, "3+ pachete")
 
     @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_breadth_catalog_job")
