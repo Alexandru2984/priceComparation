@@ -15,7 +15,7 @@ from comparator.models import (
 )
 
 from .matching import apply_match
-from .ocr import extract_text, merge_ocr_pages
+from .ocr import extract_text_result, merge_ocr_pages
 from .parser import parse_invoice_text
 from .inventory import sync_stock_from_line
 
@@ -119,11 +119,19 @@ def process_invoice(invoice, force_ocr=False, created_by=None):
             raise ValueError("Documentul nu conține nici imagini/PDF, nici text pentru procesare.")
         chunks = []
         for page, path in sources:
-            text = extract_text(path)
-            chunks.append(text)
+            result = extract_text_result(path)
+            chunks.append(result.text)
             if page:
-                page.ocr_text = text
-                page.save(update_fields=["ocr_text"])
+                page.ocr_text = result.text
+                page.ocr_quality_score = result.quality_score
+                page.ocr_strategy = result.strategy
+                page.ocr_warnings = result.warnings
+                page.save(update_fields=[
+                    "ocr_text",
+                    "ocr_quality_score",
+                    "ocr_strategy",
+                    "ocr_warnings",
+                ])
         invoice.ocr_text = merge_ocr_pages(chunks)
 
     products, parser_name, parser_warning = parse_invoice_text(invoice.ocr_text)

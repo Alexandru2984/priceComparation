@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from comparator.models import Invoice, InvoiceLine, Product, Supplier
 from comparator.services.invoices import process_invoice, sync_metro_offer_from_line
 from comparator.services.matching import apply_match, normalize_name, rank_product_candidates, suggest_product
-from comparator.services.ocr import extract_text
+from comparator.services.ocr import extract_text, extract_text_result
 from comparator.services.parser import parse_heuristic, parse_invoice_text
 
 
@@ -179,6 +179,10 @@ class OCRIntegrationTests(TestCase):
             text = extract_text(path)
             self.assertIn("Coca", text)
 
+            result = extract_text_result(path)
+            self.assertGreaterEqual(result.quality_score, 45)
+            self.assertIn(result.strategy, {"PSM4", "PSM6", "PSM11"})
+
     @patch("comparator.services.ocr._tesseract_image")
     @patch("pypdfium2.PdfDocument")
     def test_digital_pdf_uses_embedded_text_without_tesseract(self, pdf_document, tesseract):
@@ -197,3 +201,20 @@ class OCRIntegrationTests(TestCase):
         self.assertEqual(text, embedded)
         tesseract.assert_not_called()
         text_page.close.assert_called_once()
+
+    @patch("pypdfium2.PdfDocument")
+    def test_digital_pdf_reports_native_quality_metadata(self, pdf_document):
+        embedded = "FACTURA DIGITALA\n" + "Produs alimentar 2 x 7,90 15,80\n" * 5
+        text_page = MagicMock()
+        text_page.get_text_range.return_value = embedded
+        page = MagicMock()
+        page.get_textpage.return_value = text_page
+        pdf_document.return_value = [page]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "digital.pdf"
+            path.write_bytes(b"%PDF-test")
+            result = extract_text_result(path)
+
+        self.assertEqual(result.strategy, "NATIVE_PDF")
+        self.assertGreaterEqual(result.quality_score, 70)
+        self.assertEqual(result.warnings, [])

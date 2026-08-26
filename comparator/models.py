@@ -561,6 +561,13 @@ class DocumentPage(models.Model):
     file = models.FileField("imagine/PDF", upload_to="documents/%Y/%m/", validators=[validate_document_upload])
     page_order = models.PositiveSmallIntegerField("ordine", default=1)
     ocr_text = models.TextField(blank=True)
+    ocr_quality_score = models.PositiveSmallIntegerField(
+        "calitate OCR",
+        default=0,
+        validators=[MaxValueValidator(100)],
+    )
+    ocr_strategy = models.CharField("strategie OCR", max_length=20, blank=True)
+    ocr_warnings = models.JSONField("avertismente OCR", default=list, blank=True)
 
     class Meta:
         ordering = ["page_order", "id"]
