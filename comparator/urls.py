@@ -12,6 +12,7 @@ urlpatterns = [
     path("calitate-potriviri/", staff_member_required(views.matching_quality), name="matching_quality"),
     path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
     path("furnizori/adauga/", staff_member_required(views.supplier_create), name="supplier_create"),
+    path("furnizori/<int:pk>/parsare/", staff_member_required(views.supplier_parsing_profile), name="supplier_parsing_profile"),
     path("catalog/", staff_member_required(views.product_list), name="product_list"),
     path("catalog/cauta/", staff_member_required(views.product_search), name="product_search"),
     path("catalog/<int:pk>/", staff_member_required(views.product_detail), name="product_detail"),

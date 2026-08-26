@@ -46,6 +46,40 @@ TOTAL 304.00"""
         self.assertEqual(products[0]["quantity"], Decimal("2"))
         self.assertEqual(products[0]["unit_price_gross"], Decimal("4.50"))
 
+    def test_supplier_default_vat_fills_only_missing_rate(self):
+        products, parser_name, _ = parse_invoice_text(
+            "Lapte 1L - 2 bucati x 6,50 RON",
+            parser_mode="HEURISTIC",
+            default_vat_rate=Decimal("11"),
+        )
+        self.assertEqual(parser_name, "heuristic")
+        self.assertEqual(products[0]["vat_rate"], Decimal("11"))
+
+    @override_settings(OLLAMA_ENABLED=True)
+    @patch("comparator.services.parser.parse_with_ollama")
+    def test_supplier_can_prefer_local_ollama_for_clear_layout(self, ollama):
+        ollama.return_value = [{
+            "original_name": "Produs Ollama",
+            "ean": "",
+            "quantity": 1,
+            "units_per_package": 1,
+            "unit_size": 1,
+            "base_unit": "BUC",
+            "unit_price_gross": 4,
+            "vat_rate": 0,
+            "line_total_gross": 4,
+            "discount_gross": 0,
+            "deposit_gross": 0,
+        }]
+        products, parser_name, warning = parse_invoice_text(
+            "Lapte 1L - 2 bucati x 6,50 RON",
+            parser_mode="OLLAMA",
+        )
+        self.assertEqual(parser_name, "hybrid")
+        self.assertIsNone(warning)
+        self.assertEqual(len(products), 2)
+        ollama.assert_called_once()
+
     @override_settings(OLLAMA_ENABLED=True)
     @patch("comparator.services.parser.parse_with_ollama")
     def test_hybrid_parser_completes_missing_lines_and_deduplicates(self, model_parser):

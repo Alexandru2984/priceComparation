@@ -25,12 +25,15 @@ from .models import (
     StockMovement,
     Supplier,
     SupplierOffer,
+    SupplierParsingProfile,
 )
 
 
 admin.site.site_header = "PriceMatch · administrare securizată"
 admin.site.site_title = "PriceMatch Admin"
 admin.site.index_title = "Datele private ale magazinului"
+
+admin.site.register(SupplierParsingProfile)
 
 
 class MetroOfferInline(admin.TabularInline):

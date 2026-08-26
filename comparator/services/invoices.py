@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import F
 
 from comparator.models import (
     BaseUnit,
@@ -18,6 +19,7 @@ from .matching import apply_match
 from .ocr import extract_text_result, merge_ocr_pages
 from .parser import parse_invoice_text
 from .inventory import sync_stock_from_line
+from .supplier_profiles import get_supplier_profile
 
 
 logger = logging.getLogger(__name__)
@@ -134,7 +136,12 @@ def process_invoice(invoice, force_ocr=False, created_by=None):
                 ])
         invoice.ocr_text = merge_ocr_pages(chunks)
 
-    products, parser_name, parser_warning = parse_invoice_text(invoice.ocr_text)
+    profile = get_supplier_profile(invoice.supplier)
+    products, parser_name, parser_warning = parse_invoice_text(
+        invoice.ocr_text,
+        parser_mode=profile.parser_mode,
+        default_vat_rate=profile.default_vat_rate if profile.apply_default_vat else None,
+    )
     if not products:
         details = f" Ollama: {parser_warning}" if parser_warning else ""
         raise ValueError(f"Nu s-au găsit linii de produse. Poți introduce liniile manual.{details}")
@@ -148,6 +155,12 @@ def process_invoice(invoice, force_ocr=False, created_by=None):
         # o dată. Editarea liniei memorează apoi asocierea furnizorului.
         line.needs_review = True
         line.save()
+
+    type(profile).objects.filter(pk=profile.pk).update(
+        documents_processed=F("documents_processed") + 1,
+        extracted_lines=F("extracted_lines") + len(products),
+        last_parser=parser_name,
+    )
 
     needs_review = invoice.lines.filter(needs_review=True).exists()
     invoice.status = Invoice.Status.REVIEW if needs_review else Invoice.Status.PROCESSED

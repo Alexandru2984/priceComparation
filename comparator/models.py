@@ -58,6 +58,47 @@ class Supplier(models.Model):
         return self.name
 
 
+class SupplierParsingProfile(models.Model):
+    class ParserMode(models.TextChoices):
+        AUTO = "AUTO", "Automat (recomandat)"
+        HEURISTIC = "HEURISTIC", "Doar reguli locale"
+        OLLAMA = "OLLAMA", "Preferă Ollama local"
+
+    supplier = models.OneToOneField(Supplier, on_delete=models.CASCADE, related_name="parsing_profile")
+    parser_mode = models.CharField(max_length=12, choices=ParserMode.choices, default=ParserMode.AUTO)
+    apply_default_vat = models.BooleanField(
+        "completează TVA implicit",
+        default=False,
+        help_text="Se aplică doar liniilor unde documentul nu conține o cotă TVA.",
+    )
+    default_vat_rate = models.DecimalField(
+        "TVA implicit (%)",
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+    )
+    documents_processed = models.PositiveIntegerField(default=0)
+    extracted_lines = models.PositiveIntegerField(default=0)
+    confirmed_lines = models.PositiveIntegerField(default=0)
+    corrected_lines = models.PositiveIntegerField(default=0)
+    average_match_score = models.PositiveSmallIntegerField(default=0)
+    last_parser = models.CharField(max_length=20, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["supplier__name"]
+
+    @property
+    def correction_rate(self):
+        if not self.confirmed_lines:
+            return 0
+        return round(self.corrected_lines * 100 / self.confirmed_lines, 1)
+
+    def __str__(self):
+        return f"Profil parsare · {self.supplier}"
+
+
 class Product(models.Model):
     name = models.CharField("produs", max_length=220)
     brand = models.CharField("marcă", max_length=100, blank=True)

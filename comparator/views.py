@@ -31,6 +31,7 @@ from .forms import (
     ShoppingListItemForm,
     StockMovementForm,
     SupplierForm,
+    SupplierParsingProfileForm,
 )
 from .models import (
     AutomationRun,
@@ -55,6 +56,7 @@ from .models import (
     ShoppingListItem,
     StockMovement,
     Supplier,
+    SupplierParsingProfile,
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.documents import add_document_pages, delete_document_page, move_document_page
@@ -83,6 +85,7 @@ from .services.insights import (
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
 from .services.processing_queue import enqueue_document
+from .services.supplier_profiles import refresh_supplier_profile_metrics
 
 
 def dashboard(request):
@@ -160,6 +163,22 @@ def supplier_create(request):
         messages.success(request, "Furnizorul a fost adăugat.")
         return redirect("comparator:supplier_list")
     return render(request, "comparator/form.html", {"form": form, "title": "Furnizor nou"})
+
+
+def supplier_parsing_profile(request, pk):
+    supplier = get_object_or_404(Supplier, pk=pk)
+    profile = refresh_supplier_profile_metrics(supplier)
+    form = SupplierParsingProfileForm(request.POST or None, instance=profile)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Regulile locale de parsare au fost actualizate.")
+        return redirect("comparator:supplier_parsing_profile", pk=supplier.pk)
+    recent_documents = supplier.invoices.prefetch_related("lines").order_by("-issued_at", "-id")[:20]
+    return render(
+        request,
+        "comparator/supplier_parsing_profile.html",
+        {"supplier": supplier, "profile": profile, "form": form, "recent_documents": recent_documents},
+    )
 
 
 def _filtered_products(request):
@@ -1104,6 +1123,7 @@ def _save_line(form, invoice=None):
     else:
         line.invoice.status = Invoice.Status.PROCESSED
     line.invoice.save(update_fields=["status"])
+    refresh_supplier_profile_metrics(line.invoice.supplier)
     return line, metro_offer
 
 

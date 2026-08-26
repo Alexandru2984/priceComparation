@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Parsare {{ supplier.name }} · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Profil local de document</p><h1>{{ supplier.name }}</h1><p>Regulile se aplică numai facturilor și bonurilor acestui furnizor.</p></div><a class="button" href="{% url 'comparator:supplier_list' %}">Înapoi la furnizori</a></div>
+
+<section class="stats compact-stats">
+  <article><strong>{{ profile.documents_processed }}</strong><span>procesări OCR</span></article>
+  <article><strong>{{ profile.extracted_lines }}</strong><span>linii extrase</span></article>
+  <article><strong>{{ profile.average_match_score }}%</strong><span>scor mediu confirmat</span></article>
+  <article><strong>{{ profile.correction_rate }}%</strong><span>asocieri corectate</span></article>
+</section>
+
+<section class="panel form-panel">
+  <div class="panel-head"><h2>Reguli de extragere</h2><span class="muted">Ultimul parser: {{ profile.last_parser|default:"—" }}</span></div>
+  <form method="post">{% csrf_token %}{{ form.as_p }}<button class="button primary">Salvează profilul</button></form>
+</section>
+
+<section class="panel table-wrap">
+  <div class="panel-head"><h2>Documente recente</h2><span class="muted">Confirmările îmbunătățesc automat indicatorii și aliasurile produselor.</span></div>
+  <table><thead><tr><th>Document</th><th>Data</th><th>Linii</th><th>Status</th></tr></thead><tbody>
+  {% for document in recent_documents %}<tr><td><a href="{% url 'comparator:invoice_detail' document.pk %}">{{ document.number|default:"Fără număr" }}</a></td><td>{{ document.issued_at|date:"d.m.Y" }}</td><td>{{ document.lines.count }}</td><td><span class="badge {{ document.status|lower }}">{{ document.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="4" class="empty">Nu există încă documente pentru acest furnizor.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}

@@ -223,25 +223,47 @@ def normalize_product_data(item):
     }
 
 
-def parse_invoice_text(text):
+def _apply_default_vat(products, default_vat_rate):
+    if default_vat_rate is None:
+        return products
+    rate = max(_decimal(default_vat_rate), Decimal("0"))
+    for product in products:
+        if product["vat_rate"] == 0:
+            product["vat_rate"] = rate
+    return products
+
+
+def parse_invoice_text(text, parser_mode="AUTO", default_vat_rate=None):
     # Formatele explicite de tip „10 bucăți x 7,90” sunt mai sigure și mult mai
     # rapide cu parserul determinist. Ollama intervine pentru layout-uri OCR mai
     # dezordonate, nu pentru a reinterpreta date deja clare.
     heuristic_products = [normalize_product_data(item) for item in parse_heuristic(text)]
     candidate_count = _candidate_line_count(text)
-    needs_model = not heuristic_products or candidate_count > len(heuristic_products)
-    if heuristic_products and (not settings.OLLAMA_ENABLED or not needs_model):
-        return heuristic_products, "heuristic", None
+    needs_model = (
+        parser_mode == "OLLAMA"
+        or (parser_mode == "AUTO" and (not heuristic_products or candidate_count > len(heuristic_products)))
+    )
+    if parser_mode == "HEURISTIC" or (heuristic_products and (not settings.OLLAMA_ENABLED or not needs_model)):
+        warning = "Ollama local este dezactivat." if parser_mode == "OLLAMA" and not settings.OLLAMA_ENABLED else None
+        return _apply_default_vat(heuristic_products, default_vat_rate), "heuristic", warning
 
-    ollama_error = None
+    ollama_error = (
+        "Ollama local este dezactivat."
+        if parser_mode == "OLLAMA" and not settings.OLLAMA_ENABLED
+        else None
+    )
     if settings.OLLAMA_ENABLED:
         try:
             parsed = parse_with_ollama(text)
             model_products = [normalize_product_data(item) for item in parsed if item.get("original_name")]
             products = _merge_products(heuristic_products, model_products)
             if products:
-                return products, "hybrid" if heuristic_products and model_products else "ollama", None
+                return (
+                    _apply_default_vat(products, default_vat_rate),
+                    "hybrid" if heuristic_products and model_products else "ollama",
+                    None,
+                )
         except (requests.RequestException, KeyError, ValueError, json.JSONDecodeError) as exc:
             ollama_error = str(exc)
 
-    return heuristic_products, "heuristic", ollama_error
+    return _apply_default_vat(heuristic_products, default_vat_rate), "heuristic", ollama_error

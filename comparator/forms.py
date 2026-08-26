@@ -12,6 +12,7 @@ from .models import (
     ShoppingListItem,
     StockMovement,
     Supplier,
+    SupplierParsingProfile,
 )
 from .validators import (
     MAX_DOCUMENT_PAGES,
@@ -34,6 +35,12 @@ class SupplierForm(forms.ModelForm):
             "name", "tax_id", "is_metro", "minimum_order_gross", "transport_gross",
             "free_transport_from", "notes",
         ]
+
+
+class SupplierParsingProfileForm(forms.ModelForm):
+    class Meta:
+        model = SupplierParsingProfile
+        fields = ["parser_mode", "apply_default_vat", "default_vat_rate"]
 
 
 class ProductForm(forms.ModelForm):
