@@ -792,6 +792,24 @@ def launch_mass_catalog_job(job, store_query=""):
     _launch_catalog_process(job, arguments, "mass")
 
 
+def launch_breadth_catalog_job(job, store_query=""):
+    arguments = [
+        sys.executable,
+        str(Path(settings.BASE_DIR) / "manage.py"),
+        "metro_seed_catalog",
+        "--breadth-only",
+        "--resume",
+        str(job.pk),
+        "--delay",
+        "0.8",
+        "--retries",
+        "3",
+    ]
+    if store_query:
+        arguments.extend(["--store", store_query])
+    _launch_catalog_process(job, arguments, "breadth")
+
+
 def launch_targeted_catalog_job(job, terms, store_query=""):
     arguments = [
         sys.executable,

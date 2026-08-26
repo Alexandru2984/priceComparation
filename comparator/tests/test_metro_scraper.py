@@ -1,8 +1,8 @@
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product, ProductCode
 from comparator.services.metro_scraper import (
@@ -148,6 +148,16 @@ class MetroStagingTests(TestCase):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         self.assertEqual(self.client.get("/app/metro/scanari/").status_code, 200)
         self.assertEqual(self.client.get(f"/app/metro/scanari/{job.pk}/").status_code, 200)
+
+    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @patch("comparator.views.launch_breadth_catalog_job")
+    def test_fast_expansion_can_be_started_from_private_ui(self, launcher):
+        response = self.client.post("/app/metro/scanari/extindere-rapida/")
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
+        launcher.assert_called_once_with(job, "Targoviste")
 
     def test_metro_identity_is_saved_when_a_row_is_imported(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
