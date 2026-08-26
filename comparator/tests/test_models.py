@@ -1,6 +1,7 @@
 import io
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -124,6 +125,22 @@ class DashboardSmokeTests(TestCase):
         response = self.client.get("/app/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "PriceMatch")
+        self.assertContains(response, "Pregătire pentru primele date reale")
+
+    @patch("comparator.views.system_readiness")
+    def test_readiness_page_renders_private_diagnostics(self, readiness):
+        readiness.return_value = {
+            "ok_count": 1,
+            "warning_count": 1,
+            "error_count": 0,
+            "checks": [
+                {"name": "OCR Tesseract", "status": "OK", "detail": "Disponibil.", "action": ""},
+                {"name": "Ollama", "status": "WARN", "detail": "Oprit.", "action": "Pornește serviciul"},
+            ],
+        }
+        response = self.client.get("/app/stare/")
+        self.assertContains(response, "OCR Tesseract")
+        self.assertContains(response, "Pornește serviciul")
 
     def test_public_demo_loads(self):
         self.client.logout()

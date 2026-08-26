@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Starea sistemului · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Diagnostic local</p><h1>Starea sistemului</h1><p>Verificări live pentru componentele necesare înainte de încărcarea documentelor reale.</p></div><a class="button" href="{% url 'comparator:dashboard' %}">Înapoi la panou</a></div>
+<section class="stats compact-stats"><article><strong>{{ report.ok_count }}</strong><span>componente funcționale</span></article><article class="{% if report.warning_count %}warn{% endif %}"><strong>{{ report.warning_count }}</strong><span>avertismente</span></article><article class="{% if report.error_count %}warn{% endif %}"><strong>{{ report.error_count }}</strong><span>probleme de rezolvat</span></article></section>
+<section class="panel"><div class="list">{% for check in report.checks %}<div class="list-row"><div><strong>{{ check.name }}</strong><small>{{ check.detail }}</small>{% if check.action %}<small class="diagnostic-action">Acțiune: {{ check.action }}</small>{% endif %}</div><span class="badge {% if check.status == 'OK' %}processed{% elif check.status == 'ERROR' %}error{% else %}new{% endif %}">{{ check.status }}</span></div>{% endfor %}</div></section>
+<p class="muted diagnostic-note">Pagina nu afișează parole, chei, căi private ale documentelor sau conținut din facturi.</p>
+{% endblock %}

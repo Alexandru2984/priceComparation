@@ -10,8 +10,13 @@
   <div class="actions">
     <a class="button primary" href="{% url 'comparator:invoice_create' %}">Adaugă factură sau bon</a>
     <a class="button" href="{% url 'comparator:metro_offer_create' %}">Adaugă preț METRO</a>
+    <a class="button" href="{% url 'comparator:readiness' %}">Verifică sistemul</a>
   </div>
 </section>
+
+{% if not supplier_count or not document_count or not inventory_count %}
+<section class="panel onboarding-panel"><div class="panel-head"><h2>Pregătire pentru primele date reale</h2></div><div class="onboarding-grid"><a class="onboarding-step {% if supplier_count %}done{% endif %}" href="{% url 'comparator:supplier_list' %}"><strong>1. Furnizor</strong><span>{% if supplier_count %}Configurat{% else %}Adaugă firma de pe factură sau bon{% endif %}</span></a><a class="onboarding-step {% if document_count %}done{% endif %}" href="{% url 'comparator:invoice_create' %}"><strong>2. Document</strong><span>{% if document_count %}Adăugat{% else %}Încarcă o fotografie, un PDF sau text manual{% endif %}</span></a><a class="onboarding-step {% if inventory_count %}done{% endif %}" href="{% url 'comparator:inventory_index' %}"><strong>3. Stoc și marjă</strong><span>{% if inventory_count %}Configurat{% else %}Opțional după confirmarea primelor produse{% endif %}</span></a></div></section>
+{% endif %}
 
 <section class="stats">
   <article><strong>{{ product_count }}</strong><span>produse urmărite</span></article>

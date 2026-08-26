@@ -68,6 +68,7 @@ from .services.invoices import (
     sync_supplier_offer_from_line,
 )
 from .services.inventory import create_replenishment_list, inventory_with_balance, sync_invoice_stock, sync_stock_from_line
+from .services.health import system_readiness
 from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import import_scraped_rows, launch_mass_catalog_job, launch_scrape_job
@@ -94,6 +95,9 @@ def dashboard(request):
     comparisons.sort(key=lambda item: abs(item[1]["total_impact"]), reverse=True)
     total_impact = sum((item[1]["total_impact"] for item in comparisons), Decimal("0"))
     alerts = [alert for alert in PriceAlert.objects.select_related("product").filter(active=True) if alert.is_triggered]
+    supplier_count = Supplier.objects.count()
+    document_count = Invoice.objects.count()
+    inventory_count = InventoryItem.objects.filter(active=True).count()
     return render(
         request,
         "comparator/dashboard.html",
@@ -112,8 +116,16 @@ def dashboard(request):
                 status=MetroPriceAnomaly.Status.OPEN
             ).count(),
             "recent_automation": AutomationRun.objects.select_related("metro_job")[:5],
+            "supplier_count": supplier_count,
+            "document_count": document_count,
+            "inventory_count": inventory_count,
         },
     )
+
+
+def readiness(request):
+    report = system_readiness()
+    return render(request, "comparator/readiness.html", {"report": report})
 
 
 def matching_quality(request):
