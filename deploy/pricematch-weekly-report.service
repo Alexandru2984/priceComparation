@@ -1,0 +1,17 @@
+[Unit]
+Description=Generate PriceMatch weekly operations report
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=micu
+Group=micu
+WorkingDirectory=/home/micu/Desktop/priceComparision
+EnvironmentFile=/home/micu/Desktop/priceComparision/.env
+ExecStart=/home/micu/Desktop/priceComparision/.venv/bin/python manage.py generate_weekly_report
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/micu/Desktop/priceComparision/reports

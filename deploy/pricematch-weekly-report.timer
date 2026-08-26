@@ -1,0 +1,11 @@
+[Unit]
+Description=Generate the PriceMatch report every Monday
+
+[Timer]
+OnCalendar=Mon *-*-* 06:30:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=pricematch-weekly-report.service
+
+[Install]
+WantedBy=timers.target

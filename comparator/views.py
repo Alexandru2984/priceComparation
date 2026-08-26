@@ -93,6 +93,7 @@ from .services.notifications import is_allowed_push_endpoint, send_to_active_sta
 from .services.processing_queue import enqueue_document
 from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
 from .services.sales_imports import apply_sales_import, parse_sales_file
+from .services.weekly_reports import build_weekly_report, build_weekly_report_xlsx
 from .services.supplier_profiles import refresh_supplier_profile_metrics
 
 
@@ -138,6 +139,32 @@ def dashboard(request):
 def readiness(request):
     report = system_readiness()
     return render(request, "comparator/readiness.html", {"report": report})
+
+
+def weekly_report(request):
+    end_value = request.GET.get("end", "")
+    try:
+        end_date = date.fromisoformat(end_value) if end_value else timezone.localdate()
+    except ValueError:
+        end_date = timezone.localdate()
+        messages.warning(request, "Data raportului nu a fost validă; s-a folosit data curentă.")
+    report = build_weekly_report(end_date)
+    return render(request, "comparator/weekly_report.html", {"report": report})
+
+
+def weekly_report_export(request):
+    end_value = request.GET.get("end", "")
+    try:
+        end_date = date.fromisoformat(end_value) if end_value else timezone.localdate()
+    except ValueError:
+        end_date = timezone.localdate()
+    report = build_weekly_report(end_date)
+    response = HttpResponse(
+        build_weekly_report_xlsx(report),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="raport-saptamanal-{end_date.isoformat()}.xlsx"'
+    return response
 
 
 def matching_quality(request):
