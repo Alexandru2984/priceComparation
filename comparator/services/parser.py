@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 import requests
 from django.conf import settings
+from rapidfuzz import fuzz
 
 from comparator.models import BaseUnit
 
@@ -104,7 +105,25 @@ LINE_PATTERNS = [
         r"(?P<price>\d+(?:[.,]\d+)?)\s*(?:RON|LEI)?(?:\s+(?P<total>\d+(?:[.,]\d+)?))?\s*$",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"^\s*(?P<name>.+?[A-Za-zĂÂÎȘȚăâîșț][^\n]*?)\s+"
+        r"(?P<qty>\d+(?:[.,]\d{1,3})?)\s*(?P<qty_unit>BUC(?:ATA|ATI)?|KG|L)?\s+"
+        r"(?:[xX*@]\s*)?(?P<price>\d+(?:[.,]\d{2}))\s+"
+        r"(?P<total>\d+(?:[.,]\d{2}))(?:\s+[A-Z])?\s*$",
+        re.IGNORECASE,
+    ),
 ]
+
+
+NON_PRODUCT_TERMS = {
+    "total", "subtotal", "tva", "cui", "cif", "bon fiscal", "rest", "numerar", "card",
+    "discount", "reducere", "operator", "casa", "ora", "data", "incasare", "plata",
+}
+
+
+def _is_non_product_name(name):
+    lowered = " ".join(name.lower().split())
+    return any(term == lowered or lowered.startswith(f"{term} ") for term in NON_PRODUCT_TERMS)
 
 
 def parse_heuristic(text):
@@ -116,17 +135,22 @@ def parse_heuristic(text):
             if not match:
                 continue
             name = match.group("name").strip(" .-")
-            if name.lower() in {"total", "subtotal", "tva"} or any(
-                word in name.lower() for word in ("discount", "reducere", "rest plata")
-            ):
+            if _is_non_product_name(name):
                 break
+            ean = ""
+            code_match = re.match(r"^(\d{8,14})\s+(.+)$", name)
+            if code_match:
+                ean, name = code_match.groups()
             size, base_unit = _size_from_name(name)
+            quantity_unit = (match.groupdict().get("qty_unit") or "").upper()
+            if base_unit == BaseUnit.PIECE and quantity_unit in {BaseUnit.KILOGRAM, BaseUnit.LITER}:
+                base_unit = quantity_unit
             quantity = _decimal(match.group("qty"), "1")
             price = _decimal(match.group("price"))
             products.append(
                 {
                     "original_name": name,
-                    "ean": "",
+                    "ean": ean,
                     "quantity": quantity,
                     "units_per_package": Decimal("1"),
                     "unit_size": size,
@@ -140,6 +164,47 @@ def parse_heuristic(text):
             )
             break
     return products
+
+
+def _candidate_line_count(text):
+    count = 0
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.split())
+        if len(line) < 5 or _is_non_product_name(line):
+            continue
+        decimal_values = re.findall(r"\b\d+[.,]\d{2}\b", line)
+        has_sale_marker = bool(re.search(r"(?i)\b(?:buc(?:ata|ati)?|kg|l)\b|[xX*@]", line))
+        if len(decimal_values) >= 2 or (decimal_values and has_sale_marker):
+            count += 1
+    return count
+
+
+def _names_match(left, right):
+    normalize = lambda value: " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+    return fuzz.token_set_ratio(normalize(left), normalize(right)) >= 82
+
+
+def _same_extracted_product(left, right):
+    same_quantity = abs(left["quantity"] - right["quantity"]) <= Decimal("0.001")
+    same_price = abs(left["unit_price_gross"] - right["unit_price_gross"]) <= Decimal("0.01")
+    left_total = left.get("line_total_gross")
+    right_total = right.get("line_total_gross")
+    same_total = (
+        left_total is not None
+        and right_total is not None
+        and abs(left_total - right_total) <= Decimal("0.02")
+    )
+    return _names_match(left["original_name"], right["original_name"]) and (
+        (same_quantity and same_price) or same_total
+    )
+
+
+def _merge_products(deterministic, model_products):
+    merged = list(deterministic)
+    for product in model_products:
+        if not any(_same_extracted_product(product, existing) for existing in merged):
+            merged.append(product)
+    return merged
 
 
 def normalize_product_data(item):
@@ -163,17 +228,20 @@ def parse_invoice_text(text):
     # rapide cu parserul determinist. Ollama intervine pentru layout-uri OCR mai
     # dezordonate, nu pentru a reinterpreta date deja clare.
     heuristic_products = [normalize_product_data(item) for item in parse_heuristic(text)]
-    if heuristic_products:
+    candidate_count = _candidate_line_count(text)
+    needs_model = not heuristic_products or candidate_count > len(heuristic_products)
+    if heuristic_products and (not settings.OLLAMA_ENABLED or not needs_model):
         return heuristic_products, "heuristic", None
 
     ollama_error = None
     if settings.OLLAMA_ENABLED:
         try:
             parsed = parse_with_ollama(text)
-            products = [normalize_product_data(item) for item in parsed if item.get("original_name")]
+            model_products = [normalize_product_data(item) for item in parsed if item.get("original_name")]
+            products = _merge_products(heuristic_products, model_products)
             if products:
-                return products, "ollama", None
+                return products, "hybrid" if heuristic_products and model_products else "ollama", None
         except (requests.RequestException, KeyError, ValueError, json.JSONDecodeError) as exc:
             ollama_error = str(exc)
 
-    return [], "heuristic", ollama_error
+    return heuristic_products, "heuristic", ollama_error

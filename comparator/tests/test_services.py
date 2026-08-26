@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 from PIL import Image, ImageDraw, ImageFont
@@ -10,7 +11,7 @@ from comparator.models import Invoice, InvoiceLine, Product, Supplier
 from comparator.services.invoices import process_invoice, sync_metro_offer_from_line
 from comparator.services.matching import apply_match, normalize_name, rank_product_candidates, suggest_product
 from comparator.services.ocr import extract_text
-from comparator.services.parser import parse_heuristic
+from comparator.services.parser import parse_heuristic, parse_invoice_text
 
 
 class ParserTests(TestCase):
@@ -36,6 +37,53 @@ TOTAL 304.00"""
         self.assertEqual(len(products), 1)
         self.assertEqual(products[0]["quantity"], Decimal("2"))
         self.assertEqual(products[0]["line_total_gross"], Decimal("15.80"))
+
+    def test_parses_common_receipt_columns_without_multiplication_sign(self):
+        products = parse_heuristic("5941234567890 IAURT NATURAL 400G 2 4,50 9,00 A")
+        self.assertEqual(len(products), 1)
+        self.assertEqual(products[0]["ean"], "5941234567890")
+        self.assertEqual(products[0]["original_name"], "IAURT NATURAL 400G")
+        self.assertEqual(products[0]["quantity"], Decimal("2"))
+        self.assertEqual(products[0]["unit_price_gross"], Decimal("4.50"))
+
+    @override_settings(OLLAMA_ENABLED=True)
+    @patch("comparator.services.parser.parse_with_ollama")
+    def test_hybrid_parser_completes_missing_lines_and_deduplicates(self, model_parser):
+        model_parser.return_value = [
+            {
+                "original_name": "Coca Cola 2L",
+                "ean": "",
+                "quantity": 2,
+                "units_per_package": 1,
+                "unit_size": 2,
+                "base_unit": "L",
+                "unit_price_gross": 7.9,
+                "vat_rate": 0,
+                "line_total_gross": 15.8,
+                "discount_gross": 0,
+                "deposit_gross": 0,
+            },
+            {
+                "original_name": "Pate Bucegi",
+                "ean": "",
+                "quantity": 1,
+                "units_per_package": 1,
+                "unit_size": 1,
+                "base_unit": "BUC",
+                "unit_price_gross": 3.99,
+                "vat_rate": 0,
+                "line_total_gross": 3.99,
+                "discount_gross": 0,
+                "deposit_gross": 0,
+            },
+        ]
+        text = "Coca Cola 2L 2 x 7,90 15,80\nPATE BUCEGI PRET 3,99 TOTAL 3,99"
+
+        products, parser_name, warning = parse_invoice_text(text)
+
+        self.assertEqual(parser_name, "hybrid")
+        self.assertIsNone(warning)
+        self.assertEqual([item["original_name"] for item in products], ["Coca Cola 2L", "Pate Bucegi"])
 
 
 class MatchingTests(TestCase):
@@ -130,3 +178,22 @@ class OCRIntegrationTests(TestCase):
             image.save(path)
             text = extract_text(path)
             self.assertIn("Coca", text)
+
+    @patch("comparator.services.ocr._tesseract_image")
+    @patch("pypdfium2.PdfDocument")
+    def test_digital_pdf_uses_embedded_text_without_tesseract(self, pdf_document, tesseract):
+        embedded = "FACTURA DIGITALA\n" + "Produs alimentar 2 x 7,90 15,80\n" * 5
+        text_page = MagicMock()
+        text_page.get_text_range.return_value = embedded
+        page = MagicMock()
+        page.get_textpage.return_value = text_page
+        pdf_document.return_value = [page]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "digital.pdf"
+            path.write_bytes(b"%PDF-test")
+
+            text = extract_text(path)
+
+        self.assertEqual(text, embedded)
+        tesseract.assert_not_called()
+        text_page.close.assert_called_once()

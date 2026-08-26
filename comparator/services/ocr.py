@@ -48,6 +48,19 @@ def _tesseract_image(image):
             raise OCRUnavailable(f"Tesseract nu a putut procesa documentul: {exc}") from exc
 
 
+def _native_pdf_text(page):
+    text_page = None
+    try:
+        text_page = page.get_textpage()
+        text = text_page.get_text_range() or ""
+        return text if _ocr_quality(text) >= 120 else ""
+    except Exception:
+        return ""
+    finally:
+        if text_page is not None:
+            text_page.close()
+
+
 def extract_text(file_path):
     path = Path(file_path)
     if path.suffix.lower() == ".pdf":
@@ -57,8 +70,12 @@ def extract_text(file_path):
             document = pdfium.PdfDocument(str(path))
             chunks = []
             for page in document:
-                image = page.render(scale=2.2).to_pil()
-                chunks.append(_tesseract_image(image))
+                native_text = _native_pdf_text(page)
+                if native_text:
+                    chunks.append(native_text)
+                else:
+                    image = page.render(scale=2.2).to_pil()
+                    chunks.append(_tesseract_image(image))
             return "\n\n".join(chunks)
         except OCRUnavailable:
             raise
