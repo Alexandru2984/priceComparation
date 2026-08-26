@@ -27,6 +27,8 @@ from .forms import (
     MetroOfferForm,
     PriceAlertForm,
     ProductForm,
+    SalesImportLineForm,
+    SalesImportUploadForm,
     ShoppingListForm,
     ShoppingListItemForm,
     StockMovementForm,
@@ -53,6 +55,8 @@ from .models import (
     ProductCode,
     ProductAlias,
     PushSubscription,
+    SalesImport,
+    SalesImportLine,
     ShoppingList,
     ShoppingListItem,
     StockMovement,
@@ -88,6 +92,7 @@ from .services.insights import (
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
 from .services.processing_queue import enqueue_document
 from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
+from .services.sales_imports import apply_sales_import, parse_sales_file
 from .services.supplier_profiles import refresh_supplier_profile_metrics
 
 
@@ -560,6 +565,69 @@ def inventory_index(request):
             )[:12],
         },
     )
+
+
+def sales_import_create(request):
+    form = SalesImportUploadForm(request.POST or None, request.FILES or None, initial={"default_date": date.today()})
+    if request.method == "POST" and form.is_valid():
+        upload = form.cleaned_data["file"]
+        try:
+            file_hash, rows = parse_sales_file(upload, form.cleaned_data["default_date"])
+        except (ValueError, OSError) as exc:
+            form.add_error("file", str(exc))
+        else:
+            sales_import = SalesImport.objects.create(
+                original_filename=Path(upload.name).name[:255],
+                file_hash=file_hash,
+                row_count=len(rows),
+                warning_count=sum(bool(row["error"]) or row["match_score"] < 75 for row in rows),
+                created_by=request.user,
+            )
+            SalesImportLine.objects.bulk_create([
+                SalesImportLine(sales_import=sales_import, **row) for row in rows
+            ])
+            return redirect("comparator:sales_import_detail", pk=sales_import.pk)
+    imports = SalesImport.objects.select_related("created_by")[:20]
+    return render(request, "comparator/sales_import_create.html", {"form": form, "imports": imports})
+
+
+def sales_import_detail(request, pk):
+    sales_import = get_object_or_404(SalesImport.objects.select_related("created_by"), pk=pk)
+    lines = sales_import.lines.select_related("product", "product__inventory")
+    return render(
+        request,
+        "comparator/sales_import_detail.html",
+        {"sales_import": sales_import, "lines": lines},
+    )
+
+
+def sales_import_line_edit(request, pk):
+    line = get_object_or_404(SalesImportLine.objects.select_related("sales_import", "product"), pk=pk)
+    if line.applied_at:
+        messages.error(request, "O linie deja aplicată nu mai poate fi modificată.")
+        return redirect("comparator:sales_import_detail", pk=line.sales_import_id)
+    form = SalesImportLineForm(request.POST or None, instance=line)
+    if form.is_valid():
+        line = form.save(commit=False)
+        if line.product_id and line.quantity > 0 and line.sold_at:
+            line.error = ""
+            line.match_score = 100
+        line.save()
+        messages.success(request, "Linia POS a fost actualizată.")
+        return redirect("comparator:sales_import_detail", pk=line.sales_import_id)
+    return render(request, "comparator/form.html", {"form": form, "title": "Corectează linia POS"})
+
+
+def sales_import_apply(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    sales_import = get_object_or_404(SalesImport, pk=pk)
+    result = apply_sales_import(sales_import)
+    messages.success(
+        request,
+        f"Vânzări aplicate: {result['applied']}; duplicate ignorate: {result['duplicates']}; de rezolvat: {result['pending']}.",
+    )
+    return redirect("comparator:sales_import_detail", pk=pk)
 
 
 def inventory_item_edit(request, pk):

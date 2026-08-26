@@ -20,6 +20,8 @@ from .models import (
     ProductAlias,
     ProductCode,
     PushSubscription,
+    SalesImport,
+    SalesImportLine,
     ShoppingList,
     ShoppingListItem,
     StockMovement,
@@ -36,6 +38,8 @@ admin.site.index_title = "Datele private ale magazinului"
 
 admin.site.register(SupplierParsingProfile)
 admin.site.register(SupplierPriceImport)
+admin.site.register(SalesImport)
+admin.site.register(SalesImportLine)
 
 
 class MetroOfferInline(admin.TabularInline):

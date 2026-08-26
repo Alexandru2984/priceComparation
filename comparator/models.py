@@ -1066,6 +1066,67 @@ class InventoryItem(models.Model):
         return f"{self.product.name}: {self.current_quantity} {self.product.base_unit}"
 
 
+class SalesImport(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Previzualizare"
+        PARTIAL = "PARTIAL", "Aplicat parțial"
+        APPLIED = "APPLIED", "Aplicat"
+
+    original_filename = models.CharField(max_length=255)
+    file_hash = models.CharField(max_length=64, db_index=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    row_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sales_imports",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.original_filename
+
+
+class SalesImportLine(models.Model):
+    sales_import = models.ForeignKey(SalesImport, on_delete=models.CASCADE, related_name="lines")
+    row_number = models.PositiveIntegerField()
+    source_key = models.CharField(max_length=64, db_index=True)
+    external_reference = models.CharField(max_length=120, blank=True)
+    sold_at = models.DateTimeField()
+    original_name = models.CharField(max_length=240, blank=True)
+    ean = models.CharField(max_length=80, blank=True)
+    quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+    )
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True, related_name="sales_import_lines")
+    match_score = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=240, blank=True)
+    ignored = models.BooleanField(default=False)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["row_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["sales_import", "row_number"], name="unique_sales_import_row")
+        ]
+
+    @property
+    def needs_review(self):
+        return not self.ignored and not self.applied_at and bool(self.error or not self.product_id or self.match_score < 75)
+
+    def __str__(self):
+        return f"{self.sales_import} · rând {self.row_number}"
+
+
 class StockMovement(models.Model):
     class Reason(models.TextChoices):
         OPENING = "OPENING", "Stoc inițial"
@@ -1084,6 +1145,14 @@ class StockMovement(models.Model):
         blank=True,
         related_name="stock_movement",
     )
+    sale_line = models.OneToOneField(
+        SalesImportLine,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="stock_movement",
+    )
+    source_key = models.CharField(max_length=64, blank=True)
     note = models.CharField("explicație", max_length=240, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1097,11 +1166,13 @@ class StockMovement(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
         constraints = [
-            models.CheckConstraint(condition=~Q(quantity_delta=0), name="stock_movement_nonzero")
+            models.CheckConstraint(condition=~Q(quantity_delta=0), name="stock_movement_nonzero"),
+            models.UniqueConstraint(
+                fields=["source_key"],
+                condition=~Q(source_key=""),
+                name="unique_stock_movement_source_key",
+            ),
         ]
 
     def __str__(self):
         return f"{self.inventory_item.product.name}: {self.quantity_delta:+}"
-
-    def __str__(self):
-        return f"{self.product} × {self.quantity}"

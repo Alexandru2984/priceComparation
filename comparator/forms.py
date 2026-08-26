@@ -8,6 +8,7 @@ from .models import (
     MetroOfferTier,
     PriceAlert,
     Product,
+    SalesImportLine,
     ShoppingList,
     ShoppingListItem,
     StockMovement,
@@ -117,6 +118,39 @@ class SupplierPriceListUploadForm(forms.Form):
         widget=forms.ClearableFileInput(attrs={"accept": ".csv,.xlsx"}),
         help_text="Coloane minime: produs/denumire și preț. Opțional: EAN, gramaj, unitate, bucăți/bax.",
     )
+
+
+class SalesImportUploadForm(forms.Form):
+    default_date = forms.DateField(
+        label="Data implicită a vânzărilor",
+        widget=DateInput(),
+        help_text="Folosită numai dacă fișierul nu are o coloană de dată.",
+    )
+    file = forms.FileField(
+        label="Export POS CSV/XLSX",
+        validators=[validate_price_list_upload],
+        widget=forms.ClearableFileInput(attrs={"accept": ".csv,.xlsx"}),
+        help_text="Coloane minime: cantitate și EAN sau denumire. Opțional: dată și număr bon.",
+    )
+
+
+class SalesImportLineForm(forms.ModelForm):
+    product = forms.ModelChoiceField(
+        label="Produs din catalog",
+        queryset=Product.objects.filter(active=True),
+        required=False,
+        widget=ProductAutocompleteWidget(),
+    )
+
+    class Meta:
+        model = SalesImportLine
+        fields = ["product", "quantity", "sold_at", "ignored"]
+        widgets = {"sold_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sold_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        set_product_widget_label(self.fields["product"], getattr(self.instance, "product", None))
 
 
 class MultipleFileInput(forms.ClearableFileInput):
