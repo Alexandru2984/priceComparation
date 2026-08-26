@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 
 from comparator.models import MetroScrapeJob, MetroScrapedProduct, Product, ProductCode
@@ -158,6 +159,22 @@ class MetroStagingTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
         launcher.assert_called_once_with(job, "Targoviste")
+
+    @patch("comparator.management.commands.metro_seed_catalog.capture_search_terms", return_value=1)
+    def test_limited_catalog_scan_is_targeted_and_cannot_mark_products_missing(self, capture):
+        call_command(
+            "metro_seed_catalog",
+            limit_per_search=60,
+            no_import=True,
+            delay=0.8,
+            retries=1,
+            store="",
+            verbosity=0,
+        )
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
+        capture.assert_called_once()
 
     def test_metro_identity_is_saved_when_a_row_is_imported(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")

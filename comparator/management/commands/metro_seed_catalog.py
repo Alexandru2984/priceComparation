@@ -75,12 +75,17 @@ class Command(BaseCommand):
                 raise CommandError(
                     "O scanare finalizată nu poate fi refolosită pentru catalog. Pornește una nouă fără --resume."
                 )
+            if limit and job.scan_type == MetroScrapeJob.ScanType.FULL:
+                # O captură plafonată nu dovedește absența produselor care cad
+                # după limită și nu trebuie să afecteze disponibilitatea.
+                job.scan_type = MetroScrapeJob.ScanType.TARGETED
+                job.save(update_fields=["scan_type"])
         else:
             job = MetroScrapeJob.objects.create(
                 start_url=settings.METRO_START_URL,
                 scan_type=(
                     MetroScrapeJob.ScanType.TARGETED
-                    if options["terms"] or options["breadth_only"]
+                    if options["terms"] or options["breadth_only"] or limit
                     else MetroScrapeJob.ScanType.FULL
                 ),
             )
