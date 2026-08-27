@@ -81,6 +81,21 @@ class ComparisonTests(TestCase):
         self.assertEqual(offer.price_for_packages(1), Decimal("42.00"))
         self.assertEqual(offer.price_for_packages(2), Decimal("36.00"))
 
+    def test_volume_saving_summary_uses_the_best_tier(self):
+        offer = self.product.metro_offers.get(units_per_package=6)
+        MetroOfferTier.objects.create(offer=offer, min_packages=3, price_gross=Decimal("39.00"))
+        best_tier = MetroOfferTier.objects.create(
+            offer=offer,
+            min_packages=6,
+            price_gross=Decimal("36.00"),
+        )
+
+        self.assertEqual(offer.best_volume_tier, best_tier)
+        self.assertEqual(offer.volume_saving_per_package, Decimal("6.00"))
+        self.assertEqual(offer.volume_saving_percent, Decimal("14.28571428571428571428571429"))
+        self.assertEqual(offer.minimum_volume_saving, Decimal("36.00"))
+        self.assertEqual(offer.minimum_volume_spend, Decimal("216.00"))
+
     @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
     def test_current_offer_prefers_configured_store(self):
         MetroOffer.objects.create(

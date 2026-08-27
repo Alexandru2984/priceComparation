@@ -229,6 +229,30 @@ class MetroOffer(models.Model):
             return Decimal("0")
         return self.price_for_packages(self.package_count_for_quantity(base_quantity)) / total
 
+    @property
+    def best_volume_tier(self):
+        tiers = list(self.volume_tiers.all())
+        return min(tiers, key=lambda tier: (tier.price_gross, tier.min_packages)) if tiers else None
+
+    @property
+    def volume_saving_per_package(self):
+        tier = self.best_volume_tier
+        return max(self.price_gross - tier.price_gross, Decimal("0")) if tier else Decimal("0")
+
+    @property
+    def volume_saving_percent(self):
+        return self.volume_saving_per_package / self.price_gross * Decimal("100") if self.price_gross else Decimal("0")
+
+    @property
+    def minimum_volume_saving(self):
+        tier = self.best_volume_tier
+        return self.volume_saving_per_package * tier.min_packages if tier else Decimal("0")
+
+    @property
+    def minimum_volume_spend(self):
+        tier = self.best_volume_tier
+        return tier.price_gross * tier.min_packages if tier else Decimal("0")
+
     def __str__(self):
         return f"{self.product.name}: {self.price_gross} lei / pachet"
 

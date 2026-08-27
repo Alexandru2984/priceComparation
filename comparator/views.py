@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Min, Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -722,6 +722,7 @@ def metro_list(request):
     category = request.GET.get("category", "").strip()
     availability = request.GET.get("availability", "active").strip()
     volume = request.GET.get("volume", "all").strip()
+    sort = request.GET.get("sort", "newest").strip()
     offers = MetroOffer.objects.select_related("product").prefetch_related("volume_tiers")
     if availability == "inactive":
         offers = offers.filter(active=False)
@@ -742,6 +743,15 @@ def metro_list(request):
         offers = offers.filter(volume_tiers__isnull=True)
     else:
         volume = "all"
+    if sort == "saving":
+        offers = offers.annotate(
+            volume_saving=F("price_gross") - Min("volume_tiers__price_gross"),
+        ).order_by(F("volume_saving").desc(nulls_last=True), "product__name")
+    elif sort == "name":
+        offers = offers.order_by("product__name", "-valid_from")
+    else:
+        sort = "newest"
+        offers = offers.order_by("-valid_from", "product__name")
     page_obj = Paginator(offers, 100).get_page(request.GET.get("page"))
     confirmed_document_lines = InvoiceLine.objects.filter(
         invoice__supplier__is_metro=True, needs_review=False, matched_product__isnull=False
@@ -770,6 +780,7 @@ def metro_list(request):
             "selected_category": category,
             "availability": availability,
             "volume": volume,
+            "sort": sort,
             "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,

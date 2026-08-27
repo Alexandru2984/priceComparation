@@ -181,6 +181,32 @@ class MetroStagingTests(TestCase):
         self.assertContains(response, "Produs cu prag")
         self.assertNotContains(response, "Produs fără prag")
         self.assertContains(response, "3+ pachete")
+        self.assertContains(response, "6,00 lei economisiți")
+
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_metro_list_can_rank_volume_savings(self):
+        small = Product.objects.create(name="Economie mică", base_unit="BUC")
+        large = Product.objects.create(name="Economie mare", base_unit="BUC")
+        small_offer = MetroOffer.objects.create(
+            product=small,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        large_offer = MetroOffer.objects.create(
+            product=large,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        MetroOfferTier.objects.create(offer=small_offer, min_packages=3, price_gross=9)
+        MetroOfferTier.objects.create(offer=large_offer, min_packages=3, price_gross=6)
+
+        response = self.client.get("/app/metro/?volume=with&sort=saving")
+        rendered_offers = list(response.context["offers"])
+
+        self.assertEqual([offer.product for offer in rendered_offers], [large, small])
+        self.assertContains(response, "Cea mai mare economie")
 
     @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_breadth_catalog_job")
