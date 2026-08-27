@@ -51,7 +51,7 @@ class ScaledCatalogViewsTests(TestCase):
             MetroOffer(product=product, price_gross=index + 1, valid_from=date(2026, 8, 9), source=f"Sursa {index}")
             for index in range(105)
         ])
-        response = self.client.get("/app/metro/")
+        response = self.client.get("/app/metro/?location=all")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["offers"]), 100)
         self.assertEqual(response.context["page_obj"].paginator.count, 105)

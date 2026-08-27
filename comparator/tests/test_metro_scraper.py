@@ -208,6 +208,75 @@ class MetroStagingTests(TestCase):
         self.assertEqual([offer.product for offer in rendered_offers], [large, small])
         self.assertContains(response, "Cea mai mare economie")
 
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_metro_list_shows_only_latest_preferred_store_offer_by_default(self):
+        product = Product.objects.create(name="Produs cu istoric", base_unit="BUC")
+        old_offer = MetroOffer.objects.create(
+            product=product,
+            price_gross=12,
+            valid_from=date(2026, 8, 26),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        current_offer = MetroOffer.objects.create(
+            product=product,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        MetroOffer.objects.create(
+            product=product,
+            price_gross=9,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PALLADY",
+        )
+
+        response = self.client.get("/app/metro/")
+        rendered_offers = list(response.context["offers"])
+
+        self.assertEqual(rendered_offers, [current_offer])
+        self.assertNotIn(old_offer, rendered_offers)
+
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_metro_list_can_show_full_history_and_all_stores(self):
+        product = Product.objects.create(name="Produs din două magazine", base_unit="BUC")
+        for source, day in [
+            ("Selenium METRO PUNCT TARGOVISTE", 26),
+            ("Selenium METRO PUNCT TARGOVISTE", 27),
+            ("Selenium METRO PALLADY", 27),
+        ]:
+            MetroOffer.objects.create(
+                product=product,
+                price_gross=10,
+                valid_from=date(2026, 8, day),
+                source=source,
+            )
+
+        response = self.client.get("/app/metro/?snapshot=history&location=all")
+
+        self.assertEqual(len(list(response.context["offers"])), 3)
+        self.assertContains(response, "Tot istoricul")
+
+    @override_settings(PREFERRED_METRO_STORE="METRO PUNCT TARGOVISTE")
+    def test_volume_stat_counts_only_current_offers(self):
+        product = Product.objects.create(name="Prag expirat", base_unit="BUC")
+        old_offer = MetroOffer.objects.create(
+            product=product,
+            price_gross=10,
+            valid_from=date(2026, 8, 26),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+        MetroOfferTier.objects.create(offer=old_offer, min_packages=3, price_gross=8)
+        MetroOffer.objects.create(
+            product=product,
+            price_gross=10,
+            valid_from=date(2026, 8, 27),
+            source="Selenium METRO PUNCT TARGOVISTE",
+        )
+
+        response = self.client.get("/app/metro/")
+
+        self.assertEqual(response.context["active_volume_offer_count"], 0)
+
     @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_breadth_catalog_job")
     def test_fast_expansion_can_be_started_from_private_ui(self, launcher):

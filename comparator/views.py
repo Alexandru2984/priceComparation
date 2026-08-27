@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Max, Min, Q
+from django.db.models import Count, F, Max, Min, OuterRef, Q, Subquery
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -723,6 +723,9 @@ def metro_list(request):
     availability = request.GET.get("availability", "active").strip()
     volume = request.GET.get("volume", "all").strip()
     sort = request.GET.get("sort", "newest").strip()
+    snapshot = request.GET.get("snapshot", "current").strip()
+    location = request.GET.get("location", "preferred").strip()
+    tracked_store = settings.PREFERRED_METRO_STORE.strip()
     offers = MetroOffer.objects.select_related("product").prefetch_related("volume_tiers")
     if availability == "inactive":
         offers = offers.filter(active=False)
@@ -737,12 +740,31 @@ def metro_list(request):
         )
     if category:
         offers = offers.filter(product__category=category)
+    if location == "preferred" and tracked_store:
+        offers = offers.filter(source__icontains=tracked_store)
+    else:
+        location = "all"
     if volume == "with":
         offers = offers.filter(volume_tiers__isnull=False).distinct()
     elif volume == "without":
         offers = offers.filter(volume_tiers__isnull=True)
     else:
         volume = "all"
+    if snapshot == "history":
+        pass
+    else:
+        snapshot = "current"
+        latest_offer = MetroOffer.objects.filter(
+            product_id=OuterRef("product_id"),
+            source=OuterRef("source"),
+        )
+        if availability == "active":
+            latest_offer = latest_offer.filter(active=True)
+        elif availability == "inactive":
+            latest_offer = latest_offer.filter(active=False)
+        offers = offers.filter(
+            pk=Subquery(latest_offer.order_by("-valid_from", "-pk").values("pk")[:1])
+        )
     if sort == "saving":
         offers = offers.annotate(
             volume_saving=F("price_gross") - Min("volume_tiers__price_gross"),
@@ -756,7 +778,6 @@ def metro_list(request):
     confirmed_document_lines = InvoiceLine.objects.filter(
         invoice__supplier__is_metro=True, needs_review=False, matched_product__isnull=False
     ).count()
-    tracked_store = settings.PREFERRED_METRO_STORE.strip()
     states = MetroProductState.objects.all()
     if tracked_store:
         states = states.filter(store_name__iexact=tracked_store)
@@ -768,6 +789,18 @@ def metro_list(request):
             available=True,
             last_seen_at__lt=timezone.now() - timedelta(days=14),
         ).count(),
+    )
+    current_volume_offers = MetroOffer.objects.filter(active=True)
+    if tracked_store:
+        current_volume_offers = current_volume_offers.filter(source__icontains=tracked_store)
+    latest_active_offer = MetroOffer.objects.filter(
+        product_id=OuterRef("product_id"),
+        source=OuterRef("source"),
+        active=True,
+    ).order_by("-valid_from", "-pk")
+    current_volume_offers = current_volume_offers.filter(
+        pk=Subquery(latest_active_offer.values("pk")[:1]),
+        volume_tiers__isnull=False,
     )
     return render(
         request,
@@ -781,18 +814,13 @@ def metro_list(request):
             "availability": availability,
             "volume": volume,
             "sort": sort,
+            "snapshot": snapshot,
+            "location": location,
             "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
             "freshness": freshness,
-            "active_volume_offer_count": MetroOffer.objects.filter(
-                active=True,
-                source=f"Selenium {settings.PREFERRED_METRO_STORE}",
-                volume_tiers__isnull=False,
-            ).distinct().count() if settings.PREFERRED_METRO_STORE else MetroOffer.objects.filter(
-                active=True,
-                volume_tiers__isnull=False,
-            ).distinct().count(),
+            "active_volume_offer_count": current_volume_offers.distinct().count(),
         },
     )
 

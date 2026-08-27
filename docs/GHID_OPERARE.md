@@ -143,9 +143,11 @@ adăuga ulterior prin scannerul telefonului sau din documentele furnizorilor.
 
 După scanare verifică în `Prețuri METRO`:
 
-- filtrul magazinului preferat;
+- filtrul magazinului preferat; implicit vezi doar ultimul preț din Târgoviște, iar `Tot istoricul` și
+  `Toate locațiile` rămân disponibile pentru audit;
 - produse cu gramaj suspect;
-- pragurile `3+`, `6+` etc.;
+- pragurile `3+`, `6+` etc.; selectează `Cu preț de volum` și `Cea mai mare economie` pentru a vedea
+  economia per pachet, economia totală și valoarea minimă a coșului la prag;
 - pagina `Abateri de preț` pentru schimbări mari;
 - categoria `Altele`, care indică produse ce merită reclasificate.
 
