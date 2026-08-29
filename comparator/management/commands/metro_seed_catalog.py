@@ -4,7 +4,12 @@ from django.utils import timezone
 
 from comparator.catalog import CATEGORY_BREADTH_TERMS, CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
 from comparator.models import MetroScrapeJob, MetroScrapeTerm
-from comparator.services.metro_scraper import capture_search_terms, finalize_catalog_job, import_scraped_rows
+from comparator.services.metro_scraper import (
+    capture_category_catalog,
+    capture_search_terms,
+    finalize_catalog_job,
+    import_scraped_rows,
+)
 
 
 DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
@@ -19,6 +24,11 @@ class Command(BaseCommand):
             "--breadth-only",
             action="store_true",
             help="Scanează complet numai căutările largi, pentru extinderea rapidă a catalogului.",
+        )
+        parser.add_argument(
+            "--category-crawl",
+            action="store_true",
+            help="Descoperă taxonomia METRO și scanează integral fiecare categorie terminală.",
         )
         parser.add_argument(
             "--limit-per-search", type=int, default=0,
@@ -43,6 +53,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if options["category_crawl"] and (options["terms"] or options["breadth_only"]):
+            raise CommandError("--category-crawl nu poate fi combinat cu termeni manuali sau --breadth-only.")
         if options["terms"] and options["breadth_only"]:
             raise CommandError("--breadth-only nu poate fi combinat cu termeni manuali.")
         if options["terms"]:
@@ -104,18 +116,28 @@ class Command(BaseCommand):
             )
 
         try:
-            captured = capture_search_terms(
-                job,
-                terms,
-                limit_per_search=limit,
-                delay_seconds=options["delay"],
-                headless=not options["headed"],
-                progress=show_progress,
-                store_query=options["store"],
-                term_categories=term_categories,
-                retries=options["retries"],
-                refresh_completed=options["refresh_completed"],
-            )
+            capture_options = {
+                "delay_seconds": options["delay"],
+                "headless": not options["headed"],
+                "progress": show_progress,
+                "store_query": options["store"],
+                "retries": options["retries"],
+                "refresh_completed": options["refresh_completed"],
+            }
+            if options["category_crawl"]:
+                captured = capture_category_catalog(
+                    job,
+                    limit_per_category=limit,
+                    **capture_options,
+                )
+            else:
+                captured = capture_search_terms(
+                    job,
+                    terms,
+                    limit_per_search=limit,
+                    term_categories=term_categories,
+                    **capture_options,
+                )
             if not captured:
                 raise CommandError(
                     "METRO nu a returnat produse cu preț. Deschide o scanare vizibilă și selectează magazinul."

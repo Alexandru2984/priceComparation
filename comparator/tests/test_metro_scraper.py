@@ -15,6 +15,7 @@ from comparator.models import (
     ProductCode,
 )
 from comparator.services.metro_scraper import (
+    _direct_category_children,
     _load_all_visible_cards,
     import_scraped_rows,
     normalize_dom_rows,
@@ -24,6 +25,22 @@ from comparator.services.metro_scraper import (
 
 
 class MetroNormalizationTests(TestCase):
+    def test_category_discovery_keeps_only_direct_children(self):
+        current = "/shop/category/alimentare/bacanie"
+        candidates = {
+            "/shop/category/alimentare",
+            current,
+            f"{current}/paste",
+            f"{current}/condimente",
+            f"{current}/condimente/piper",
+            "/shop/category/nealimentare/cosmetice",
+        }
+
+        self.assertEqual(
+            _direct_category_children(current, candidates),
+            [f"{current}/condimente", f"{current}/paste"],
+        )
+
     def test_load_more_collects_all_search_pages(self):
         driver = MagicMock()
         state = {"cards": 24}
@@ -301,6 +318,22 @@ class MetroStagingTests(TestCase):
 
         job = MetroScrapeJob.objects.get()
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
+        capture.assert_called_once()
+
+    @patch("comparator.management.commands.metro_seed_catalog.capture_category_catalog", return_value=1)
+    def test_category_catalog_scan_is_full_and_uses_taxonomy(self, capture):
+        call_command(
+            "metro_seed_catalog",
+            category_crawl=True,
+            no_import=True,
+            delay=0.8,
+            retries=1,
+            store="",
+            verbosity=0,
+        )
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.FULL)
         capture.assert_called_once()
 
     def test_metro_identity_is_saved_when_a_row_is_imported(self):

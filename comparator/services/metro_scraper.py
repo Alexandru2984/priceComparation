@@ -7,7 +7,7 @@ import time
 import unicodedata
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 import pandas as pd
 from django.conf import settings
@@ -37,6 +37,33 @@ from .matching import suggest_product
 
 
 logger = logging.getLogger(__name__)
+
+
+METRO_CATEGORY_MAP = {
+    "carne": "Carne și pește",
+    "fructe-legume": "Fructe și legume",
+    "peste": "Carne și pește",
+    "lactate": "Lactate",
+    "mezeluri": "Mezeluri",
+    "congelate": "Congelate",
+    "bacanie": "Băcănie",
+    "conserve": "Conserve și pate",
+    "cofetarie-patiserie": "Dulciuri",
+    "dulciuri-snacks": "Dulciuri",
+    "panificatie-sandwich-uri": "Panificație",
+    "bauturi-nealcoolice": "Băuturi nealcoolice",
+    "bauturi-alcoolice-vinuri-bere": "Băuturi alcoolice",
+    "cafea-ceai-bauturi-instant": "Cafea și ceai",
+    "oua": "Ouă",
+    "hrana-ingrijire-animale": "Hrană animale",
+    "ready-meals": "Semipreparate",
+    "produse-pentru-curatenie": "Curățenie",
+    "unica-folosinta": "Menaj și consumabile",
+    "gastro": "Bucătărie și veselă",
+    "impachetare-depozitare": "Menaj și consumabile",
+    "birotica": "Papetărie și birou",
+    "cosmetice": "Igienă personală",
+}
 
 
 def metro_offer_source(store_name):
@@ -461,6 +488,84 @@ def _plain_text(value):
     return unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode("ascii").lower()
 
 
+def _category_paths(driver, origin):
+    paths = set()
+    for element in driver.find_elements(By.CSS_SELECTOR, 'a[href*="/shop/category/"]'):
+        parsed = urlparse(element.get_attribute("href") or "")
+        if parsed.netloc != origin.netloc or not parsed.path.startswith("/shop/category/"):
+            continue
+        paths.add(parsed.path.rstrip("/"))
+    return paths
+
+
+def _direct_category_children(current_path, candidates):
+    current_path = current_path.rstrip("/")
+    prefix = f"{current_path}/"
+    child_depth = current_path.count("/") + 1
+    return sorted(
+        path.rstrip("/")
+        for path in set(candidates)
+        if path.rstrip("/").startswith(prefix) and path.rstrip("/").count("/") == child_depth
+    )
+
+
+def _local_category_for_path(path):
+    segments = set(path.lower().strip("/").split("/"))
+    for slug, category in METRO_CATEGORY_MAP.items():
+        if slug in segments:
+            return category
+    return "Băcănie" if "alimentare" in segments else "Altele"
+
+
+def _catalog_page_ready(driver):
+    if driver.find_elements(By.CSS_SELECTOR, ".sd-articlecard"):
+        return True
+    body = _plain_text(driver.find_element(By.TAG_NAME, "body").text)
+    return "nu am gasit" in body or "disponibil in magazin (0)" in body
+
+
+def discover_metro_leaf_categories(start_url, store_query="", headless=True):
+    """Discover the live METRO category tree and return its leaf paths."""
+    origin = urlparse(start_url)
+    driver = create_metro_driver(headless=headless)
+    try:
+        driver.get(start_url)
+        WebDriverWait(driver, 20).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        dismiss_cookie_banner(driver)
+        if store_query:
+            select_metro_store(driver, store_query)
+        WebDriverWait(driver, 20).until(lambda d: bool(_category_paths(d, origin)))
+        discovered = _category_paths(driver, origin)
+        root_depth = min(path.count("/") for path in discovered)
+        pending = sorted(path for path in discovered if path.count("/") == root_depth)
+        visited = set()
+        leaves = []
+        while pending:
+            path = pending.pop(0)
+            if path in visited:
+                continue
+            visited.add(path)
+            driver.get(urljoin(start_url, path))
+            WebDriverWait(driver, 20).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            dismiss_cookie_banner(driver)
+            WebDriverWait(driver, 20).until(
+                lambda d: _catalog_page_ready(d)
+                or bool(_direct_category_children(path, _category_paths(d, origin)))
+            )
+            children = _direct_category_children(path, _category_paths(driver, origin))
+            if children:
+                pending.extend(child for child in children if child not in visited)
+            else:
+                leaves.append(path)
+        return sorted(set(leaves))
+    finally:
+        driver.quit()
+
+
 def select_metro_store(driver, store_query):
     """Select a METRO store using the site's own store picker and persistent browser profile."""
     toggle = WebDriverWait(driver, 20).until(
@@ -597,15 +702,16 @@ def capture_search_terms(
                 term_row.error = ""
                 term_row.save(update_fields=["status", "attempts", "started_at", "error"])
                 try:
-                    driver.get(f"{search_base}?{urlencode({'q': term_row.term})}")
+                    if term_row.term.startswith("/shop/category/"):
+                        target_url = urljoin(job.start_url, term_row.term)
+                    else:
+                        target_url = f"{search_base}?{urlencode({'q': term_row.term})}"
+                    driver.get(target_url)
                     WebDriverWait(driver, 20).until(
                         lambda d: d.execute_script("return document.readyState") == "complete"
                     )
                     dismiss_cookie_banner(driver)
-                    WebDriverWait(driver, 20).until(
-                        lambda d: len(d.find_elements(By.CSS_SELECTOR, ".sd-articlecard")) > 0
-                        or "nu am gasit" in _plain_text(d.find_element(By.TAG_NAME, "body").text)
-                    )
+                    WebDriverWait(driver, 20).until(_catalog_page_ready)
                     _load_all_visible_cards(driver, max_cards=limit_per_search)
                     raw_rows = driver.execute_script(CARD_DATA_SCRIPT)
                     if limit_per_search:
@@ -640,6 +746,39 @@ def capture_search_terms(
         return job.captured_count
     finally:
         driver.quit()
+
+
+def capture_category_catalog(
+    job,
+    limit_per_category=0,
+    delay_seconds=1,
+    headless=True,
+    progress=None,
+    store_query="",
+    retries=3,
+    refresh_completed=False,
+):
+    if progress:
+        progress(0, 0, "Descopăr taxonomia METRO", job.captured_count)
+    leaf_paths = discover_metro_leaf_categories(
+        job.start_url,
+        store_query=store_query,
+        headless=headless,
+    )
+    if not leaf_paths:
+        raise RuntimeError("METRO nu a expus nicio categorie terminală.")
+    return capture_search_terms(
+        job,
+        leaf_paths,
+        limit_per_search=limit_per_category,
+        delay_seconds=delay_seconds,
+        headless=headless,
+        progress=progress,
+        store_query=store_query,
+        term_categories={path: _local_category_for_path(path) for path in leaf_paths},
+        retries=retries,
+        refresh_completed=refresh_completed,
+    )
 
 
 @transaction.atomic
@@ -780,6 +919,7 @@ def launch_mass_catalog_job(job, store_query=""):
         sys.executable,
         str(Path(settings.BASE_DIR) / "manage.py"),
         "metro_seed_catalog",
+        "--category-crawl",
         "--resume",
         str(job.pk),
         "--delay",

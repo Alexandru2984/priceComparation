@@ -114,7 +114,14 @@ ID-ul jobului apare în interfață și la finalul comenzii. Pentru o extindere 
 Pentru catalogul complet:
 
 ```bash
-.venv/bin/python manage.py metro_seed_catalog --resume ID --store Targoviste
+.venv/bin/python manage.py metro_seed_catalog --category-crawl --store Targoviste
+```
+
+Acest mod descoperă automat taxonomia live METRO și scanează toate categoriile terminale. Este preferat
+listei de cuvinte atunci când vrei acoperirea întregului catalog. Pentru reluare:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --category-crawl --resume ID --store Targoviste
 ```
 
 Termenii finalizați sunt săriți. Folosește `--refresh-completed` numai când vrei intenționat să refaci
