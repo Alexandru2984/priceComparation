@@ -83,9 +83,12 @@ def fetch_metro_sitemap_products(session=None):
     headers = {"User-Agent": "PriceMatch/1.0 catalog indexer"}
 
     def fetch(url):
-        response = client.get(url, headers=headers, timeout=(10, 60))
-        response.raise_for_status()
-        return response.content
+        try:
+            response = client.get(url, headers=headers, timeout=(10, 60))
+            response.raise_for_status()
+            return response.content
+        except requests.RequestException as exc:
+            raise MetroSitemapError("Sitemapul METRO nu a putut fi descărcat.") from exc
 
     part_urls = _locations(fetch(METRO_SITEMAP_URL))
     part_urls = [

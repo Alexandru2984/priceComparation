@@ -86,6 +86,11 @@ from .services.metro_scraper import (
     launch_mass_catalog_job,
     launch_scrape_job,
 )
+from .services.metro_sitemap import (
+    MetroSitemapError,
+    fetch_metro_sitemap_products,
+    import_metro_sitemap_products,
+)
 from .services.insights import (
     catalog_quality_summary,
     matching_quality_summary,
@@ -1065,6 +1070,23 @@ def metro_scrape_alphabet_start(request):
     else:
         messages.success(request, "Scanarea alfabetică rulează în fundal și importă incremental rezultatele.")
     return redirect("comparator:metro_scrape_detail", pk=job.pk)
+
+
+def metro_sitemap_import(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    try:
+        products = fetch_metro_sitemap_products()
+        stats = import_metro_sitemap_products(products)
+    except MetroSitemapError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(
+            request,
+            f"Catalogul public METRO a fost sincronizat: {stats['new_products']} produse și "
+            f"{stats['new_codes']} coduri noi din {stats['discovered']} descoperite.",
+        )
+    return redirect("comparator:metro_scrape_list")
 
 
 def metro_scrape_detail(request, pk):

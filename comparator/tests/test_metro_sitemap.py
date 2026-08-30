@@ -1,5 +1,6 @@
 from unittest.mock import Mock, patch
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
 
@@ -14,6 +15,14 @@ from comparator.services.metro_sitemap import (
 
 
 class MetroSitemapTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="sitemap-admin",
+            password="test-password",
+            is_staff=True,
+        )
+        self.client.force_login(self.user)
+
     def test_product_url_extracts_identity_measurement_and_category(self):
         product = parse_product_url(
             "https://produse.metro.ro/shop/pv/BTY-X111/0032/0022/"
@@ -71,3 +80,19 @@ class MetroSitemapTests(TestCase):
         call_command("metro_import_sitemap", "--dry-run")
 
         self.assertFalse(ProductCode.objects.filter(code="NEW").exists())
+
+    @patch("comparator.views.import_metro_sitemap_products")
+    @patch("comparator.views.fetch_metro_sitemap_products")
+    def test_sitemap_can_be_synchronized_from_private_ui(self, fetch, import_products):
+        fetch.return_value = [Mock()]
+        import_products.return_value = {
+            "discovered": 10,
+            "new_products": 7,
+            "new_codes": 8,
+            "existing_codes": 2,
+        }
+
+        response = self.client.post("/app/metro/scanari/sitemap/")
+
+        self.assertRedirects(response, "/app/metro/scanari/")
+        import_products.assert_called_once_with(fetch.return_value)
