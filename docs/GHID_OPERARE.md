@@ -124,6 +124,20 @@ listei de cuvinte atunci când vrei acoperirea întregului catalog. Pentru relua
 .venv/bin/python manage.py metro_seed_catalog --category-crawl --resume ID --store Targoviste
 ```
 
+Pentru produse care nu apar în taxonomie, rulează ocazional plasa de siguranță alfabetică. Aceasta
+execută toate cele 676 de combinații de două litere, limitează fiecare rezultat la 500 și nu marchează
+niciodată produsele absente ca indisponibile:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --alphabet-crawl --store Targoviste
+```
+
+Reluare după întrerupere:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --alphabet-crawl --resume ID --store Targoviste
+```
+
 Termenii finalizați sunt săriți. Folosește `--refresh-completed` numai când vrei intenționat să refaci
 termenii; pentru un job deja finalizat pornește un job nou.
 

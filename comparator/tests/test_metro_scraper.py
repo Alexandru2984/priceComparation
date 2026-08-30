@@ -304,6 +304,16 @@ class MetroStagingTests(TestCase):
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
         launcher.assert_called_once_with(job, "Targoviste")
 
+    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @patch("comparator.views.launch_alphabet_catalog_job")
+    def test_alphabet_expansion_can_be_started_from_private_ui(self, launcher):
+        response = self.client.post("/app/metro/scanari/acoperire-alfabetica/")
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
+        launcher.assert_called_once_with(job, "Targoviste")
+
     @patch("comparator.management.commands.metro_seed_catalog.capture_search_terms", return_value=1)
     def test_limited_catalog_scan_is_targeted_and_cannot_mark_products_missing(self, capture):
         call_command(
@@ -335,6 +345,24 @@ class MetroStagingTests(TestCase):
         job = MetroScrapeJob.objects.get()
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.FULL)
         capture.assert_called_once()
+
+    @patch("comparator.management.commands.metro_seed_catalog.capture_search_terms", return_value=1)
+    def test_alphabet_catalog_uses_all_letter_pairs_with_safe_limit(self, capture):
+        call_command(
+            "metro_seed_catalog",
+            alphabet_crawl=True,
+            no_import=True,
+            delay=0.8,
+            retries=1,
+            store="",
+            verbosity=0,
+        )
+
+        job = MetroScrapeJob.objects.get()
+        terms = capture.call_args.args[1]
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
+        self.assertEqual((len(terms), terms[0], terms[-1]), (676, "aa", "zz"))
+        self.assertEqual(capture.call_args.kwargs["limit_per_search"], 500)
 
     def test_metro_identity_is_saved_when_a_row_is_imported(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")

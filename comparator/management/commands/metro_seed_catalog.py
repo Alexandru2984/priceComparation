@@ -1,3 +1,5 @@
+import string
+
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -13,6 +15,7 @@ from comparator.services.metro_scraper import (
 
 
 DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
+ALPHABET_TERMS = [first + second for first in string.ascii_lowercase for second in string.ascii_lowercase]
 
 
 class Command(BaseCommand):
@@ -29,6 +32,11 @@ class Command(BaseCommand):
             "--category-crawl",
             action="store_true",
             help="Descoperă taxonomia METRO și scanează integral fiecare categorie terminală.",
+        )
+        parser.add_argument(
+            "--alphabet-crawl",
+            action="store_true",
+            help="Scanează toate combinațiile de două litere pentru produse lipsă din taxonomie.",
         )
         parser.add_argument(
             "--limit-per-search", type=int, default=0,
@@ -53,13 +61,19 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if options["category_crawl"] and (options["terms"] or options["breadth_only"]):
-            raise CommandError("--category-crawl nu poate fi combinat cu termeni manuali sau --breadth-only.")
-        if options["terms"] and options["breadth_only"]:
-            raise CommandError("--breadth-only nu poate fi combinat cu termeni manuali.")
+        selected_modes = sum(bool(value) for value in (
+            options["terms"], options["breadth_only"], options["category_crawl"], options["alphabet_crawl"]
+        ))
+        if selected_modes > 1:
+            raise CommandError(
+                "Termenii manuali, --breadth-only, --category-crawl și --alphabet-crawl sunt moduri exclusive."
+            )
         if options["terms"]:
             terms = options["terms"]
             term_categories = {term: options["category"] for term in terms}
+        elif options["alphabet_crawl"]:
+            terms = ALPHABET_TERMS
+            term_categories = {}
         elif options["breadth_only"]:
             terms = [term for category_terms in CATEGORY_BREADTH_TERMS.values() for term in category_terms]
             term_categories = {
@@ -71,6 +85,8 @@ class Command(BaseCommand):
                 term: category for category, category_terms in CATEGORY_SEARCH_TERMS.items() for term in category_terms
             }
         limit = options["limit_per_search"]
+        if options["alphabet_crawl"] and limit == 0:
+            limit = 500
         if limit < 0 or limit > 500:
             raise CommandError("--limit-per-search trebuie să fie între 0 și 500.")
         if options["delay"] < 0.3:
@@ -97,7 +113,7 @@ class Command(BaseCommand):
                 start_url=settings.METRO_START_URL,
                 scan_type=(
                     MetroScrapeJob.ScanType.TARGETED
-                    if options["terms"] or options["breadth_only"] or limit
+                    if options["terms"] or options["breadth_only"] or options["alphabet_crawl"] or limit
                     else MetroScrapeJob.ScanType.FULL
                 ),
             )

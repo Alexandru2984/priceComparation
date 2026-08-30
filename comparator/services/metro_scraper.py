@@ -950,6 +950,26 @@ def launch_breadth_catalog_job(job, store_query=""):
     _launch_catalog_process(job, arguments, "breadth")
 
 
+def launch_alphabet_catalog_job(job, store_query=""):
+    arguments = [
+        sys.executable,
+        str(Path(settings.BASE_DIR) / "manage.py"),
+        "metro_seed_catalog",
+        "--alphabet-crawl",
+        "--resume",
+        str(job.pk),
+        "--limit-per-search",
+        "500",
+        "--delay",
+        "0.8",
+        "--retries",
+        "3",
+    ]
+    if store_query:
+        arguments.extend(["--store", store_query])
+    _launch_catalog_process(job, arguments, "alphabet")
+
+
 def launch_targeted_catalog_job(job, terms, store_query=""):
     arguments = [
         sys.executable,

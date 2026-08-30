@@ -81,6 +81,7 @@ from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import (
     import_scraped_rows,
+    launch_alphabet_catalog_job,
     launch_breadth_catalog_job,
     launch_mass_catalog_job,
     launch_scrape_job,
@@ -1036,6 +1037,33 @@ def metro_scrape_breadth_start(request):
         messages.error(request, f"Extinderea rapidă nu a putut porni: {exc}")
     else:
         messages.success(request, "Extinderea rapidă rulează în fundal și importă incremental rezultatele.")
+    return redirect("comparator:metro_scrape_detail", pk=job.pk)
+
+
+def metro_scrape_alphabet_start(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    if not settings.METRO_SCRAPER_ENABLED:
+        raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
+    active = MetroScrapeJob.objects.filter(
+        status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
+    ).first()
+    if active:
+        messages.warning(request, "Există deja o scanare activă.")
+        return redirect("comparator:metro_scrape_detail", pk=active.pk)
+    job = MetroScrapeJob.objects.create(
+        start_url=settings.METRO_START_URL,
+        scan_type=MetroScrapeJob.ScanType.TARGETED,
+    )
+    try:
+        launch_alphabet_catalog_job(job, settings.METRO_STORE_QUERY)
+    except Exception as exc:
+        job.status = MetroScrapeJob.Status.ERROR
+        job.error = str(exc)
+        job.save(update_fields=["status", "error"])
+        messages.error(request, f"Scanarea alfabetică nu a putut porni: {exc}")
+    else:
+        messages.success(request, "Scanarea alfabetică rulează în fundal și importă incremental rezultatele.")
     return redirect("comparator:metro_scrape_detail", pk=job.pk)
 
 
