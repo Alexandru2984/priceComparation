@@ -138,6 +138,24 @@ Reluare după întrerupere:
 .venv/bin/python manage.py metro_seed_catalog --alphabet-crawl --resume ID --store Targoviste
 ```
 
+### Import rapid al întregului catalog public METRO
+
+Sitemapul oficial conține și produse care nu sunt momentan disponibile în
+Târgoviște. Comanda de mai jos importă denumirea, codul METRO, gramajul/unitatea
+și categoria, fără să inventeze un preț. Produsele deja capturate cu Selenium nu
+sunt suprascrise. Când un produs devine disponibil local, scanarea obișnuită îi
+completează automat prețul și pragurile de volum.
+
+```bash
+.venv/bin/python manage.py metro_import_sitemap
+```
+
+Poți verifica mai întâi sursa fără să modifici baza de date:
+
+```bash
+.venv/bin/python manage.py metro_import_sitemap --dry-run
+```
+
 Termenii finalizați sunt săriți. Folosește `--refresh-completed` numai când vrei intenționat să refaci
 termenii; pentru un job deja finalizat pornește un job nou.
 
