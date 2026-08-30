@@ -17,6 +17,7 @@ from comparator.models import (
 from comparator.services.metro_scraper import (
     _direct_category_children,
     _load_all_visible_cards,
+    _rows_matching_exact_term,
     import_scraped_rows,
     normalize_dom_rows,
     parse_measurement,
@@ -25,6 +26,17 @@ from comparator.services.metro_scraper import (
 
 
 class MetroNormalizationTests(TestCase):
+    def test_alphabet_rows_ignore_fuzzy_search_fallbacks(self):
+        rows = [
+            {"name": "Căpșuni 500 g"},
+            {"name": "Apa plată 2 L"},
+            {"name": "Produs fără legătură"},
+        ]
+
+        self.assertEqual(
+            _rows_matching_exact_term(rows, "ap"),
+            rows[:2],
+        )
     def test_category_discovery_keeps_only_direct_children(self):
         current = "/shop/category/alimentare/bacanie"
         candidates = {
@@ -363,6 +375,7 @@ class MetroStagingTests(TestCase):
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
         self.assertEqual((len(terms), terms[0], terms[-1]), (676, "aa", "zz"))
         self.assertEqual(capture.call_args.kwargs["limit_per_search"], 500)
+        self.assertTrue(capture.call_args.kwargs["exact_term_match"])
 
     def test_metro_identity_is_saved_when_a_row_is_imported(self):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")

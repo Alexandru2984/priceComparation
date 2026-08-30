@@ -152,6 +152,7 @@ class Command(BaseCommand):
                     terms,
                     limit_per_search=limit,
                     term_categories=term_categories,
+                    exact_term_match=options["alphabet_crawl"],
                     **capture_options,
                 )
             if not captured:

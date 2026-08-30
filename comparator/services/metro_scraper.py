@@ -488,6 +488,11 @@ def _plain_text(value):
     return unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode("ascii").lower()
 
 
+def _rows_matching_exact_term(rows, term):
+    normalized_term = _plain_text(term)
+    return [row for row in rows if normalized_term in _plain_text(row.get("name", ""))]
+
+
 def _category_paths(driver, origin):
     paths = set()
     for element in driver.find_elements(By.CSS_SELECTOR, 'a[href*="/shop/category/"]'):
@@ -662,6 +667,7 @@ def capture_search_terms(
     term_categories=None,
     retries=3,
     refresh_completed=False,
+    exact_term_match=False,
 ):
     """Capture search results with persistent per-term checkpoints and bounded retries."""
     term_categories = term_categories or {}
@@ -712,10 +718,19 @@ def capture_search_terms(
                     )
                     dismiss_cookie_banner(driver)
                     WebDriverWait(driver, 20).until(_catalog_page_ready)
-                    _load_all_visible_cards(driver, max_cards=limit_per_search)
-                    raw_rows = driver.execute_script(CARD_DATA_SCRIPT)
+                    initial_rows = driver.execute_script(CARD_DATA_SCRIPT)
+                    should_expand = not exact_term_match or bool(
+                        _rows_matching_exact_term(initial_rows, term_row.term)
+                    )
+                    if should_expand:
+                        _load_all_visible_cards(driver, max_cards=limit_per_search)
+                        raw_rows = driver.execute_script(CARD_DATA_SCRIPT)
+                    else:
+                        raw_rows = []
                     if limit_per_search:
                         raw_rows = raw_rows[:limit_per_search]
+                    if exact_term_match:
+                        raw_rows = _rows_matching_exact_term(raw_rows, term_row.term)
                     normalized_rows = normalize_dom_rows(raw_rows)
                     for row in normalized_rows:
                         row["category"] = term_row.category
