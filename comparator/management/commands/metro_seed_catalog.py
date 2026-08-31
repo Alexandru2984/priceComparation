@@ -12,6 +12,7 @@ from comparator.services.metro_scraper import (
     finalize_catalog_job,
     import_scraped_rows,
 )
+from comparator.services.metro_api import capture_api_catalog
 
 
 DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
@@ -39,6 +40,11 @@ class Command(BaseCommand):
             help="Scanează toate combinațiile de două litere pentru produse lipsă din taxonomie.",
         )
         parser.add_argument(
+            "--api-crawl",
+            action="store_true",
+            help="Scanează rapid catalogul complet al magazinului prin API-ul public folosit de METRO.",
+        )
+        parser.add_argument(
             "--limit-per-search", type=int, default=0,
             help="0 înseamnă toate cardurile încărcate; altfel limitează fiecare căutare.",
         )
@@ -62,17 +68,21 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         selected_modes = sum(bool(value) for value in (
-            options["terms"], options["breadth_only"], options["category_crawl"], options["alphabet_crawl"]
+            options["terms"], options["breadth_only"], options["category_crawl"],
+            options["alphabet_crawl"], options["api_crawl"],
         ))
         if selected_modes > 1:
             raise CommandError(
-                "Termenii manuali, --breadth-only, --category-crawl și --alphabet-crawl sunt moduri exclusive."
+                "Termenii manuali și modurile de catalogare sunt exclusive."
             )
         if options["terms"]:
             terms = options["terms"]
             term_categories = {term: options["category"] for term in terms}
         elif options["alphabet_crawl"]:
             terms = ALPHABET_TERMS
+            term_categories = {}
+        elif options["api_crawl"]:
+            terms = []
             term_categories = {}
         elif options["breadth_only"]:
             terms = [term for category_terms in CATEGORY_BREADTH_TERMS.values() for term in category_terms]
@@ -87,6 +97,8 @@ class Command(BaseCommand):
         limit = options["limit_per_search"]
         if options["alphabet_crawl"] and limit == 0:
             limit = 500
+        if options["api_crawl"] and limit:
+            raise CommandError("--api-crawl nu acceptă --limit-per-search.")
         if limit < 0 or limit > 500:
             raise CommandError("--limit-per-search trebuie să fie între 0 și 500.")
         if options["delay"] < 0.3:
@@ -140,7 +152,16 @@ class Command(BaseCommand):
                 "retries": options["retries"],
                 "refresh_completed": options["refresh_completed"],
             }
-            if options["category_crawl"]:
+            if options["api_crawl"]:
+                captured = capture_api_catalog(
+                    job,
+                    store_query=options["store"],
+                    delay_seconds=options["delay"],
+                    progress=show_progress,
+                    retries=options["retries"],
+                    refresh_completed=options["refresh_completed"],
+                )
+            elif options["category_crawl"]:
                 captured = capture_category_catalog(
                     job,
                     limit_per_category=limit,

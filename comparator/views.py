@@ -82,6 +82,7 @@ from .services.matching import apply_match
 from .services.metro_scraper import (
     import_scraped_rows,
     launch_alphabet_catalog_job,
+    launch_api_catalog_job,
     launch_breadth_catalog_job,
     launch_mass_catalog_job,
     launch_scrape_job,
@@ -1015,6 +1016,33 @@ def metro_scrape_mass_start(request):
         messages.error(request, f"Scanarea automată nu a putut porni: {exc}")
     else:
         messages.success(request, "Catalogarea masivă rulează în fundal și importă incremental rezultatele.")
+    return redirect("comparator:metro_scrape_detail", pk=job.pk)
+
+
+def metro_scrape_api_start(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    if not settings.METRO_SCRAPER_ENABLED:
+        raise PermissionDenied("Scanarea METRO este dezactivată în acest mediu.")
+    active = MetroScrapeJob.objects.filter(
+        status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
+    ).first()
+    if active:
+        messages.warning(request, "Există deja o scanare activă.")
+        return redirect("comparator:metro_scrape_detail", pk=active.pk)
+    job = MetroScrapeJob.objects.create(
+        start_url=settings.METRO_START_URL,
+        scan_type=MetroScrapeJob.ScanType.FULL,
+    )
+    try:
+        launch_api_catalog_job(job, settings.METRO_STORE_QUERY)
+    except Exception as exc:
+        job.status = MetroScrapeJob.Status.ERROR
+        job.error = str(exc)
+        job.save(update_fields=["status", "error"])
+        messages.error(request, f"Scanarea API nu a putut porni: {exc}")
+    else:
+        messages.success(request, "Catalogul METRO cu prețuri se actualizează rapid în fundal.")
     return redirect("comparator:metro_scrape_detail", pk=job.pk)
 
 

@@ -307,6 +307,16 @@ class MetroStagingTests(TestCase):
         self.assertEqual(response.context["active_volume_offer_count"], 0)
 
     @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @patch("comparator.views.launch_api_catalog_job")
+    def test_api_catalog_can_be_started_from_private_ui(self, launcher):
+        response = self.client.post("/app/metro/scanari/catalog-api/")
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.FULL)
+        launcher.assert_called_once_with(job, "Targoviste")
+
+    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_breadth_catalog_job")
     def test_fast_expansion_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/extindere-rapida/")
@@ -351,6 +361,22 @@ class MetroStagingTests(TestCase):
             delay=0.8,
             retries=1,
             store="",
+            verbosity=0,
+        )
+
+        job = MetroScrapeJob.objects.get()
+        self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.FULL)
+        capture.assert_called_once()
+
+    @patch("comparator.management.commands.metro_seed_catalog.capture_api_catalog", return_value=1)
+    def test_api_catalog_scan_is_full(self, capture):
+        call_command(
+            "metro_seed_catalog",
+            api_crawl=True,
+            no_import=True,
+            delay=0.3,
+            retries=1,
+            store="Targoviste",
             verbosity=0,
         )
 

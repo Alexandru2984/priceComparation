@@ -234,6 +234,15 @@ Poți adăuga oricând alte familii de produse fără să modifici codul:
 
 Rezultatele sunt deduplicate, iar o ofertă existentă pentru același produs, magazin și zi este actualizată.
 
+Pentru actualizarea completă și rapidă a magazinului configurat, folosește API-ul
+public consumat de pagina METRO. Comanda preia prețul produsului fără garanția
+SGR, unitatea comercială și pragurile de volum; Selenium rămâne fallbackul de
+verificare:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --api-crawl --store Targoviste
+```
+
 Pentru termeni proprii poți fixa și categoria:
 
 ```bash

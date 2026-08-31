@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from comparator.models import AutomationRun, InventoryItem, MetroScrapeJob, ShoppingListItem
-from comparator.services.metro_scraper import launch_mass_catalog_job, launch_targeted_catalog_job
+from comparator.services.metro_scraper import launch_api_catalog_job, launch_targeted_catalog_job
 
 
 class Command(BaseCommand):
@@ -61,7 +61,7 @@ class Command(BaseCommand):
                 start_url=settings.METRO_START_URL,
                 scan_type=MetroScrapeJob.ScanType.FULL,
             )
-            launch_mass_catalog_job(job, store)
+            launch_api_catalog_job(job, store)
             return job, f"scanare completă METRO #{job.pk} pornită"
 
         targeted_cutoff = now - timedelta(hours=settings.METRO_TARGETED_SCAN_INTERVAL_HOURS)

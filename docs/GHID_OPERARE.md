@@ -156,6 +156,24 @@ Poți verifica mai întâi sursa fără să modifici baza de date:
 .venv/bin/python manage.py metro_import_sitemap --dry-run
 ```
 
+### Actualizare rapidă a prețurilor magazinului
+
+Aceasta este scanarea periodică recomandată. Folosește API-ul public consumat de
+pagina METRO, parcurge taxonomia live a magazinului și importă prețul produsului
+fără garanția SGR, ambalarea și toate pragurile de volum:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --api-crawl --store Targoviste
+```
+
+Dacă procesul este întrerupt, identifică jobul în pagina „Scanări METRO” și reia-l:
+
+```bash
+.venv/bin/python manage.py metro_seed_catalog --api-crawl --resume ID --store Targoviste
+```
+
+Din interfață, aceeași operație este butonul **Actualizare rapidă cu prețuri**.
+
 Termenii finalizați sunt săriți. Folosește `--refresh-completed` numai când vrei intenționat să refaci
 termenii; pentru un job deja finalizat pornește un job nou.
 

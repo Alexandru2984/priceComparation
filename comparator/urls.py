@@ -59,6 +59,7 @@ urlpatterns = [
     path("metro/scanari/", staff_member_required(views.metro_scrape_list), name="metro_scrape_list"),
     path("metro/scanari/porneste/", staff_member_required(views.metro_scrape_start), name="metro_scrape_start"),
     path("metro/scanari/catalog-complet/", staff_member_required(views.metro_scrape_mass_start), name="metro_scrape_mass_start"),
+    path("metro/scanari/catalog-api/", staff_member_required(views.metro_scrape_api_start), name="metro_scrape_api_start"),
     path("metro/scanari/extindere-rapida/", staff_member_required(views.metro_scrape_breadth_start), name="metro_scrape_breadth_start"),
     path("metro/scanari/acoperire-alfabetica/", staff_member_required(views.metro_scrape_alphabet_start), name="metro_scrape_alphabet_start"),
     path("metro/scanari/sitemap/", staff_member_required(views.metro_sitemap_import), name="metro_sitemap_import"),
