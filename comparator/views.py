@@ -75,6 +75,7 @@ from .services.health import system_readiness
 from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
 from .services.insights import (
     catalog_quality_summary,
+    current_metro_offers_prefetch,
     matching_quality_summary,
     optimize_shopping_list,
     product_history,
@@ -199,7 +200,7 @@ def dashboard(request):
     comparisons = []
     comparison_lines = InvoiceLine.objects.select_related(
         "invoice", "invoice__supplier", "matched_product"
-    ).prefetch_related("matched_product__metro_offers__volume_tiers")
+    ).prefetch_related(current_metro_offers_prefetch("matched_product__metro_offers"))
     for line in prime_invoice_merchandise_totals(comparison_lines):
         comparison = line.comparison()
         if comparison:
@@ -209,7 +210,7 @@ def dashboard(request):
     alerts = [
         alert
         for alert in PriceAlert.objects.select_related("product")
-        .prefetch_related("product__metro_offers__volume_tiers")
+        .prefetch_related(current_metro_offers_prefetch("product__metro_offers"))
         .filter(active=True)
         if alert.is_triggered
     ]
@@ -485,7 +486,7 @@ def supplier_price_import_confirm(request, pk):
 def _filtered_products(request):
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
-    products = Product.objects.prefetch_related("metro_offers__volume_tiers")
+    products = Product.objects.prefetch_related(current_metro_offers_prefetch())
     if query:
         products = products.filter(Q(name__icontains=query) | Q(brand__icontains=query) | Q(ean__icontains=query))
     if category:
@@ -615,7 +616,9 @@ def price_alert_list(request):
         form.save()
         messages.success(request, "Alerta de preț a fost salvată.")
         return redirect("comparator:price_alert_list")
-    alerts = PriceAlert.objects.select_related("product").prefetch_related("product__metro_offers__volume_tiers")
+    alerts = PriceAlert.objects.select_related("product").prefetch_related(
+        current_metro_offers_prefetch("product__metro_offers")
+    )
     page_obj = Paginator(alerts, 50).get_page(request.GET.get("page"))
     return render(
         request,
@@ -1474,7 +1477,9 @@ def invoice_detail(request, pk):
         pk=pk,
     )
     comparison_lines = list(
-        invoice.lines.select_related("matched_product").prefetch_related("matched_product__metro_offers__volume_tiers")
+        invoice.lines.select_related("matched_product").prefetch_related(
+            current_metro_offers_prefetch("matched_product__metro_offers")
+        )
     )
     invoice._prefetched_merchandise_total_gross = sum(
         (line.merchandise_total_gross for line in comparison_lines), Decimal("0")

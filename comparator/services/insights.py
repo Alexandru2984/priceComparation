@@ -12,10 +12,17 @@ from comparator.models import InvoiceLine, MetroOffer, Product, SupplierOffer
 from .matching import normalize_name
 
 
+def current_metro_offers_prefetch(lookup="metro_offers"):
+    return Prefetch(
+        lookup,
+        queryset=MetroOffer.objects.filter(active=True).prefetch_related("volume_tiers"),
+    )
+
+
 def source_option_prefetches(prefix=""):
     cutoff = timezone.localdate() - timedelta(days=settings.SUPPLIER_PRICE_MAX_AGE_DAYS)
     return (
-        f"{prefix}metro_offers__volume_tiers",
+        current_metro_offers_prefetch(f"{prefix}metro_offers"),
         Prefetch(
             f"{prefix}supplier_offers",
             queryset=(

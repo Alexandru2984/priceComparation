@@ -13,6 +13,7 @@ from comparator.models import (
     SupplierOffer,
 )
 from comparator.services.insights import (
+    current_metro_offers_prefetch,
     current_source_options,
     matching_quality_summary,
     source_option_prefetches,
@@ -46,6 +47,14 @@ class QueryPerformanceTests(TestCase):
             price_gross=Decimal("7.00"),
             valid_from=date(2026, 8, 31),
         )
+        MetroOffer.objects.create(
+            product=self.product,
+            units_per_package=1,
+            unit_size=1,
+            price_gross=Decimal("1.00"),
+            valid_from=date(2026, 8, 30),
+            active=False,
+        )
         SupplierOffer.objects.create(
             supplier=self.supplier,
             product=self.product,
@@ -68,11 +77,12 @@ class QueryPerformanceTests(TestCase):
             options = current_source_options(product, Decimal("2"))
 
         self.assertEqual([option["kind"] for option in options], ["METRO", "SUPPLIER"])
+        self.assertEqual(len(product._prefetched_objects_cache["metro_offers"]), 1)
 
     def test_prefetched_comparisons_do_not_query_per_line(self):
         lines = prime_invoice_merchandise_totals(
             InvoiceLine.objects.select_related("invoice", "matched_product").prefetch_related(
-                "matched_product__metro_offers__volume_tiers"
+                current_metro_offers_prefetch("matched_product__metro_offers")
             )
         )
 
