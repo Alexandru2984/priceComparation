@@ -112,6 +112,7 @@ from .services.metro_sitemap import (
     import_metro_sitemap_products,
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
+from .services.operations import operation_summary
 from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
 from .services.processing_queue import enqueue_document
 from .services.sales_imports import apply_sales_import, parse_sales_file
@@ -186,9 +187,7 @@ def data_export_download(request):
         content,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    response["Content-Disposition"] = (
-        f'attachment; filename="pricematch-date-{timezone.localdate().isoformat()}.xlsx"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="pricematch-date-{timezone.localdate().isoformat()}.xlsx"'
     return response
 
 
@@ -220,9 +219,7 @@ def dashboard(request):
             "metro_changes": recent_metro_changes(),
             "quality": catalog_quality_summary(),
             "matching_quality": matching_quality_summary(),
-            "open_metro_anomalies": MetroPriceAnomaly.objects.filter(
-                status=MetroPriceAnomaly.Status.OPEN
-            ).count(),
+            "open_metro_anomalies": MetroPriceAnomaly.objects.filter(status=MetroPriceAnomaly.Status.OPEN).count(),
             "recent_automation": AutomationRun.objects.select_related("metro_job")[:5],
             "supplier_count": supplier_count,
             "document_count": document_count,
@@ -234,6 +231,14 @@ def dashboard(request):
 def readiness(request):
     report = system_readiness()
     return render(request, "comparator/readiness.html", {"report": report})
+
+
+def operations(request):
+    return render(
+        request,
+        "comparator/operations.html",
+        {"summary": operation_summary()},
+    )
 
 
 def weekly_report(request):
@@ -412,7 +417,9 @@ def supplier_parsing_profile(request, pk):
 
 
 def supplier_price_import_create(request):
-    form = SupplierPriceListUploadForm(request.POST or None, request.FILES or None, initial={"effective_at": date.today()})
+    form = SupplierPriceListUploadForm(
+        request.POST or None, request.FILES or None, initial={"effective_at": date.today()}
+    )
     if request.method == "POST" and form.is_valid():
         upload = form.cleaned_data["file"]
         try:
@@ -458,7 +465,8 @@ def supplier_price_import_confirm(request, pk):
     messages.success(
         request,
         "Lista a fost transformată într-un document de revizuit."
-        if created else "Lista fusese deja importată; am deschis documentul existent.",
+        if created
+        else "Lista fusese deja importată; am deschis documentul existent.",
     )
     return redirect("comparator:invoice_detail", pk=invoice.pk)
 
@@ -468,9 +476,7 @@ def _filtered_products(request):
     category = request.GET.get("category", "").strip()
     products = Product.objects.prefetch_related("metro_offers__volume_tiers")
     if query:
-        products = products.filter(
-            Q(name__icontains=query) | Q(brand__icontains=query) | Q(ean__icontains=query)
-        )
+        products = products.filter(Q(name__icontains=query) | Q(brand__icontains=query) | Q(ean__icontains=query))
     if category:
         products = products.filter(category=category)
     return products, query, category
@@ -492,7 +498,10 @@ def product_list(request):
             "page_query": _page_query(request),
             "query": query,
             "selected_category": category,
-            "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
+            "categories": Product.objects.exclude(category="")
+            .values_list("category", flat=True)
+            .distinct()
+            .order_by("category"),
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
         },
     )
@@ -508,12 +517,17 @@ def product_search(request):
     query = request.GET.get("q", "").strip()[:100]
     if len(query) < 2:
         return JsonResponse({"products": []})
-    products = Product.objects.filter(active=True).filter(
-        Q(name__icontains=query)
-        | Q(brand__icontains=query)
-        | Q(ean__icontains=query)
-        | Q(codes__code__icontains=query)
-    ).distinct().order_by("name", "brand")[:20]
+    products = (
+        Product.objects.filter(active=True)
+        .filter(
+            Q(name__icontains=query)
+            | Q(brand__icontains=query)
+            | Q(ean__icontains=query)
+            | Q(codes__code__icontains=query)
+        )
+        .distinct()
+        .order_by("name", "brand")[:20]
+    )
     result = []
     for product in products:
         label = product.name
@@ -614,9 +628,7 @@ def notification_settings(request):
         {
             "webpush_ready": webpush_configured(),
             "vapid_public_key": settings.WEBPUSH_VAPID_PUBLIC_KEY,
-            "active_subscription_count": PushSubscription.objects.filter(
-                user=request.user, active=True
-            ).count(),
+            "active_subscription_count": PushSubscription.objects.filter(user=request.user, active=True).count(),
         },
     )
 
@@ -809,9 +821,7 @@ def sales_import_create(request):
                 warning_count=sum(bool(row["error"]) or row["match_score"] < 75 for row in rows),
                 created_by=request.user,
             )
-            SalesImportLine.objects.bulk_create([
-                SalesImportLine(sales_import=sales_import, **row) for row in rows
-            ])
+            SalesImportLine.objects.bulk_create([SalesImportLine(sales_import=sales_import, **row) for row in rows])
             return redirect("comparator:sales_import_detail", pk=sales_import.pk)
     imports = SalesImport.objects.select_related("created_by")[:20]
     return render(request, "comparator/sales_import_create.html", {"form": form, "imports": imports})
@@ -956,9 +966,7 @@ def metro_list(request):
             latest_offer = latest_offer.filter(active=True)
         elif availability == "inactive":
             latest_offer = latest_offer.filter(active=False)
-        offers = offers.filter(
-            pk=Subquery(latest_offer.order_by("-valid_from", "-pk").values("pk")[:1])
-        )
+        offers = offers.filter(pk=Subquery(latest_offer.order_by("-valid_from", "-pk").values("pk")[:1]))
     if sort == "saving":
         offers = offers.annotate(
             volume_saving=F("price_gross") - Min("volume_tiers__price_gross"),
@@ -1010,7 +1018,10 @@ def metro_list(request):
             "sort": sort,
             "snapshot": snapshot,
             "location": location,
-            "categories": Product.objects.exclude(category="").values_list("category", flat=True).distinct().order_by("category"),
+            "categories": Product.objects.exclude(category="")
+            .values_list("category", flat=True)
+            .distinct()
+            .order_by("category"),
             "confirmed_document_lines": confirmed_document_lines,
             "preferred_metro_store": settings.PREFERRED_METRO_STORE,
             "freshness": freshness,
@@ -1109,9 +1120,7 @@ def _import_metro_file(upload):
         tier_min = (row.get("volume_min_packages") or "").strip()
         tier_price = (row.get("volume_price_gross") or "").strip()
         if bool(tier_min) != bool(tier_price):
-            raise ValueError(
-                f"Linia {row_number}: completează împreună volume_min_packages și volume_price_gross."
-            )
+            raise ValueError(f"Linia {row_number}: completează împreună volume_min_packages și volume_price_gross.")
         if tier_min:
             min_packages = int(tier_min)
             if min_packages < 2:
@@ -1354,7 +1363,13 @@ def metro_scrape_import(request, pk):
             row.matched_product = Product.objects.filter(pk=product_id).first() if product_id else None
             row.save(
                 update_fields=[
-                    "name", "units_per_package", "unit_size", "base_unit", "category", "price_gross", "matched_product"
+                    "name",
+                    "units_per_package",
+                    "unit_size",
+                    "base_unit",
+                    "category",
+                    "price_gross",
+                    "matched_product",
                 ]
             )
     except (KeyError, InvalidOperation, ValueError) as exc:
@@ -1369,7 +1384,11 @@ def invoice_list(request):
     query = request.GET.get("q", "").strip()[:100]
     selected_status = request.GET.get("status", "").strip()
     selected_type = request.GET.get("type", "").strip()
-    invoices = Invoice.objects.select_related("supplier").prefetch_related("lines", "processing_jobs").annotate(line_count=Count("lines"))
+    invoices = (
+        Invoice.objects.select_related("supplier")
+        .prefetch_related("lines", "processing_jobs")
+        .annotate(line_count=Count("lines"))
+    )
     if query:
         invoices = invoices.filter(Q(supplier__name__icontains=query) | Q(number__icontains=query))
     if selected_status in Invoice.Status.values:
@@ -1408,10 +1427,12 @@ def document_inbox(request):
             "jobs": page_obj,
             "page_obj": page_obj,
             "page_query": _page_query(request),
-            "active_count": jobs.filter(status__in=[
-                DocumentProcessingJob.Status.PENDING,
-                DocumentProcessingJob.Status.RUNNING,
-            ]).count(),
+            "active_count": jobs.filter(
+                status__in=[
+                    DocumentProcessingJob.Status.PENDING,
+                    DocumentProcessingJob.Status.RUNNING,
+                ]
+            ).count(),
         },
     )
 
@@ -1584,19 +1605,13 @@ def invoice_revision_restore(request, pk, revision_pk):
 def _save_line(form, invoice=None):
     previous = None
     if form.instance.pk:
-        previous = InvoiceLine.objects.filter(pk=form.instance.pk).values(
-            "matched_product_id", "needs_review"
-        ).first()
+        previous = InvoiceLine.objects.filter(pk=form.instance.pk).values("matched_product_id", "needs_review").first()
     user_confirmed = not form.cleaned_data.get("needs_review", True)
     line = form.save(commit=False)
     if invoice:
         line.invoice = invoice
     if line.matched_product_id:
-        best_candidate_id = (
-            line.match_candidates[0].get("product_id")
-            if line.match_candidates
-            else None
-        )
+        best_candidate_id = line.match_candidates[0].get("product_id") if line.match_candidates else None
         if best_candidate_id != line.matched_product_id:
             line.match_score = 100
             line.match_gap = 100
@@ -1617,8 +1632,10 @@ def _save_line(form, invoice=None):
         line.match_method = InvoiceLine.MatchMethod.MANUAL
     line.save()
     metro_offer = sync_metro_offer_from_line(line)
-    if previous and not previous["needs_review"] and (
-        previous["matched_product_id"] != line.matched_product_id or line.needs_review
+    if (
+        previous
+        and not previous["needs_review"]
+        and (previous["matched_product_id"] != line.matched_product_id or line.needs_review)
     ):
         reconcile_derived_metro_offer(line.invoice, previous["matched_product_id"])
     sync_supplier_offer_from_line(line)
@@ -1703,9 +1720,11 @@ def barcode_lookup(request):
         return JsonResponse({"found": False, "error": "Cod lipsă."}, status=400)
     product = Product.objects.filter(ean=code, active=True).first()
     if not product:
-        code_row = ProductCode.objects.select_related("product").filter(
-            kind=ProductCode.Kind.EAN, code=code, supplier__isnull=True, product__active=True
-        ).first()
+        code_row = (
+            ProductCode.objects.select_related("product")
+            .filter(kind=ProductCode.Kind.EAN, code=code, supplier__isnull=True, product__active=True)
+            .first()
+        )
         product = code_row.product if code_row else None
     if not product:
         return JsonResponse({"found": False, "code": code})
@@ -1734,10 +1753,14 @@ def barcode_assign(request):
         else:
             messages.success(request, f"EAN {code} a fost asociat produsului {product.name}.")
             if line_id.isdigit():
-                line = InvoiceLine.objects.select_related("invoice").filter(
-                    pk=line_id,
-                    matched_product=product,
-                ).first()
+                line = (
+                    InvoiceLine.objects.select_related("invoice")
+                    .filter(
+                        pk=line_id,
+                        matched_product=product,
+                    )
+                    .first()
+                )
                 if line:
                     line.ean = code
                     line.save(update_fields=["ean"])
