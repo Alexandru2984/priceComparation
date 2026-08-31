@@ -35,13 +35,33 @@ fișierele private, configurarea PostgreSQL, scraperul METRO și configurația V
 - camera este permisă prin Permissions-Policy exclusiv pe pagina privată a scannerului EAN;
 - EAN/GTIN este validat prin cifra de control, iar codurile duplicate sunt refuzate;
 - backupurile locale sunt comprimate, au permisiuni restrictive și manifest SHA-256;
+- backupul extern folosește un repository restic criptat, retenție pe intervale, verificare zilnică a
+  metadatelor și citirea integrală lunară a datelor;
 - mentenanța curăță după backup sesiunile expirate și datele tehnice care depășesc retenția, fără să
   elimine documente, produse, prețuri confirmate ori mișcări de stoc;
 - `verify_backup_restore` probează restaurarea completă într-o bază temporară izolată;
 - restaurarea refuză arhive cu căi nesigure și cere confirmarea literală `RESTORE`;
+- stagingul are utilizator Linux, cheie Django, bază PostgreSQL, directoare media, worker, porturi și
+  hostname separate de producție; scanarea METRO este oprită implicit acolo;
 - secretele și configurația bazei rămân în `.env`, exclus din Git;
 - `pip-audit` nu a găsit vulnerabilități cunoscute în dependențele declarate;
 - Bandit nu a găsit probleme de severitate medie sau mare.
+
+## Verificări executate la 31 august 2026
+
+- 192 teste Django trecute pe PostgreSQL, inclusiv rolurile, MFA, uploadurile, OCR-ul, importurile,
+  inventarul, scraperul și restaurarea izolată;
+- `makemigrations --check --dry-run`: nicio migrație lipsă;
+- `pip check`: nicio dependență incompatibilă;
+- `pip-audit -r requirements.txt`: nicio vulnerabilitate cunoscută;
+- `bandit -r comparator pricecompare -ll`: nicio problemă de severitate medie sau mare;
+- backup nou creat și restaurat cu succes într-o bază izolată;
+- toate scripturile shell din `deploy/` trec verificarea de sintaxă.
+
+`check --deploy` păstrează intenționat avertismentele pentru `SECURE_HSTS_INCLUDE_SUBDOMAINS` și
+`SECURE_HSTS_PRELOAD`. Aceste opțiuni se activează numai după verificarea tuturor subdomeniilor prin HTTPS.
+Unitățile systemd trebuie validate din nou pe VPS după copiere, deoarece căile `/srv/pricematch` și
+`/srv/pricematch-staging` nu există în mediul local de dezvoltare.
 
 ## Configurație obligatorie înainte de publicare
 
@@ -52,6 +72,7 @@ Gunicorn, PostgreSQL, directorul `media/`, Ollama sau portul Selenium.
 ```dotenv
 DJANGO_DEBUG=0
 DJANGO_PRODUCTION=1
+PRICEMATCH_ENVIRONMENT=production
 DJANGO_SECRET_KEY=genereaza-o-cu-secrets-token-urlsafe
 DJANGO_ALLOWED_HOSTS=preturi.exemplu.ro
 DJANGO_CSRF_TRUSTED_ORIGINS=https://preturi.exemplu.ro
