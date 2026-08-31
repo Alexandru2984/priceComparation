@@ -1,0 +1,30 @@
+[Unit]
+Description=Verify all PriceMatch offsite backup data
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pricematch
+Group=pricematch
+WorkingDirectory=/srv/pricematch
+ExecStart=/srv/pricematch/deploy/vps/pricematch-restic.sh check --read-data
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/pricematch/data
+
+[Install]
+WantedBy=multi-user.target

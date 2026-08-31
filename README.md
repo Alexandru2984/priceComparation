@@ -7,6 +7,7 @@ Pentru operarea zilnică, comenzile scraperului, reluarea joburilor și depanare
 
 Pentru publicarea pe VPS-ul existent, cu Nginx și Cloudflare Tunnel, urmează
 [ghidul de deploy securizat](docs/DEPLOY_VPS_CLOUDFLARE.md).
+Pentru o copie criptată în afara VPS-ului folosește [ghidul de backup restic](docs/BACKUP_EXTERN_RESTIC.md).
 
 ## Ce face MVP-ul
 

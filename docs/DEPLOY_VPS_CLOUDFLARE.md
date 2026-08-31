@@ -98,6 +98,7 @@ sudo journalctl -u pricematch -u pricematch-worker --since today
 
 Timerul face zilnic backupul local și pornește sincronizarea METRO când este scadentă. Copiază backupurile
 criptat și pe alt sistem; un backup rămas doar pe același VPS nu protejează de pierderea serverului.
+Pentru copia automată criptată urmează [ghidul restic](BACKUP_EXTERN_RESTIC.md).
 
 ## 5. Nginx pe loopback
 

@@ -1,0 +1,11 @@
+[Unit]
+Description=Fully verify PriceMatch offsite backup monthly
+
+[Timer]
+OnCalendar=Sun *-*-01..07 05:30:00
+Persistent=true
+RandomizedDelaySec=30min
+Unit=pricematch-offsite-check.service
+
+[Install]
+WantedBy=timers.target
