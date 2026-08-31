@@ -47,6 +47,8 @@ Pentru o copie criptată în afara VPS-ului folosește [ghidul de backup restic]
 - paginare pentru cataloagele mari și căutare locală autocomplete, fără încărcarea miilor de opțiuni în HTML.
 - interogări cu preîncărcare controlată și indexuri PostgreSQL pentru dashboard, documente, potriviri și
   ofertele METRO curente, protejate prin teste care refuză reapariția query-urilor per produs.
+- constrângeri PostgreSQL pentru cantități, prețuri, procente, praguri METRO și scoruri, astfel încât
+  importurile sau scripturile locale nu pot ocoli regulile financiare ale formularelor;
 
 ## Instalare rapidă pe Ubuntu/Debian
 
@@ -481,6 +483,8 @@ GitHub Actions rulează automat aceste verificări pe PostgreSQL la fiecare push
 verifică săptămânal pachetele Python și versiunile acțiunilor din workflow.
 Suita include bugete explicite de interogări pentru potriviri, comparații și sursele de aprovizionare;
 adăugarea mai multor produse nu trebuie să crească numărul de query-uri executate de fiecare rând.
+Rutele administrative, rapoartele și notificările sunt separate în module dedicate, păstrând decorarea
+centrală a rolurilor în `comparator/urls.py`.
 
 Administratorul are în meniul `Operare` un rezumat fără secrete al conturilor, MFA, cozilor OCR,
 scanărilor METRO, jurnalului și integrității datelor. Înainte de publicare rulează

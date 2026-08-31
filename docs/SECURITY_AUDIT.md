@@ -62,6 +62,8 @@ fișierele private, PostgreSQL, OCR/Ollama, scraperul METRO și istoricul Git pe
   lipsa unui administrator activ ori date care ar compromite comparațiile;
 - testele de regresie fixează bugetul interogărilor pentru calculele repetate, iar indexurile compuse acoperă
   filtrarea documentelor, ofertelor METRO, joburilor și evenimentelor recente;
+- regulile financiare esențiale sunt duplicate intenționat în PostgreSQL prin `CHECK CONSTRAINT`, astfel
+  încât scrierile care ocolesc formularele nu pot introduce prețuri negative sau cantități/procente invalide;
 
 ## Constatări remediate în auditul complet
 
@@ -75,7 +77,7 @@ fișierele private, PostgreSQL, OCR/Ollama, scraperul METRO și istoricul Git pe
 
 ## Verificări executate la 31 august 2026
 
-- 221 teste Django trecute pe PostgreSQL, inclusiv rolurile, MFA, uploadurile ostile, exporturile, OCR-ul, importurile,
+- 226 teste Django trecute pe PostgreSQL, inclusiv rolurile, MFA, uploadurile ostile, exporturile, OCR-ul, importurile,
   inventarul, scraperul și restaurarea izolată;
 - 72% branch coverage pe codul aplicației, măsurat fără teste și migrații; CI refuză scăderea sub 70%;
 - `makemigrations --check --dry-run`: nicio migrație lipsă;
