@@ -108,6 +108,6 @@ class CatalogExportTests(TestCase):
         rows = list(workbook["Catalog curent"].iter_rows(values_only=True))
         exported = next(row[0] for row in rows if "SUM(1,1)" in str(row[0]))
 
-        self.assertIn(b"'\t=SUM(1,1)", csv_response.content)
+        self.assertIn(b"\t\t=SUM(1,1)", csv_response.content)
         self.assertEqual(exported, "'\t=SUM(1,1)")
         dangerous.delete()

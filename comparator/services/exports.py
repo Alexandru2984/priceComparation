@@ -44,6 +44,13 @@ def _safe_cell(value):
     return value
 
 
+def _safe_csv_cell(value):
+    """Use Excel's text prefix for human-facing CSV exports."""
+    if isinstance(value, str) and value.startswith(SPREADSHEET_FORMULA_PREFIXES):
+        return f"\t{value}"
+    return value
+
+
 def _format_workbook(workbook):
     for sheet in workbook.worksheets:
         sheet.freeze_panes = "A2"
@@ -113,7 +120,7 @@ def build_catalog_csv(products):
     writer = csv.writer(output, delimiter=";", lineterminator="\n")
     writer.writerow(CATALOG_HEADERS)
     for product in products:
-        writer.writerow([_safe_cell(value) for value in _catalog_row(product)])
+        writer.writerow([_safe_csv_cell(value) for value in _catalog_row(product)])
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
