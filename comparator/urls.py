@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_admin, views_inventory, views_notifications, views_reports
+from . import views, views_admin, views_catalog, views_inventory, views_notifications, views_reports
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -74,16 +74,28 @@ urlpatterns = [
         app_admin_required(views.supplier_price_import_confirm),
         name="supplier_price_import_confirm",
     ),
-    path("catalog/", staff_member_required(views.product_list), name="product_list"),
-    path("catalog/cauta/", staff_member_required(views.product_search), name="product_search"),
-    path("catalog/<int:pk>/", staff_member_required(views.product_detail), name="product_detail"),
-    path("catalog/export/<str:file_format>/", staff_member_required(views.catalog_export), name="catalog_export"),
-    path("catalog/adauga/", app_admin_required(views.product_create), name="product_create"),
-    path("catalog/scaneaza-ean/", staff_member_required(views.barcode_scanner), name="barcode_scanner"),
-    path("catalog/ean/cauta/", staff_member_required(views.barcode_lookup), name="barcode_lookup"),
-    path("catalog/ean/asociaza/", staff_member_required(views.barcode_assign), name="barcode_assign"),
-    path("alerte/", staff_member_required(views.price_alert_list), name="price_alert_list"),
-    path("alerte/<int:pk>/sterge/", app_admin_required(views.price_alert_delete), name="price_alert_delete"),
+    path("catalog/", staff_member_required(views_catalog.product_list), name="product_list"),
+    path("catalog/cauta/", staff_member_required(views_catalog.product_search), name="product_search"),
+    path("catalog/<int:pk>/", staff_member_required(views_catalog.product_detail), name="product_detail"),
+    path(
+        "catalog/export/<str:file_format>/",
+        staff_member_required(views_catalog.catalog_export),
+        name="catalog_export",
+    ),
+    path("catalog/adauga/", app_admin_required(views_catalog.product_create), name="product_create"),
+    path(
+        "catalog/scaneaza-ean/",
+        staff_member_required(views_catalog.barcode_scanner),
+        name="barcode_scanner",
+    ),
+    path("catalog/ean/cauta/", staff_member_required(views_catalog.barcode_lookup), name="barcode_lookup"),
+    path("catalog/ean/asociaza/", staff_member_required(views_catalog.barcode_assign), name="barcode_assign"),
+    path("alerte/", staff_member_required(views_catalog.price_alert_list), name="price_alert_list"),
+    path(
+        "alerte/<int:pk>/sterge/",
+        app_admin_required(views_catalog.price_alert_delete),
+        name="price_alert_delete",
+    ),
     path(
         "notificari/",
         staff_member_required(views_notifications.notification_settings),
