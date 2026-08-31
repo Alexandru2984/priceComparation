@@ -75,6 +75,11 @@ class AccessControlTests(TestCase):
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
         self.assertIn("camera=()", response["Permissions-Policy"])
 
+    def test_login_and_mfa_pages_are_never_cached(self):
+        response = self.client.get("/account/login/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+
     def test_private_post_rejects_missing_csrf_token(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.staff)

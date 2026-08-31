@@ -33,6 +33,6 @@ class SecurityHeadersMiddleware:
         response.setdefault(
             "Permissions-Policy", f"camera={camera}, microphone=(), geolocation=(), payment=()"
         )
-        if request.path.startswith(("/app/", "/admin/")):
+        if request.path.startswith(("/app/", "/admin/", "/account/")):
             response["Cache-Control"] = "private, no-store"
         return response
