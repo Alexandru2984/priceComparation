@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import re
 import unicodedata
 import zipfile
@@ -223,7 +224,13 @@ def parse_initial_workbook(upload):
         raise ValueError(f"Registrul poate avea maximum {MAX_ROWS} rânduri.")
     for row in rows:
         row["data"] = {key: str(value) if isinstance(value, Decimal) else value for key, value in row["data"].items()}
-    return hashlib.sha256(data).hexdigest(), rows
+    normalized_content = json.dumps(
+        rows,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(normalized_content).hexdigest(), rows
 
 
 def build_initial_workbook_template():
@@ -231,11 +238,33 @@ def build_initial_workbook_template():
     instructions = workbook.active
     instructions.title = "Instrucțiuni"
     instructions.append(["PriceMatch · import inițial"])
-    instructions.append(["Completează foile Furnizori, Produse și Stoc. Pentru asocierea sigură a stocului folosește EAN."])
+    instructions.append(
+        ["Completează foile Furnizori, Produse și Stoc. Pentru asocierea sigură a stocului folosește EAN."]
+    )
     sheets = {
-        "Furnizori": ["Denumire", "CUI", "METRO", "Comanda minima", "Transport", "Transport gratuit de la", "Observatii"],
+        "Furnizori": [
+            "Denumire",
+            "CUI",
+            "METRO",
+            "Comanda minima",
+            "Transport",
+            "Transport gratuit de la",
+            "Observatii",
+        ],
         "Produse": ["Denumire", "Marca", "EAN", "Unitate", "Categorie", "Activ"],
-        "Stoc": ["EAN", "Denumire", "Stoc initial", "Stoc minim", "Stoc tinta", "Pret vanzare", "Cantitate unitate vanduta", "TVA vanzare", "TVA achizitie", "Marja tinta", "Pierderi estimate"],
+        "Stoc": [
+            "EAN",
+            "Denumire",
+            "Stoc initial",
+            "Stoc minim",
+            "Stoc tinta",
+            "Pret vanzare",
+            "Cantitate unitate vanduta",
+            "TVA vanzare",
+            "TVA achizitie",
+            "Marja tinta",
+            "Pierderi estimate",
+        ],
     }
     for title, headers in sheets.items():
         sheet = workbook.create_sheet(title)
@@ -268,7 +297,15 @@ def apply_initial_import(initial_import):
     initial_import = InitialDataImport.objects.select_for_update().get(pk=initial_import.pk)
     if initial_import.status == InitialDataImport.Status.APPLIED:
         return {"already_applied": True}
-    stats = {"suppliers_created": 0, "suppliers_updated": 0, "products_created": 0, "products_updated": 0, "stock_policies": 0, "opening_movements": 0, "skipped": sum(bool(row["errors"]) for row in initial_import.rows)}
+    stats = {
+        "suppliers_created": 0,
+        "suppliers_updated": 0,
+        "products_created": 0,
+        "products_updated": 0,
+        "stock_policies": 0,
+        "opening_movements": 0,
+        "skipped": sum(bool(row["errors"]) for row in initial_import.rows),
+    }
 
     for row in initial_import.rows:
         if row["kind"] != "SUPPLIER" or row["errors"]:

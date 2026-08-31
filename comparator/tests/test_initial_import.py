@@ -31,9 +31,7 @@ class InitialImportTests(TestCase):
     def setUp(self):
         users = get_user_model()
         self.owner = users.objects.create_superuser("initial-owner", password="A-test-password-2026!")
-        self.operator = users.objects.create_user(
-            "initial-operator", password="A-test-password-2026!", is_staff=True
-        )
+        self.operator = users.objects.create_user("initial-operator", password="A-test-password-2026!", is_staff=True)
 
     def test_template_has_required_sheets_and_parser_validates_rows(self):
         file_hash, rows = parse_initial_workbook(populated_workbook())
@@ -80,6 +78,12 @@ class InitialImportTests(TestCase):
         applied = self.client.post(f"/app/configurare/import-initial/{initial_import.pk}/aplica/")
         self.assertRedirects(applied, f"/app/configurare/import-initial/{initial_import.pk}/")
         self.assertTrue(Product.objects.filter(ean="5941234567899").exists())
+
+    def test_semantically_identical_workbooks_ignore_generated_metadata(self):
+        first_hash, _ = parse_initial_workbook(populated_workbook())
+        second_hash, _ = parse_initial_workbook(populated_workbook())
+
+        self.assertEqual(first_hash, second_hash)
 
     def test_operator_cannot_access_initial_import(self):
         self.client.force_login(self.operator)
