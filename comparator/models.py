@@ -39,7 +39,10 @@ class ActivityLog(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
-        indexes = [models.Index(fields=["user", "-created_at"])]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["outcome", "-created_at"], name="activity_outcome_time"),
+        ]
         verbose_name = "eveniment activitate"
         verbose_name_plural = "jurnal activitate"
 
@@ -270,6 +273,12 @@ class MetroOffer(models.Model):
 
     class Meta:
         ordering = ["-valid_from", "product__name"]
+        indexes = [
+            models.Index(
+                fields=["product", "source", "active", "-valid_from"],
+                name="metro_product_source_date",
+            )
+        ]
         verbose_name = "preț METRO"
         verbose_name_plural = "prețuri METRO"
 
@@ -391,6 +400,9 @@ class MetroScrapeJob(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="metro_job_status_date")
+        ]
 
     def __str__(self):
         return f"Scanare METRO #{self.pk} · {self.get_status_display()}"
@@ -645,6 +657,11 @@ class Invoice(models.Model):
 
     class Meta:
         ordering = ["-issued_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["-issued_at", "-created_at"], name="invoice_recent"),
+            models.Index(fields=["status", "-issued_at"], name="invoice_status_date"),
+            models.Index(fields=["document_type", "-issued_at"], name="invoice_type_date"),
+        ]
         verbose_name = "document de achiziție"
         verbose_name_plural = "documente de achiziție"
         constraints = [
@@ -907,6 +924,12 @@ class InvoiceLine(models.Model):
 
     class Meta:
         ordering = ["id"]
+        indexes = [
+            models.Index(
+                fields=["needs_review", "matched_product"],
+                name="line_review_match",
+            )
+        ]
         verbose_name = "linie factură"
         verbose_name_plural = "linii factură"
 
