@@ -26,8 +26,7 @@ class MetroSitemapTests(TestCase):
 
     def test_product_url_extracts_identity_measurement_and_category(self):
         product = parse_product_url(
-            "https://produse.metro.ro/shop/pv/BTY-X111/0032/0022/"
-            "Hochland-Branza-Topita-Triunghi-Smantana-140-g"
+            "https://produse.metro.ro/shop/pv/BTY-X111/0032/0022/Hochland-Branza-Topita-Triunghi-Smantana-140-g"
         )
 
         self.assertEqual(product.external_id, "BTY-X111")
@@ -66,8 +65,16 @@ class MetroSitemapTests(TestCase):
         known = Product.objects.create(name="Nume verificat din card", base_unit=BaseUnit.PIECE)
         ProductCode.objects.create(product=known, kind=ProductCode.Kind.METRO, code="KNOWN")
         products = [
-            SitemapProduct("KNOWN", "Nume sitemap", "https://produse.metro.ro/shop/pv/KNOWN/a/Nume", BaseUnit.PIECE, "Altele"),
-            SitemapProduct("NEW", "Lapte Nou 1 L", "https://produse.metro.ro/shop/pv/NEW/a/Lapte-Nou-1-L", BaseUnit.LITER, "Lactate"),
+            SitemapProduct(
+                "KNOWN", "Nume sitemap", "https://produse.metro.ro/shop/pv/KNOWN/a/Nume", BaseUnit.PIECE, "Altele"
+            ),
+            SitemapProduct(
+                "NEW",
+                "Lapte Nou 1 L",
+                "https://produse.metro.ro/shop/pv/NEW/a/Lapte-Nou-1-L",
+                BaseUnit.LITER,
+                "Lactate",
+            ),
         ]
 
         stats = import_metro_sitemap_products(products)
@@ -90,8 +97,8 @@ class MetroSitemapTests(TestCase):
 
         self.assertFalse(ProductCode.objects.filter(code="NEW").exists())
 
-    @patch("comparator.views.import_metro_sitemap_products")
-    @patch("comparator.views.fetch_metro_sitemap_products")
+    @patch("comparator.views_metro.import_metro_sitemap_products")
+    @patch("comparator.views_metro.fetch_metro_sitemap_products")
     def test_sitemap_can_be_synchronized_from_private_ui(self, fetch, import_products):
         fetch.return_value = [Mock()]
         import_products.return_value = {

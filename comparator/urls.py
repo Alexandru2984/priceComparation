@@ -1,6 +1,15 @@
 from django.urls import path
 
-from . import views, views_admin, views_catalog, views_inventory, views_notifications, views_reports, views_suppliers
+from . import (
+    views,
+    views_admin,
+    views_catalog,
+    views_inventory,
+    views_metro,
+    views_notifications,
+    views_reports,
+    views_suppliers,
+)
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -182,37 +191,65 @@ urlpatterns = [
         app_admin_required(views_inventory.stock_movement_create),
         name="stock_movement_create",
     ),
-    path("metro/", staff_member_required(views.metro_list), name="metro_list"),
-    path("metro/abateri/", staff_member_required(views.metro_price_anomalies), name="metro_price_anomalies"),
+    path("metro/", staff_member_required(views_metro.metro_list), name="metro_list"),
+    path(
+        "metro/abateri/",
+        staff_member_required(views_metro.metro_price_anomalies),
+        name="metro_price_anomalies",
+    ),
     path(
         "metro/abateri/<int:pk>/revizuieste/",
-        app_admin_required(views.metro_price_anomaly_review),
+        app_admin_required(views_metro.metro_price_anomaly_review),
         name="metro_price_anomaly_review",
     ),
-    path("metro/adauga/", app_admin_required(views.metro_offer_create), name="metro_offer_create"),
-    path("metro/importa/", app_admin_required(views.metro_import), name="metro_import"),
-    path("metro/sincronizeaza-documente/", app_admin_required(views.metro_sync_documents), name="metro_sync_documents"),
-    path("metro/scanari/", app_admin_required(views.metro_scrape_list), name="metro_scrape_list"),
-    path("metro/scanari/porneste/", app_admin_required(views.metro_scrape_start), name="metro_scrape_start"),
+    path("metro/adauga/", app_admin_required(views_metro.metro_offer_create), name="metro_offer_create"),
+    path("metro/importa/", app_admin_required(views_metro.metro_import), name="metro_import"),
+    path(
+        "metro/sincronizeaza-documente/",
+        app_admin_required(views_metro.metro_sync_documents),
+        name="metro_sync_documents",
+    ),
+    path("metro/scanari/", app_admin_required(views_metro.metro_scrape_list), name="metro_scrape_list"),
+    path(
+        "metro/scanari/porneste/",
+        app_admin_required(views_metro.metro_scrape_start),
+        name="metro_scrape_start",
+    ),
     path(
         "metro/scanari/catalog-complet/",
-        app_admin_required(views.metro_scrape_mass_start),
+        app_admin_required(views_metro.metro_scrape_mass_start),
         name="metro_scrape_mass_start",
     ),
-    path("metro/scanari/catalog-api/", app_admin_required(views.metro_scrape_api_start), name="metro_scrape_api_start"),
+    path(
+        "metro/scanari/catalog-api/",
+        app_admin_required(views_metro.metro_scrape_api_start),
+        name="metro_scrape_api_start",
+    ),
     path(
         "metro/scanari/extindere-rapida/",
-        app_admin_required(views.metro_scrape_breadth_start),
+        app_admin_required(views_metro.metro_scrape_breadth_start),
         name="metro_scrape_breadth_start",
     ),
     path(
         "metro/scanari/acoperire-alfabetica/",
-        app_admin_required(views.metro_scrape_alphabet_start),
+        app_admin_required(views_metro.metro_scrape_alphabet_start),
         name="metro_scrape_alphabet_start",
     ),
-    path("metro/scanari/sitemap/", app_admin_required(views.metro_sitemap_import), name="metro_sitemap_import"),
-    path("metro/scanari/<int:pk>/", app_admin_required(views.metro_scrape_detail), name="metro_scrape_detail"),
-    path("metro/scanari/<int:pk>/importa/", app_admin_required(views.metro_scrape_import), name="metro_scrape_import"),
+    path(
+        "metro/scanari/sitemap/",
+        app_admin_required(views_metro.metro_sitemap_import),
+        name="metro_sitemap_import",
+    ),
+    path(
+        "metro/scanari/<int:pk>/",
+        app_admin_required(views_metro.metro_scrape_detail),
+        name="metro_scrape_detail",
+    ),
+    path(
+        "metro/scanari/<int:pk>/importa/",
+        app_admin_required(views_metro.metro_scrape_import),
+        name="metro_scrape_import",
+    ),
     path("facturi/", staff_member_required(views.invoice_list), name="invoice_list"),
     path("facturi/inbox/", staff_member_required(views.document_inbox), name="document_inbox"),
     path("facturi/adauga/", staff_member_required(views.invoice_create), name="invoice_create"),

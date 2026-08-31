@@ -37,6 +37,7 @@ class MetroNormalizationTests(TestCase):
             _rows_matching_exact_term(rows, "ap"),
             rows[:2],
         )
+
     def test_category_discovery_keeps_only_direct_children(self):
         current = "/shop/category/alimentare/bacanie"
         candidates = {
@@ -78,9 +79,7 @@ class MetroNormalizationTests(TestCase):
 
     def test_load_more_respects_targeted_result_limit(self):
         driver = MagicMock()
-        driver.find_elements.side_effect = lambda by, selector: (
-            [object()] * 24 if selector == ".sd-articlecard" else []
-        )
+        driver.find_elements.side_effect = lambda by, selector: [object()] * 24 if selector == ".sd-articlecard" else []
 
         self.assertEqual(_load_all_visible_cards(driver, max_cards=8), 24)
         driver.execute_script.assert_not_called()
@@ -121,9 +120,7 @@ class MetroNormalizationTests(TestCase):
 
 class MetroStagingTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_superuser(
-            username="metro-admin", password="A-test-password-2026!"
-        )
+        self.staff = get_user_model().objects.create_superuser(username="metro-admin", password="A-test-password-2026!")
         self.client.force_login(self.staff)
 
     def test_stages_and_imports_selected_product(self):
@@ -141,9 +138,7 @@ class MetroStagingTests(TestCase):
                     "unit_size": Decimal("1"),
                     "base_unit": "L",
                     "price_gross": Decimal("8.50"),
-                    "volume_prices": [
-                        {"min_packages": 6, "price_gross": "7.90", "label": "7,90 RON pentru 6+"}
-                    ],
+                    "volume_prices": [{"min_packages": 6, "price_gross": "7.90", "label": "7,90 RON pentru 6+"}],
                 }
             ],
         )
@@ -307,7 +302,7 @@ class MetroStagingTests(TestCase):
         self.assertEqual(response.context["active_volume_offer_count"], 0)
 
     @override_settings(METRO_API_ENABLED=True, METRO_SELENIUM_ENABLED=False, METRO_STORE_QUERY="Targoviste")
-    @patch("comparator.views.launch_api_catalog_job")
+    @patch("comparator.views_metro.launch_api_catalog_job")
     def test_api_catalog_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/catalog-api/")
 
@@ -328,7 +323,7 @@ class MetroStagingTests(TestCase):
         )
 
     @override_settings(METRO_SELENIUM_ENABLED=True, METRO_STORE_QUERY="Targoviste")
-    @patch("comparator.views.launch_breadth_catalog_job")
+    @patch("comparator.views_metro.launch_breadth_catalog_job")
     def test_fast_expansion_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/extindere-rapida/")
 
@@ -338,7 +333,7 @@ class MetroStagingTests(TestCase):
         launcher.assert_called_once_with(job, "Targoviste")
 
     @override_settings(METRO_SELENIUM_ENABLED=True, METRO_STORE_QUERY="Targoviste")
-    @patch("comparator.views.launch_alphabet_catalog_job")
+    @patch("comparator.views_metro.launch_alphabet_catalog_job")
     def test_alphabet_expansion_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/acoperire-alfabetica/")
 
@@ -418,17 +413,19 @@ class MetroStagingTests(TestCase):
         job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
         store_captured_rows(
             job,
-            [{
-                "external_id": "BTY-PERSIST",
-                "name": "Produs persistent 1 buc",
-                "product_url": "https://produse.metro.ro/shop/pv/BTY-PERSIST/x",
-                "store_name": "METRO PUNCT TARGOVISTE",
-                "package_text": "1 BUCATA",
-                "units_per_package": Decimal("1"),
-                "unit_size": Decimal("1"),
-                "base_unit": "BUC",
-                "price_gross": Decimal("3.50"),
-            }],
+            [
+                {
+                    "external_id": "BTY-PERSIST",
+                    "name": "Produs persistent 1 buc",
+                    "product_url": "https://produse.metro.ro/shop/pv/BTY-PERSIST/x",
+                    "store_name": "METRO PUNCT TARGOVISTE",
+                    "package_text": "1 BUCATA",
+                    "units_per_package": Decimal("1"),
+                    "unit_size": Decimal("1"),
+                    "base_unit": "BUC",
+                    "price_gross": Decimal("3.50"),
+                }
+            ],
         )
         import_scraped_rows(job.products.all())
         self.assertTrue(ProductCode.objects.filter(kind="METRO", code="BTY-PERSIST").exists())
