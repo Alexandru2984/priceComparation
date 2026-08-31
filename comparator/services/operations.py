@@ -9,6 +9,8 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from comparator.models import ActivityLog, DocumentProcessingJob, MetroScrapeJob
 
+from .integrity import audit_data_integrity
+
 
 def _status_counts(queryset, values):
     counts = {value: 0 for value in values}
@@ -24,6 +26,7 @@ def operation_summary():
     since = timezone.now() - timedelta(hours=24)
     latest_document_job = DocumentProcessingJob.objects.first()
     latest_metro_job = MetroScrapeJob.objects.first()
+    integrity = audit_data_integrity()
     return {
         "environment": settings.DEPLOYMENT_ENVIRONMENT,
         "database": "PostgreSQL" if connection.vendor == "postgresql" else connection.vendor,
@@ -46,6 +49,7 @@ def operation_summary():
             "denied_24h": ActivityLog.objects.filter(outcome=ActivityLog.Outcome.DENIED, created_at__gte=since).count(),
             "errors_24h": ActivityLog.objects.filter(outcome=ActivityLog.Outcome.ERROR, created_at__gte=since).count(),
         },
+        "integrity": integrity,
         "latest_document_job": latest_document_job,
         "latest_metro_job": latest_metro_job,
         "configuration": {

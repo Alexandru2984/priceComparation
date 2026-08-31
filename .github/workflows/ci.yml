@@ -66,6 +66,8 @@ jobs:
         run: |
           python manage.py makemigrations --check --dry-run
           python manage.py check
+          python manage.py migrate --noinput
+          python manage.py audit_data_integrity
       - name: Verificări pentru producție
         env:
           DJANGO_PRODUCTION: "1"

@@ -44,7 +44,7 @@ class OperationsPageTests(TestCase):
 
         self.assertContains(response, "Centru de operare")
         self.assertContains(response, "Târgoviște Punct")
-        self.assertContains(response, "accesări refuzate / 24h")
+        self.assertContains(response, "Accesări refuzate / 24h")
         self.assertNotContains(response, "never-render-this-secret")
         self.assertNotContains(response, "private-key-must-stay-hidden")
         self.assertNotContains(response, "secret-host")
