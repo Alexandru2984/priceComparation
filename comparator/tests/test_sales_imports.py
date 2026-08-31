@@ -11,10 +11,9 @@ from comparator.services.sales_imports import apply_sales_import, parse_sales_fi
 
 class SalesImportTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
+        self.staff = get_user_model().objects.create_superuser(
             username="pos-admin",
             password="A-test-password-2026!",
-            is_staff=True,
         )
         self.client.force_login(self.staff)
         self.product = Product.objects.create(

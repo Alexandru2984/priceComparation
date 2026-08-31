@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group
 from django.contrib.admin.sites import NotRegistered
 
 from .models import (
+    ActivityLog,
     AutomationRun,
     DocumentPage,
     DocumentProcessingJob,
@@ -122,3 +123,20 @@ admin.site.register(PushSubscription)
 admin.site.register(DocumentProcessingJob)
 admin.site.register(MetroPriceAnomaly)
 admin.site.register(AutomationRun)
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "user", "method", "view_name", "status_code", "outcome", "ip_address")
+    list_filter = ("outcome", "method", "created_at")
+    search_fields = ("user__username", "path", "view_name", "ip_address")
+    readonly_fields = ("user", "method", "path", "view_name", "status_code", "outcome", "ip_address", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

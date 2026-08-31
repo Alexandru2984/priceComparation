@@ -148,14 +148,16 @@ Rulează comenzile ca utilizatorul serviciului, astfel încât să folosească e
 
 ```bash
 cd /srv/pricematch
-sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py create_staff_user NUME --superuser
+sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py create_staff_user PROPRIETAR --role admin
+sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py create_staff_user OPERATOR --role operator
 sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py list_staff_users
 sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py disable_staff_user NUME
 sudo -u pricematch /srv/pricematch/.venv/bin/python manage.py reset_staff_mfa NUME --confirm
 ```
 
-Parola este cerută interactiv și nu poate fi transmisă ca argument. După primul login, utilizatorul este
-obligat să înroleze o aplicație TOTP. Păstrează codurile de recuperare în afara VPS-ului.
+Parola este cerută interactiv și nu poate fi transmisă ca argument. Rolul `operator` lucrează cu
+documentele și OCR-ul, iar rolul `admin` schimbă configurația, importurile și stocul. După primul login,
+utilizatorul este obligat să înroleze o aplicație TOTP. Păstrează codurile de recuperare în afara VPS-ului.
 
 ## 8. Verificare înainte de DNS public
 

@@ -11,10 +11,9 @@ from comparator.services.price_lists import create_price_list_invoice, parse_sup
 
 class SupplierPriceListTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
+        self.staff = get_user_model().objects.create_superuser(
             username="price-list-admin",
             password="A-test-password-2026!",
-            is_staff=True,
         )
         self.client.force_login(self.staff)
         self.supplier = Supplier.objects.create(name="Distribuitor listă")

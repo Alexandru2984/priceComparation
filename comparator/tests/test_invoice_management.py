@@ -13,8 +13,8 @@ from comparator.services.invoices import sync_metro_offer_from_line
 
 class InvoiceManagementTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
-            username="document-admin", password="A-test-password-2026!", is_staff=True
+        self.staff = get_user_model().objects.create_superuser(
+            username="document-admin", password="A-test-password-2026!"
         )
         self.client.force_login(self.staff)
         self.supplier = Supplier.objects.create(name="Furnizor editare")

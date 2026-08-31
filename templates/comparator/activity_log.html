@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Jurnal activitate · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><p class="eyebrow">Control administrativ</p><h1>Jurnal de activitate</h1><p>Operații care modifică zona privată. Formularele, parolele și conținutul documentelor nu sunt stocate în jurnal.</p></div>
+</div>
+<form class="search document-filters" method="get">
+  <input name="q" value="{{ query }}" placeholder="Rută sau operație">
+  <input name="actor" value="{{ actor }}" placeholder="Utilizator">
+  <select name="outcome">
+    <option value="">Toate rezultatele</option>
+    <option value="SUCCESS" {% if outcome == "SUCCESS" %}selected{% endif %}>Reușite</option>
+    <option value="DENIED" {% if outcome == "DENIED" %}selected{% endif %}>Refuzate</option>
+    <option value="ERROR" {% if outcome == "ERROR" %}selected{% endif %}>Erori</option>
+  </select>
+  <button class="button">Filtrează</button>
+</form>
+<section class="panel table-wrap">
+  <table>
+    <thead><tr><th>Moment</th><th>Utilizator</th><th>Operație</th><th>Rezultat</th><th>IP</th></tr></thead>
+    <tbody>
+      {% for event in page_obj %}
+      <tr>
+        <td>{{ event.created_at|date:"d.m.Y H:i:s" }}</td>
+        <td>{{ event.user.username|default:"cont șters" }}</td>
+        <td><strong>{{ event.method }}</strong> {{ event.path }}<small>{{ event.view_name }}</small></td>
+        <td><span class="badge {% if event.outcome == 'SUCCESS' %}processed{% elif event.outcome == 'ERROR' %}error{% else %}new{% endif %}">{{ event.get_outcome_display }} · {{ event.status_code }}</span></td>
+        <td>{{ event.ip_address|default:"—" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="empty">Nu există evenimente pentru filtrele alese.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "comparator/partials/pagination.html" %}
+{% endblock %}

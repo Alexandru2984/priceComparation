@@ -3,6 +3,7 @@ from functools import wraps
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required as django_staff_member_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from django_otp import user_has_device
 
@@ -24,6 +25,19 @@ def staff_member_required(view_func):
             mfa_response = enforce_mfa(request)
             if mfa_response:
                 return mfa_response
+        return protected(request, *args, **kwargs)
+
+    return wrapped
+
+
+def app_admin_required(view_func):
+    """Require the terminal-created administrator role for configuration changes."""
+    protected = staff_member_required(view_func)
+
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_staff and not request.user.is_superuser:
+            raise PermissionDenied("Această operație necesită rolul de administrator PriceMatch.")
         return protected(request, *args, **kwargs)
 
     return wrapped

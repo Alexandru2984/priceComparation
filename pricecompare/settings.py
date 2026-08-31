@@ -44,6 +44,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "pricecompare.middleware.ActivityAuditMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "pricecompare.middleware.AdminMFAEnforcementMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

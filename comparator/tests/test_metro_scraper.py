@@ -121,8 +121,8 @@ class MetroNormalizationTests(TestCase):
 
 class MetroStagingTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
-            username="metro-admin", password="A-test-password-2026!", is_staff=True
+        self.staff = get_user_model().objects.create_superuser(
+            username="metro-admin", password="A-test-password-2026!"
         )
         self.client.force_login(self.staff)
 

@@ -27,6 +27,7 @@
         <a href="{% url 'comparator:notification_settings' %}">Notificări</a>
         <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
         <a href="{% url 'comparator:readiness' %}">Stare</a>
+        {% if user.is_superuser %}<a href="{% url 'comparator:activity_log' %}">Jurnal</a>{% endif %}
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
       <a href="{% url 'two_factor:profile' %}">MFA</a>
@@ -45,7 +46,7 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer>{% if user.is_staff %}Zonă privată · {{ user.username }}{% else %}Mod public demonstrativ · fără date reale{% endif %}</footer>
+  <footer>{% if user.is_staff %}Zonă privată · {{ user.username }} · {% if user.is_superuser %}administrator{% else %}operator{% endif %}{% else %}Mod public demonstrativ · fără date reale{% endif %}</footer>
   <script src="{% static 'app.js' %}" defer></script>
   <script src="{% static 'product_autocomplete.js' %}" defer></script>
   {% block scripts %}{% endblock %}

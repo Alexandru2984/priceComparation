@@ -16,6 +16,38 @@ class BaseUnit(models.TextChoices):
     LITER = "L", "Litru"
 
 
+class ActivityLog(models.Model):
+    class Outcome(models.TextChoices):
+        SUCCESS = "SUCCESS", "Reușită"
+        DENIED = "DENIED", "Refuzată"
+        ERROR = "ERROR", "Eroare"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pricematch_activity_logs",
+    )
+    method = models.CharField(max_length=8)
+    path = models.CharField(max_length=500)
+    view_name = models.CharField(max_length=180, blank=True)
+    status_code = models.PositiveSmallIntegerField()
+    outcome = models.CharField(max_length=10, choices=Outcome.choices, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "-created_at"])]
+        verbose_name = "eveniment activitate"
+        verbose_name_plural = "jurnal activitate"
+
+    def __str__(self):
+        actor = self.user.username if self.user_id else "sistem"
+        return f"{actor} · {self.method} {self.path} · {self.status_code}"
+
+
 class Supplier(models.Model):
     name = models.CharField("denumire", max_length=180, unique=True)
     tax_id = models.CharField("CUI", max_length=30, blank=True)

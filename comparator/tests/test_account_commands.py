@@ -77,8 +77,18 @@ class AccountCommandTests(TestCase):
 
         call_command("list_staff_users", stdout=output)
 
-        self.assertIn("operator\tda\tda\tnu\tconfigurat", output.getvalue())
+        self.assertIn("operator\tda\toperator\tconfigurat", output.getvalue())
         self.assertNotIn("secret@example.com", output.getvalue())
+
+    @patch("comparator.management.commands.create_staff_user.getpass.getpass")
+    def test_create_staff_user_can_create_explicit_admin_role(self, prompt):
+        prompt.side_effect = [STRONG_PASSWORD, STRONG_PASSWORD]
+
+        call_command("create_staff_user", "owner", "--role", "admin")
+
+        user = get_user_model().objects.get(username="owner")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
 
     def test_users_and_groups_are_not_manageable_from_web_admin(self):
         self.assertNotIn(get_user_model(), admin.site._registry)

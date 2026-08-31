@@ -59,13 +59,25 @@ class AccessControlTests(TestCase):
         )
 
     @override_settings(MFA_REQUIRED=True)
-    def test_verified_mfa_session_can_open_app_and_admin(self):
+    def test_verified_operator_can_open_app_but_not_django_admin(self):
         device = TOTPDevice.objects.create(user=self.staff, name="Telefon", confirmed=True)
         self.client.force_login(self.staff)
         session = self.client.session
         session[DEVICE_ID_SESSION_KEY] = device.persistent_id
         session.save()
         self.assertEqual(self.client.get("/app/").status_code, 200)
+        self.assertEqual(self.client.get("/admin/").status_code, 403)
+
+    @override_settings(MFA_REQUIRED=True)
+    def test_verified_administrator_can_open_django_admin(self):
+        owner = get_user_model().objects.create_superuser(
+            username="owner", password="A-test-password-2026!"
+        )
+        device = TOTPDevice.objects.create(user=owner, name="Telefon", confirmed=True)
+        self.client.force_login(owner)
+        session = self.client.session
+        session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+        session.save()
         self.assertEqual(self.client.get("/admin/").status_code, 200)
 
     def test_security_headers_are_present(self):

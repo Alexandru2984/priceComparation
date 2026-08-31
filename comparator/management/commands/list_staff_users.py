@@ -11,7 +11,7 @@ class Command(BaseCommand):
         if not users.exists():
             self.stdout.write("Nu există conturi.")
             return
-        self.stdout.write("username\tactiv\tstaff\tsuperuser\tmfa")
+        self.stdout.write("username\tactiv\trol\tmfa")
         confirmed_mfa = set(
             TOTPDevice.objects.filter(confirmed=True).values_list("user_id", flat=True)
         )
@@ -19,8 +19,7 @@ class Command(BaseCommand):
             values = (
                 user.username,
                 "da" if user.is_active else "nu",
-                "da" if user.is_staff else "nu",
-                "da" if user.is_superuser else "nu",
+                "admin" if user.is_superuser else "operator" if user.is_staff else "fără acces",
                 "configurat" if user.pk in confirmed_mfa else "lipsește",
             )
             self.stdout.write("\t".join(values))

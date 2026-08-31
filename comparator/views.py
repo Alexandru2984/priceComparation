@@ -37,6 +37,7 @@ from .forms import (
     SupplierPriceListUploadForm,
 )
 from .models import (
+    ActivityLog,
     AutomationRun,
     BaseUnit,
     DocumentPage,
@@ -107,6 +108,35 @@ from .services.price_lists import create_price_list_invoice, parse_supplier_pric
 from .services.sales_imports import apply_sales_import, parse_sales_file
 from .services.weekly_reports import build_weekly_report, build_weekly_report_xlsx
 from .services.supplier_profiles import refresh_supplier_profile_metrics
+
+
+def activity_log(request):
+    logs = ActivityLog.objects.select_related("user")
+    actor = request.GET.get("actor", "").strip()
+    outcome = request.GET.get("outcome", "").strip().upper()
+    query = request.GET.get("q", "").strip()
+    if actor:
+        logs = logs.filter(user__username__icontains=actor)
+    if outcome in ActivityLog.Outcome.values:
+        logs = logs.filter(outcome=outcome)
+    else:
+        outcome = ""
+    if query:
+        logs = logs.filter(Q(path__icontains=query) | Q(view_name__icontains=query))
+    page_obj = Paginator(logs, 100).get_page(request.GET.get("page"))
+    page_params = request.GET.copy()
+    page_params.pop("page", None)
+    return render(
+        request,
+        "comparator/activity_log.html",
+        {
+            "page_obj": page_obj,
+            "page_query": page_params.urlencode(),
+            "actor": actor,
+            "outcome": outcome,
+            "query": query,
+        },
+    )
 
 
 def dashboard(request):

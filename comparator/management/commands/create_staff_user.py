@@ -14,9 +14,15 @@ class Command(BaseCommand):
         parser.add_argument("username")
         parser.add_argument("--email", default="")
         parser.add_argument(
+            "--role",
+            choices=("operator", "admin"),
+            default="operator",
+            help="operator pentru documente/OCR; admin pentru configurare și operații sensibile.",
+        )
+        parser.add_argument(
             "--superuser",
             action="store_true",
-            help="Acordă și acces complet Django; implicit contul are acces doar la aplicația PriceMatch.",
+            help="Alias compatibil pentru --role admin.",
         )
 
     @transaction.atomic
@@ -28,12 +34,13 @@ class Command(BaseCommand):
         if users.objects.filter(username__iexact=username).exists():
             raise CommandError(f"Utilizatorul «{username}» există deja.")
 
+        is_admin = options["role"] == "admin" or options["superuser"]
         user = users(
             username=username,
             email=options["email"].strip(),
             is_active=True,
             is_staff=True,
-            is_superuser=options["superuser"],
+            is_superuser=is_admin,
         )
         try:
             user.full_clean(exclude=["password", "last_login", "date_joined"])
@@ -51,7 +58,7 @@ class Command(BaseCommand):
 
         user.set_password(password)
         user.save()
-        role = "superuser" if user.is_superuser else "staff"
+        role = "administrator" if user.is_superuser else "operator"
         self.stdout.write(self.style.SUCCESS(
             f"Contul «{username}» a fost creat ca {role}. La primul login va configura MFA."
         ))

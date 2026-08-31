@@ -58,9 +58,14 @@ Pagina `/` este un demo public cu date statice. Datele reale sunt în `/app/` ș
 un utilizator `staff`. Conturile se creează numai din terminal, cu parolă cerută interactiv:
 
 ```bash
-.venv/bin/python manage.py create_staff_user NUME --superuser
+.venv/bin/python manage.py create_staff_user PROPRIETAR --role admin
+.venv/bin/python manage.py create_staff_user OPERATOR --role operator
 .venv/bin/python manage.py list_staff_users
 ```
+
+Administratorul configurează furnizorii, catalogul, METRO, stocul și importurile și poate șterge
+documente. Operatorul poate încărca facturi/bonuri, corecta OCR-ul, consulta prețurile și lucra cu listele
+de cumpărături. Toate operațiile private care modifică date apar în `Jurnal`, fără conținutul formularelor.
 
 Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează

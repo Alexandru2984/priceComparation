@@ -18,10 +18,9 @@ from comparator.services.metro_sitemap import (
 
 class MetroSitemapTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(
+        self.user = get_user_model().objects.create_superuser(
             username="sitemap-admin",
             password="test-password",
-            is_staff=True,
         )
         self.client.force_login(self.user)
 

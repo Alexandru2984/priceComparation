@@ -15,6 +15,10 @@ fișierele private, configurarea PostgreSQL, scraperul METRO și configurația V
   `DJANGO_TRUSTED_PROXY_IPS`; un header trimis de altă sursă este ignorat;
 - nu există înregistrare publică; conturile staff se creează, listează, dezactivează și resetează MFA numai
   prin comenzi locale, iar User/Group nu pot fi administrate din interfața Django Admin;
+- rolul operator este separat de administrator; configurarea, importurile sensibile, stocul, scanările
+  METRO și ștergerea documentelor cer administrator;
+- cererile private care modifică date sunt jurnalizate cu utilizator, rută, rezultat și IP, fără corpul
+  formularului, parole sau conținut din documente;
 - CSRF este activ pe toate formularele, iar operațiile distructive folosesc POST;
 - documentele nu mai sunt servite direct din `MEDIA_URL`; descărcarea cere autentificare staff;
 - PDF-urile și imaginile sunt verificate după semnătură/structură, extensie, dimensiune și rezoluție;

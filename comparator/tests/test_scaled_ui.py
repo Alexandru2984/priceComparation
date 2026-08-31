@@ -59,8 +59,8 @@ class ScaledCatalogViewsTests(TestCase):
 
 class InvoiceAutocompleteTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
-            username="invoice-scale-admin", password="A-test-password-2026!", is_staff=True
+        self.staff = get_user_model().objects.create_superuser(
+            username="invoice-scale-admin", password="A-test-password-2026!"
         )
         self.client.force_login(self.staff)
 

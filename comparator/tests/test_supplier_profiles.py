@@ -11,10 +11,9 @@ from comparator.services.supplier_profiles import refresh_supplier_profile_metri
 
 class SupplierParsingProfileTests(TestCase):
     def setUp(self):
-        self.staff = get_user_model().objects.create_user(
+        self.staff = get_user_model().objects.create_superuser(
             username="profile-admin",
             password="A-test-password-2026!",
-            is_staff=True,
         )
         self.client.force_login(self.staff)
         self.supplier = Supplier.objects.create(name="Furnizor cu profil")
