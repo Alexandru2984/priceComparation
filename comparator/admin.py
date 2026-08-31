@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.contrib.admin.sites import NotRegistered
 
 from .models import (
     AutomationRun,
@@ -35,6 +38,14 @@ from .models import (
 admin.site.site_header = "PriceMatch · administrare securizată"
 admin.site.site_title = "PriceMatch Admin"
 admin.site.index_title = "Datele private ale magazinului"
+
+# Conturile sunt administrate exclusiv prin comenzile locale PriceMatch. Astfel,
+# compromiterea unei sesiuni web nu poate fi folosită pentru a crea alt cont.
+for account_model in (get_user_model(), Group):
+    try:
+        admin.site.unregister(account_model)
+    except NotRegistered:
+        pass
 
 admin.site.register(SupplierParsingProfile)
 admin.site.register(SupplierPriceImport)
