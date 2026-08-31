@@ -73,7 +73,7 @@ fișierele private, PostgreSQL, OCR/Ollama, scraperul METRO și istoricul Git pe
 
 ## Verificări executate la 31 august 2026
 
-- 202 teste Django trecute pe PostgreSQL, inclusiv rolurile, MFA, uploadurile ostile, exporturile, OCR-ul, importurile,
+- 217 teste Django trecute pe PostgreSQL, inclusiv rolurile, MFA, uploadurile ostile, exporturile, OCR-ul, importurile,
   inventarul, scraperul și restaurarea izolată;
 - 72% branch coverage pe codul aplicației, măsurat fără teste și migrații; CI refuză scăderea sub 70%;
 - `makemigrations --check --dry-run`: nicio migrație lipsă;
