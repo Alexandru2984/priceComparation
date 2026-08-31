@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_admin, views_reports
+from . import views, views_admin, views_notifications, views_reports
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -84,10 +84,26 @@ urlpatterns = [
     path("catalog/ean/asociaza/", staff_member_required(views.barcode_assign), name="barcode_assign"),
     path("alerte/", staff_member_required(views.price_alert_list), name="price_alert_list"),
     path("alerte/<int:pk>/sterge/", app_admin_required(views.price_alert_delete), name="price_alert_delete"),
-    path("notificari/", staff_member_required(views.notification_settings), name="notification_settings"),
-    path("notificari/aboneaza/", staff_member_required(views.push_subscribe), name="push_subscribe"),
-    path("notificari/dezaboneaza/", staff_member_required(views.push_unsubscribe), name="push_unsubscribe"),
-    path("notificari/test/", staff_member_required(views.push_test), name="push_test"),
+    path(
+        "notificari/",
+        staff_member_required(views_notifications.notification_settings),
+        name="notification_settings",
+    ),
+    path(
+        "notificari/aboneaza/",
+        staff_member_required(views_notifications.push_subscribe),
+        name="push_subscribe",
+    ),
+    path(
+        "notificari/dezaboneaza/",
+        staff_member_required(views_notifications.push_unsubscribe),
+        name="push_unsubscribe",
+    ),
+    path(
+        "notificari/test/",
+        staff_member_required(views_notifications.push_test),
+        name="push_test",
+    ),
     path("cumparaturi/", staff_member_required(views.shopping_list_index), name="shopping_list_index"),
     path("cumparaturi/<int:pk>/", staff_member_required(views.shopping_list_detail), name="shopping_list_detail"),
     path("cumparaturi/<int:pk>/editeaza/", staff_member_required(views.shopping_list_edit), name="shopping_list_edit"),
