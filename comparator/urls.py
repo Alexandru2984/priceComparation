@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_admin, views_catalog, views_inventory, views_notifications, views_reports
+from . import views, views_admin, views_catalog, views_inventory, views_notifications, views_reports, views_suppliers
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -36,42 +36,46 @@ urlpatterns = [
         staff_member_required(views_reports.ocr_evaluation),
         name="ocr_evaluation",
     ),
-    path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
-    path("configurare/import-initial/", app_admin_required(views.initial_import_create), name="initial_import_create"),
+    path("furnizori/", staff_member_required(views_suppliers.supplier_list), name="supplier_list"),
+    path(
+        "configurare/import-initial/",
+        app_admin_required(views_suppliers.initial_import_create),
+        name="initial_import_create",
+    ),
     path(
         "configurare/import-initial/sablon/",
-        app_admin_required(views.initial_import_template),
+        app_admin_required(views_suppliers.initial_import_template),
         name="initial_import_template",
     ),
     path(
         "configurare/import-initial/<int:pk>/",
-        app_admin_required(views.initial_import_detail),
+        app_admin_required(views_suppliers.initial_import_detail),
         name="initial_import_detail",
     ),
     path(
         "configurare/import-initial/<int:pk>/aplica/",
-        app_admin_required(views.initial_import_confirm),
+        app_admin_required(views_suppliers.initial_import_confirm),
         name="initial_import_confirm",
     ),
-    path("furnizori/adauga/", app_admin_required(views.supplier_create), name="supplier_create"),
+    path("furnizori/adauga/", app_admin_required(views_suppliers.supplier_create), name="supplier_create"),
     path(
         "furnizori/<int:pk>/parsare/",
-        app_admin_required(views.supplier_parsing_profile),
+        app_admin_required(views_suppliers.supplier_parsing_profile),
         name="supplier_parsing_profile",
     ),
     path(
         "furnizori/liste-pret/importa/",
-        app_admin_required(views.supplier_price_import_create),
+        app_admin_required(views_suppliers.supplier_price_import_create),
         name="supplier_price_import_create",
     ),
     path(
         "furnizori/liste-pret/<int:pk>/",
-        app_admin_required(views.supplier_price_import_detail),
+        app_admin_required(views_suppliers.supplier_price_import_detail),
         name="supplier_price_import_detail",
     ),
     path(
         "furnizori/liste-pret/<int:pk>/confirma/",
-        app_admin_required(views.supplier_price_import_confirm),
+        app_admin_required(views_suppliers.supplier_price_import_confirm),
         name="supplier_price_import_confirm",
     ),
     path("catalog/", staff_member_required(views_catalog.product_list), name="product_list"),
