@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_admin, views_notifications, views_reports
+from . import views, views_admin, views_inventory, views_notifications, views_reports
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -104,36 +104,68 @@ urlpatterns = [
         staff_member_required(views_notifications.push_test),
         name="push_test",
     ),
-    path("cumparaturi/", staff_member_required(views.shopping_list_index), name="shopping_list_index"),
-    path("cumparaturi/<int:pk>/", staff_member_required(views.shopping_list_detail), name="shopping_list_detail"),
-    path("cumparaturi/<int:pk>/editeaza/", staff_member_required(views.shopping_list_edit), name="shopping_list_edit"),
+    path(
+        "cumparaturi/",
+        staff_member_required(views_inventory.shopping_list_index),
+        name="shopping_list_index",
+    ),
+    path(
+        "cumparaturi/<int:pk>/",
+        staff_member_required(views_inventory.shopping_list_detail),
+        name="shopping_list_detail",
+    ),
+    path(
+        "cumparaturi/<int:pk>/editeaza/",
+        staff_member_required(views_inventory.shopping_list_edit),
+        name="shopping_list_edit",
+    ),
     path(
         "cumparaturi/articol/<int:pk>/bifeaza/",
-        staff_member_required(views.shopping_list_item_toggle),
+        staff_member_required(views_inventory.shopping_list_item_toggle),
         name="shopping_list_item_toggle",
     ),
     path(
         "cumparaturi/articol/<int:pk>/sterge/",
-        staff_member_required(views.shopping_list_item_delete),
+        staff_member_required(views_inventory.shopping_list_item_delete),
         name="shopping_list_item_delete",
     ),
-    path("stoc/", staff_member_required(views.inventory_index), name="inventory_index"),
-    path("stoc/vanzari/importa/", app_admin_required(views.sales_import_create), name="sales_import_create"),
-    path("stoc/vanzari/<int:pk>/", app_admin_required(views.sales_import_detail), name="sales_import_detail"),
-    path("stoc/vanzari/<int:pk>/aplica/", app_admin_required(views.sales_import_apply), name="sales_import_apply"),
+    path("stoc/", staff_member_required(views_inventory.inventory_index), name="inventory_index"),
+    path(
+        "stoc/vanzari/importa/",
+        app_admin_required(views_inventory.sales_import_create),
+        name="sales_import_create",
+    ),
+    path(
+        "stoc/vanzari/<int:pk>/",
+        app_admin_required(views_inventory.sales_import_detail),
+        name="sales_import_detail",
+    ),
+    path(
+        "stoc/vanzari/<int:pk>/aplica/",
+        app_admin_required(views_inventory.sales_import_apply),
+        name="sales_import_apply",
+    ),
     path(
         "stoc/vanzari/linii/<int:pk>/editeaza/",
-        app_admin_required(views.sales_import_line_edit),
+        app_admin_required(views_inventory.sales_import_line_edit),
         name="sales_import_line_edit",
     ),
-    path("marje/", staff_member_required(views.margin_analysis), name="margin_analysis"),
+    path("marje/", staff_member_required(views_inventory.margin_analysis), name="margin_analysis"),
     path(
         "stoc/reaprovizionare/",
-        app_admin_required(views.inventory_replenishment_create),
+        app_admin_required(views_inventory.inventory_replenishment_create),
         name="inventory_replenishment_create",
     ),
-    path("stoc/<int:pk>/editeaza/", app_admin_required(views.inventory_item_edit), name="inventory_item_edit"),
-    path("stoc/<int:pk>/miscare/", app_admin_required(views.stock_movement_create), name="stock_movement_create"),
+    path(
+        "stoc/<int:pk>/editeaza/",
+        app_admin_required(views_inventory.inventory_item_edit),
+        name="inventory_item_edit",
+    ),
+    path(
+        "stoc/<int:pk>/miscare/",
+        app_admin_required(views_inventory.stock_movement_create),
+        name="stock_movement_create",
+    ),
     path("metro/", staff_member_required(views.metro_list), name="metro_list"),
     path("metro/abateri/", staff_member_required(views.metro_price_anomalies), name="metro_price_anomalies"),
     path(
