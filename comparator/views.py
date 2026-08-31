@@ -964,14 +964,19 @@ def metro_scrape_list(request):
     return render(
         request,
         "comparator/metro_scrape_list.html",
-        {"jobs": jobs, "preferred_metro_store": settings.PREFERRED_METRO_STORE},
+        {
+            "jobs": jobs,
+            "preferred_metro_store": settings.PREFERRED_METRO_STORE,
+            "metro_api_enabled": settings.METRO_API_ENABLED,
+            "metro_selenium_enabled": settings.METRO_SELENIUM_ENABLED,
+        },
     )
 
 
 def metro_scrape_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if not settings.METRO_SCRAPER_ENABLED:
+    if not settings.METRO_SELENIUM_ENABLED:
         raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
@@ -995,7 +1000,7 @@ def metro_scrape_start(request):
 def metro_scrape_mass_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if not settings.METRO_SCRAPER_ENABLED:
+    if not settings.METRO_SELENIUM_ENABLED:
         raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
@@ -1022,8 +1027,8 @@ def metro_scrape_mass_start(request):
 def metro_scrape_api_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if not settings.METRO_SCRAPER_ENABLED:
-        raise PermissionDenied("Scanarea METRO este dezactivată în acest mediu.")
+    if not settings.METRO_API_ENABLED:
+        raise PermissionDenied("Scanarea API METRO este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
     ).first()
@@ -1049,7 +1054,7 @@ def metro_scrape_api_start(request):
 def metro_scrape_breadth_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if not settings.METRO_SCRAPER_ENABLED:
+    if not settings.METRO_SELENIUM_ENABLED:
         raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]
@@ -1076,7 +1081,7 @@ def metro_scrape_breadth_start(request):
 def metro_scrape_alphabet_start(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if not settings.METRO_SCRAPER_ENABLED:
+    if not settings.METRO_SELENIUM_ENABLED:
         raise PermissionDenied("Scanarea Selenium este dezactivată în acest mediu.")
     active = MetroScrapeJob.objects.filter(
         status__in=[MetroScrapeJob.Status.PENDING, MetroScrapeJob.Status.RUNNING]

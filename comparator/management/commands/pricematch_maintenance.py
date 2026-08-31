@@ -57,6 +57,8 @@ class Command(BaseCommand):
             finished_at__gte=full_cutoff,
         ).exists()
         if force_full or not recent_full:
+            if not settings.METRO_API_ENABLED:
+                return None, "scanare completă omisă: API-ul METRO este dezactivat"
             job = MetroScrapeJob.objects.create(
                 start_url=settings.METRO_START_URL,
                 scan_type=MetroScrapeJob.ScanType.FULL,
@@ -72,6 +74,8 @@ class Command(BaseCommand):
         ).exists()
         if recent_targeted:
             return None, "scanarea țintită METRO nu este încă scadentă"
+        if not settings.METRO_SELENIUM_ENABLED:
+            return None, "scanare țintită omisă: Selenium este dezactivat"
         terms = self._tracked_terms()
         if not terms:
             return None, "nu există produse urmărite pentru scanarea țintită"
@@ -92,8 +96,8 @@ class Command(BaseCommand):
 
             scan_requested = options["scan_metro"] or options["scheduled_metro"] or settings.METRO_AUTOMATION_ENABLED
             if scan_requested:
-                if not settings.METRO_SCRAPER_ENABLED:
-                    actions.append("scanare METRO omisă: scraper dezactivat")
+                if not settings.METRO_API_ENABLED and not settings.METRO_SELENIUM_ENABLED:
+                    actions.append("scanare METRO omisă: API și Selenium dezactivate")
                 else:
                     job, message = self._launch_metro_if_due(
                         options["store"],

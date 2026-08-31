@@ -306,7 +306,7 @@ class MetroStagingTests(TestCase):
 
         self.assertEqual(response.context["active_volume_offer_count"], 0)
 
-    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @override_settings(METRO_API_ENABLED=True, METRO_SELENIUM_ENABLED=False, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_api_catalog_job")
     def test_api_catalog_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/catalog-api/")
@@ -316,7 +316,18 @@ class MetroStagingTests(TestCase):
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.FULL)
         launcher.assert_called_once_with(job, "Targoviste")
 
-    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @override_settings(METRO_API_ENABLED=True, METRO_SELENIUM_ENABLED=False)
+    def test_production_ui_hides_and_denies_selenium_actions(self):
+        response = self.client.get("/app/metro/scanari/")
+
+        self.assertContains(response, "Actualizare rapidă cu prețuri")
+        self.assertNotContains(response, "/app/metro/scanari/porneste/")
+        self.assertEqual(
+            self.client.post("/app/metro/scanari/extindere-rapida/").status_code,
+            403,
+        )
+
+    @override_settings(METRO_SELENIUM_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_breadth_catalog_job")
     def test_fast_expansion_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/extindere-rapida/")
@@ -326,7 +337,7 @@ class MetroStagingTests(TestCase):
         self.assertEqual(job.scan_type, MetroScrapeJob.ScanType.TARGETED)
         launcher.assert_called_once_with(job, "Targoviste")
 
-    @override_settings(METRO_SCRAPER_ENABLED=True, METRO_STORE_QUERY="Targoviste")
+    @override_settings(METRO_SELENIUM_ENABLED=True, METRO_STORE_QUERY="Targoviste")
     @patch("comparator.views.launch_alphabet_catalog_job")
     def test_alphabet_expansion_can_be_started_from_private_ui(self, launcher):
         response = self.client.post("/app/metro/scanari/acoperire-alfabetica/")

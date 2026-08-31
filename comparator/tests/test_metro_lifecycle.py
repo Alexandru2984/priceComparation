@@ -176,7 +176,8 @@ class MetroLifecycleTests(TestCase):
 
 class MetroAutomationTests(TestCase):
     @override_settings(
-        METRO_SCRAPER_ENABLED=True,
+        METRO_API_ENABLED=True,
+        METRO_SELENIUM_ENABLED=False,
         METRO_STORE_QUERY="Targoviste",
     )
     @patch("comparator.management.commands.pricematch_maintenance.launch_api_catalog_job")
@@ -193,7 +194,8 @@ class MetroAutomationTests(TestCase):
         launcher.assert_called_once_with(job, "Targoviste")
 
     @override_settings(
-        METRO_SCRAPER_ENABLED=True,
+        METRO_API_ENABLED=True,
+        METRO_SELENIUM_ENABLED=True,
         METRO_FULL_SCAN_INTERVAL_DAYS=7,
         METRO_TARGETED_SCAN_INTERVAL_HOURS=24,
         METRO_TARGETED_SCAN_MAX_PRODUCTS=150,
