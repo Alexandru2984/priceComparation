@@ -49,3 +49,48 @@ def service_worker(request):
     response["Service-Worker-Allowed"] = "/"
     response["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
+
+
+def _error_response(request, status, title, message):
+    return render(
+        request,
+        "errors/error.html",
+        {"status": status, "error_title": title, "error_message": message},
+        status=status,
+    )
+
+
+def bad_request(request, exception=None):
+    return _error_response(
+        request,
+        400,
+        "Cerere invalidă",
+        "Datele trimise nu au putut fi procesate. Verifică formularul și încearcă din nou.",
+    )
+
+
+def permission_denied(request, exception=None):
+    return _error_response(
+        request,
+        403,
+        "Acces restricționat",
+        "Contul autentificat nu are permisiunea necesară pentru această operație.",
+    )
+
+
+def page_not_found(request, exception=None):
+    return _error_response(
+        request,
+        404,
+        "Pagina nu există",
+        "Adresa cerută nu corespunde niciunei pagini disponibile.",
+    )
+
+
+def server_error(request):
+    return _error_response(
+        request,
+        500,
+        "Eroare temporară",
+        "Operația nu a putut fi finalizată. Încearcă din nou și verifică jurnalul dacă problema persistă.",
+    )

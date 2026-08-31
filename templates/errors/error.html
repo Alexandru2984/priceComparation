@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ status }} · PriceMatch{% endblock %}
+{% block content %}
+<section class="panel error-page">
+  <p class="eyebrow">Eroare {{ status }}</p>
+  <h1>{{ error_title }}</h1>
+  <p>{{ error_message }}</p>
+  <div class="actions">
+    {% if user.is_staff %}<a class="button primary" href="{% url 'comparator:dashboard' %}">Înapoi la panou</a>{% else %}<a class="button primary" href="{% url 'public_demo' %}">Înapoi la pagina publică</a><a class="button" href="{% url 'two_factor:login' %}">Autentificare</a>{% endif %}
+  </div>
+</section>
+{% endblock %}
