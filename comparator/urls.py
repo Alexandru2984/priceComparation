@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_admin
+from . import views, views_admin, views_reports
 from .auth import app_admin_required, staff_member_required
 
 app_name = "comparator"
@@ -16,10 +16,26 @@ urlpatterns = [
     ),
     path("operare/", app_admin_required(views_admin.operations), name="operations"),
     path("stare/", staff_member_required(views_admin.readiness), name="readiness"),
-    path("rapoarte/saptamanal/", staff_member_required(views.weekly_report), name="weekly_report"),
-    path("rapoarte/saptamanal/export/", staff_member_required(views.weekly_report_export), name="weekly_report_export"),
-    path("calitate-potriviri/", staff_member_required(views.matching_quality), name="matching_quality"),
-    path("calibrare-ocr/", staff_member_required(views.ocr_evaluation), name="ocr_evaluation"),
+    path(
+        "rapoarte/saptamanal/",
+        staff_member_required(views_reports.weekly_report),
+        name="weekly_report",
+    ),
+    path(
+        "rapoarte/saptamanal/export/",
+        staff_member_required(views_reports.weekly_report_export),
+        name="weekly_report_export",
+    ),
+    path(
+        "calitate-potriviri/",
+        staff_member_required(views_reports.matching_quality),
+        name="matching_quality",
+    ),
+    path(
+        "calibrare-ocr/",
+        staff_member_required(views_reports.ocr_evaluation),
+        name="ocr_evaluation",
+    ),
     path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
     path("configurare/import-initial/", app_admin_required(views.initial_import_create), name="initial_import_create"),
     path(
