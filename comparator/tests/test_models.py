@@ -142,7 +142,7 @@ class DashboardSmokeTests(TestCase):
         self.assertContains(response, "PriceMatch")
         self.assertContains(response, "Pregătire pentru primele date reale")
 
-    @patch("comparator.views.system_readiness")
+    @patch("comparator.views_admin.system_readiness")
     def test_readiness_page_renders_private_diagnostics(self, readiness):
         readiness.return_value = {
             "ok_count": 1,

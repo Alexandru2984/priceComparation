@@ -17,7 +17,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import (
-    DataExportForm,
     DocumentPagesForm,
     InitialDataImportForm,
     InventoryItemForm,
@@ -39,7 +38,6 @@ from .forms import (
     SupplierPriceListUploadForm,
 )
 from .models import (
-    ActivityLog,
     AutomationRun,
     BaseUnit,
     DocumentPage,
@@ -70,8 +68,7 @@ from .models import (
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.documents import add_document_pages, delete_document_page, move_document_page
 from .services.evaluation import evaluate_confirmed_documents
-from .services.exports import build_catalog_csv, build_catalog_xlsx, build_complete_data_xlsx
-from .services.health import system_readiness
+from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
 from .services.insights import (
     catalog_quality_summary,
@@ -115,83 +112,11 @@ from .services.metro_sitemap import (
     import_metro_sitemap_products,
 )
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
-from .services.operations import operation_summary
 from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
 from .services.processing_queue import enqueue_document
 from .services.sales_imports import apply_sales_import, parse_sales_file
 from .services.supplier_profiles import refresh_supplier_profile_metrics
 from .services.weekly_reports import build_weekly_report, build_weekly_report_xlsx
-
-
-def activity_log(request):
-    logs = ActivityLog.objects.select_related("user")
-    actor = request.GET.get("actor", "").strip()
-    outcome = request.GET.get("outcome", "").strip().upper()
-    query = request.GET.get("q", "").strip()
-    if actor:
-        logs = logs.filter(user__username__icontains=actor)
-    if outcome in ActivityLog.Outcome.values:
-        logs = logs.filter(outcome=outcome)
-    else:
-        outcome = ""
-    if query:
-        logs = logs.filter(Q(path__icontains=query) | Q(view_name__icontains=query))
-    page_obj = Paginator(logs, 100).get_page(request.GET.get("page"))
-    page_params = request.GET.copy()
-    page_params.pop("page", None)
-    return render(
-        request,
-        "comparator/activity_log.html",
-        {
-            "page_obj": page_obj,
-            "page_query": page_params.urlencode(),
-            "actor": actor,
-            "outcome": outcome,
-            "query": query,
-        },
-    )
-
-
-def data_export_index(request):
-    return render(
-        request,
-        "comparator/data_export.html",
-        {
-            "form": DataExportForm(request.GET or None),
-            "counts": {
-                "products": Product.objects.count(),
-                "documents": Invoice.objects.count(),
-                "inventory": InventoryItem.objects.count(),
-                "suppliers": Supplier.objects.count(),
-            },
-        },
-    )
-
-
-def data_export_download(request):
-    form = DataExportForm(request.GET)
-    if not form.is_valid():
-        return render(
-            request,
-            "comparator/data_export.html",
-            {
-                "form": form,
-                "counts": {
-                    "products": Product.objects.count(),
-                    "documents": Invoice.objects.count(),
-                    "inventory": InventoryItem.objects.count(),
-                    "suppliers": Supplier.objects.count(),
-                },
-            },
-            status=400,
-        )
-    content = build_complete_data_xlsx(**form.cleaned_data)
-    response = HttpResponse(
-        content,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-    response["Content-Disposition"] = f'attachment; filename="pricematch-date-{timezone.localdate().isoformat()}.xlsx"'
-    return response
 
 
 def dashboard(request):
@@ -237,19 +162,6 @@ def dashboard(request):
             "document_count": document_count,
             "inventory_count": inventory_count,
         },
-    )
-
-
-def readiness(request):
-    report = system_readiness()
-    return render(request, "comparator/readiness.html", {"report": report})
-
-
-def operations(request):
-    return render(
-        request,
-        "comparator/operations.html",
-        {"summary": operation_summary()},
     )
 
 
