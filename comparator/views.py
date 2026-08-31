@@ -11,7 +11,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Max, Min, OuterRef, Q, Subquery
+from django.db.models import Count, F, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -1402,10 +1402,18 @@ def invoice_list(request):
     query = request.GET.get("q", "").strip()[:100]
     selected_status = request.GET.get("status", "").strip()
     selected_type = request.GET.get("type", "").strip()
-    invoices = (
-        Invoice.objects.select_related("supplier")
-        .prefetch_related("lines", "processing_jobs")
-        .annotate(line_count=Count("lines"))
+    invoices = Invoice.objects.select_related("supplier").prefetch_related(
+        "lines",
+        Prefetch(
+            "processing_jobs",
+            queryset=DocumentProcessingJob.objects.filter(
+                status__in=[
+                    DocumentProcessingJob.Status.PENDING,
+                    DocumentProcessingJob.Status.RUNNING,
+                ]
+            ),
+            to_attr="active_processing_jobs",
+        ),
     )
     if query:
         invoices = invoices.filter(Q(supplier__name__icontains=query) | Q(number__icontains=query))
@@ -1419,6 +1427,12 @@ def invoice_list(request):
         selected_type = ""
     invoices = invoices.order_by("-issued_at", "-created_at")
     page_obj = Paginator(invoices, 100).get_page(request.GET.get("page"))
+    for invoice in page_obj.object_list:
+        lines = list(invoice.lines.all())
+        invoice.line_count = len(lines)
+        invoice._prefetched_merchandise_total_gross = sum(
+            (line.merchandise_total_gross for line in lines), Decimal("0")
+        )
     return render(
         request,
         "comparator/invoice_list.html",
@@ -1473,7 +1487,7 @@ def invoice_create(request):
 
 def invoice_detail(request, pk):
     invoice = get_object_or_404(
-        Invoice.objects.select_related("supplier").prefetch_related("lines", "processing_jobs"),
+        Invoice.objects.select_related("supplier"),
         pk=pk,
     )
     comparison_lines = list(

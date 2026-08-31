@@ -1,10 +1,12 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from comparator.models import (
     BaseUnit,
+    DocumentProcessingJob,
     Invoice,
     InvoiceLine,
     MetroOffer,
@@ -90,3 +92,18 @@ class QueryPerformanceTests(TestCase):
             comparisons = [line.comparison() for line in lines]
 
         self.assertEqual(comparisons[0]["status"], "MAI_SCUMP")
+
+    def test_invoice_list_prefetches_only_active_processing_jobs(self):
+        DocumentProcessingJob.objects.create(
+            invoice=self.invoice,
+            status=DocumentProcessingJob.Status.COMPLETED,
+        )
+        active_job = DocumentProcessingJob.objects.create(invoice=self.invoice)
+        admin = get_user_model().objects.create_superuser("query-admin", password="Strong-test-password-2026!")
+        self.client.force_login(admin)
+
+        response = self.client.get("/app/facturi/")
+
+        listed_invoice = response.context["page_obj"].object_list[0]
+        self.assertEqual(listed_invoice.line_count, 1)
+        self.assertEqual(listed_invoice.active_processing_jobs, [active_job])
