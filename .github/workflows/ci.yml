@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Teste și calitate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pricecompare
+          POSTGRES_USER: pricecompare
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pricecompare -d pricecompare"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret-key-with-more-than-fifty-characters-2026
+      DJANGO_DEBUG: "0"
+      DJANGO_PRODUCTION: "0"
+      DJANGO_TESTING: "1"
+      DB_ENGINE: postgresql
+      DB_NAME: pricecompare
+      DB_USER: pricecompare
+      DB_PASSWORD: ci-postgres-password
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      MFA_REQUIRED: "0"
+      OLLAMA_ENABLED: "0"
+      METRO_API_ENABLED: "0"
+      METRO_SELENIUM_ENABLED: "0"
+      METRO_AUTOMATION_ENABLED: "0"
+    steps:
+      - name: Checkout fără credențiale persistente
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Dependențe
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Analiză statică de bază
+        run: ruff check comparator pricecompare
+      - name: Migrații și configurare Django
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py check
+      - name: Verificări pentru producție
+        env:
+          DJANGO_PRODUCTION: "1"
+          PRICEMATCH_ENVIRONMENT: production
+          DJANGO_ALLOWED_HOSTS: ci.example.test
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://ci.example.test
+          DJANGO_TRUST_PROXY: "1"
+          DJANGO_TRUSTED_PROXY_IPS: 127.0.0.1,::1
+        run: python manage.py check --deploy
+      - name: Teste pe PostgreSQL și acoperire
+        run: |
+          coverage run manage.py test --verbosity 1
+          coverage report --fail-under=70
+
+  security:
+    name: Dependențe și securitate statică
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout fără credențiale persistente
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Instrumente de audit
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Vulnerabilități cunoscute
+        run: pip-audit --requirement requirements.txt
+      - name: Modele Python periculoase
+        run: bandit --quiet --recursive comparator pricecompare --exclude comparator/tests --severity-level medium
