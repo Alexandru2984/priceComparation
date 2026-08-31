@@ -1,4 +1,6 @@
 import json
+import gzip
+import tarfile
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -32,6 +34,7 @@ from comparator.services.invoices import sync_supplier_offer_from_line
 from comparator.services.matching import suggest_product
 from comparator.services.metro_scraper import store_captured_rows
 from comparator.services.ocr import merge_ocr_pages
+from comparator.management.commands.restore_pricematch import file_sha256, safe_members
 
 
 class CostAndLearningTests(TestCase):
@@ -454,3 +457,40 @@ class OCRAndBackupTests(TestCase):
             call_command("verify_backup_restore", backups[0], verbosity=0)
             with self.assertRaises(CommandError):
                 call_command("restore_pricematch", backups[0])
+
+    def test_restore_rejects_unexpected_manifest_files_before_touching_database(self):
+        marker = Product.objects.create(name="Rămâne intact", base_unit="BUC")
+        with TemporaryDirectory() as directory:
+            backup = Path(directory)
+            data_path = backup / "data.json.gz"
+            with gzip.open(data_path, "wt", encoding="utf-8") as handle:
+                handle.write("[]")
+            manifest = {
+                "format": 1,
+                "files": {
+                    "data.json.gz": file_sha256(data_path),
+                    "../outside": "0" * 64,
+                },
+            }
+            (backup / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesMessage(CommandError, "fișiere nepermise"):
+                call_command("restore_pricematch", backup, confirm="RESTORE", without_media=True)
+
+        self.assertTrue(Product.objects.filter(pk=marker.pk).exists())
+
+    def test_restore_rejects_traversal_links_and_special_archive_members(self):
+        with TemporaryDirectory() as directory:
+            destination = Path(directory)
+            for member in (
+                tarfile.TarInfo("../escape"),
+                tarfile.TarInfo("link"),
+                tarfile.TarInfo("device"),
+            ):
+                archive = type("Archive", (), {"getmembers": lambda self, item=member: [item]})()
+                if member.name == "link":
+                    member.type = tarfile.SYMTYPE
+                elif member.name == "device":
+                    member.type = tarfile.CHRTYPE
+                with self.assertRaises(CommandError):
+                    list(safe_members(archive, destination))

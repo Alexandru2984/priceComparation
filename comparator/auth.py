@@ -27,6 +27,7 @@ def staff_member_required(view_func):
                 return mfa_response
         return protected(request, *args, **kwargs)
 
+    wrapped.pricematch_access_role = "operator"
     return wrapped
 
 
@@ -40,4 +41,5 @@ def app_admin_required(view_func):
             raise PermissionDenied("Această operație necesită rolul de administrator PriceMatch.")
         return protected(request, *args, **kwargs)
 
+    wrapped.pricematch_access_role = "admin"
     return wrapped

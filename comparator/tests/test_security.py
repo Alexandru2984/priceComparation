@@ -3,8 +3,10 @@ from datetime import date
 from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
+from django.core.checks import run_checks, Tags
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, RequestFactory, TestCase, override_settings
+from django.urls import get_resolver
 from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from PIL import Image
@@ -109,6 +111,19 @@ class AccessControlTests(TestCase):
 
         self.assertFalse(settings.AXES_ONLY_ADMIN_SITE)
 
+    def test_every_private_route_declares_an_access_role(self):
+        comparator_resolver = next(
+            pattern
+            for pattern in get_resolver().url_patterns
+            if getattr(pattern, "namespace", None) == "comparator"
+        )
+        missing = []
+        for pattern in comparator_resolver.url_patterns:
+            role = getattr(pattern.callback, "pricematch_access_role", None)
+            if role not in {"operator", "admin"}:
+                missing.append(str(pattern.pattern))
+        self.assertEqual(missing, [])
+
     @override_settings(
         TRUST_REVERSE_PROXY=True,
         TRUSTED_REVERSE_PROXY_IPS={"127.0.0.1"},
@@ -191,3 +206,53 @@ class UploadSecurityTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertIn("attachment", response["Content-Disposition"])
                 self.assertEqual(response["Cache-Control"], "private, no-store")
+
+
+class DeploymentSecurityCheckTests(TestCase):
+    @override_settings(
+        PRODUCTION=True,
+        DEPLOYMENT_ENVIRONMENT="test",
+        DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
+        ALLOWED_HOSTS=["*"],
+        CSRF_TRUSTED_ORIGINS=["http://preturi.example.ro"],
+        TRUST_REVERSE_PROXY=True,
+        TRUSTED_REVERSE_PROXY_IPS={"proxy.invalid"},
+        OLLAMA_ENABLED=True,
+        OLLAMA_URL="http://ollama.example.net:11434",
+        METRO_START_URL="http://evil.example/shop",
+        METRO_SELENIUM_ENABLED=True,
+    )
+    def test_deployment_checks_reject_dangerous_configuration(self):
+        issues = run_checks(tags=[Tags.security], include_deployment_checks=True)
+        issue_ids = {issue.id for issue in issues}
+
+        self.assertTrue(
+            {
+                "pricematch.E001",
+                "pricematch.E002",
+                "pricematch.E003",
+                "pricematch.E004",
+                "pricematch.E005",
+                "pricematch.E006",
+                "pricematch.E007",
+                "pricematch.W001",
+            }.issubset(issue_ids)
+        )
+
+    @override_settings(
+        PRODUCTION=True,
+        DEPLOYMENT_ENVIRONMENT="production",
+        DATABASES={"default": {"ENGINE": "django.db.backends.postgresql"}},
+        ALLOWED_HOSTS=["preturi.example.ro"],
+        CSRF_TRUSTED_ORIGINS=["https://preturi.example.ro"],
+        TRUST_REVERSE_PROXY=True,
+        TRUSTED_REVERSE_PROXY_IPS={"127.0.0.1", "::1"},
+        OLLAMA_ENABLED=True,
+        OLLAMA_URL="http://127.0.0.1:11434",
+        METRO_START_URL="https://produse.metro.ro/shop",
+        METRO_SELENIUM_ENABLED=False,
+    )
+    def test_deployment_checks_accept_hardened_configuration(self):
+        issues = run_checks(tags=[Tags.security], include_deployment_checks=True)
+
+        self.assertFalse([issue for issue in issues if issue.id.startswith("pricematch.")])
