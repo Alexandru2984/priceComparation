@@ -14,8 +14,9 @@ fișierele private, PostgreSQL, OCR/Ollama, scraperul METRO și istoricul Git pe
   temporar combinația utilizator/IP după 5 autentificări eșuate;
 - prin reverse proxy, IP-ul clientului este acceptat numai din `X-Real-IP` rescris de un proxy aflat în
   `DJANGO_TRUSTED_PROXY_IPS`; un header trimis de altă sursă este ignorat;
-- nu există înregistrare publică; conturile staff se creează, listează, dezactivează și resetează MFA numai
-  prin comenzi locale, iar User/Group nu pot fi administrate din interfața Django Admin;
+- nu există înregistrare publică; conturile staff se creează, listează, activează, dezactivează, schimbă ca
+  rol, deloghează forțat și resetează MFA numai prin comenzi locale, iar User/Group nu pot fi administrate
+  din interfața Django Admin; ultimul administrator activ este protejat;
 - rolul operator este separat de administrator; configurarea, importurile sensibile, stocul, scanările
   METRO și ștergerea documentelor cer administrator;
 - cererile private care modifică date sunt jurnalizate cu utilizator, rută, rezultat și IP, fără corpul
@@ -55,6 +56,10 @@ fișierele private, PostgreSQL, OCR/Ollama, scraperul METRO și istoricul Git pe
   `pip-audit` și Bandit; acțiunile sunt fixate la SHA, cu `contents: read`, iar Dependabot verifică săptămânal;
 - `pip-audit` nu a găsit vulnerabilități cunoscute în dependențele declarate;
 - Bandit nu a găsit probleme de severitate medie sau mare.
+- paginile 400/403/404/500 sunt controlate și nu afișează motive interne, excepții sau căi cerute;
+- centrul administrativ de operare afișează numai agregate și configurații nesensibile;
+- auditul de integritate și comanda `verify_pricematch` blochează lansarea pentru migrații, configurări,
+  lipsa unui administrator activ ori date care ar compromite comparațiile;
 
 ## Constatări remediate în auditul complet
 

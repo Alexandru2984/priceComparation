@@ -69,11 +69,20 @@ un utilizator `staff`. Conturile se creează numai din terminal, cu parolă ceru
 .venv/bin/python manage.py create_staff_user PROPRIETAR --role admin
 .venv/bin/python manage.py create_staff_user OPERATOR --role operator
 .venv/bin/python manage.py list_staff_users
+.venv/bin/python manage.py disable_staff_user OPERATOR
+.venv/bin/python manage.py enable_staff_user OPERATOR
+.venv/bin/python manage.py set_staff_role OPERATOR admin --confirm
+.venv/bin/python manage.py revoke_staff_sessions OPERATOR --confirm
+.venv/bin/python manage.py reset_staff_mfa OPERATOR --confirm
+.venv/bin/python manage.py changepassword OPERATOR
 ```
 
 Administratorul configurează furnizorii, catalogul, METRO, stocul și importurile și poate șterge
 documente. Operatorul poate încărca facturi/bonuri, corecta OCR-ul, consulta prețurile și lucra cu listele
 de cumpărături. Toate operațiile private care modifică date apar în `Jurnal`, fără conținutul formularelor.
+Nu există rută de creare cont în site, iar utilizatorii și grupurile nu sunt editabile din Django Admin.
+Schimbarea rolului, resetarea MFA și revocarea sesiunilor cer intervenție din terminal; ultimul administrator
+activ nu poate fi dezactivat sau retrogradat.
 
 Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
@@ -451,6 +460,8 @@ Scanarea țintită caută produsele active din stoc și listele de cumpărături
 
 ```bash
 .venv/bin/python manage.py test
+.venv/bin/python manage.py audit_data_integrity
+.venv/bin/python manage.py verify_pricematch
 ```
 
 Pentru aceeași suită de calitate folosită în CI:
@@ -466,6 +477,10 @@ Pentru aceeași suită de calitate folosită în CI:
 
 GitHub Actions rulează automat aceste verificări pe PostgreSQL la fiecare push și pull request. Dependabot
 verifică săptămânal pachetele Python și versiunile acțiunilor din workflow.
+
+Administratorul are în meniul `Operare` un rezumat fără secrete al conturilor, MFA, cozilor OCR,
+scanărilor METRO, jurnalului și integrității datelor. Înainte de publicare rulează
+`verify_pricematch --deploy --fail-on-warnings` cu exact variabilele mediului de producție.
 
 Pentru a măsura parserul pe documentele tale reale fără a le trimite nicăieri, copiază manifestul exemplu,
 adaugă lângă el fotografiile/PDF-urile și rulează:

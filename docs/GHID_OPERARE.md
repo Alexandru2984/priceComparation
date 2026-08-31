@@ -15,6 +15,8 @@ systemctl list-timers 'pricematch-*'
 Răspunsul normal este `active`. Aplicația locală este la `http://127.0.0.1:8010`, iar din rețeaua locală
 la adresa HTTPS configurată în Caddy. După login, pagina `Stare` verifică PostgreSQL, Tesseract, Ollama,
 backupul, spațiul pe disc, METRO și MFA.
+Pagina `Operare`, disponibilă numai administratorului, arată agregatele conturilor și MFA, cozile de
+procesare, scanările METRO, evenimentele refuzate și auditul de integritate, fără secrete sau date din bonuri.
 
 Dacă ai schimbat codul sau `.env`:
 
@@ -246,9 +248,35 @@ Raportul Excel poate fi descărcat din `Raport` sau generat manual:
 .venv/bin/python manage.py test
 .venv/bin/python manage.py check --deploy
 .venv/bin/python manage.py makemigrations --check --dry-run
+.venv/bin/python manage.py audit_data_integrity
+.venv/bin/python manage.py verify_pricematch
 ```
 
-## 8. Depanare rapidă
+În mediul final, poarta strictă este:
+
+```bash
+.venv/bin/python manage.py verify_pricematch --deploy --fail-on-warnings
+```
+
+## 8. Conturi administrate numai din terminal
+
+Site-ul nu permite înregistrarea și nici editarea utilizatorilor din Django Admin. Folosește numai comenzile:
+
+```bash
+.venv/bin/python manage.py create_staff_user NUME --role operator
+.venv/bin/python manage.py list_staff_users
+.venv/bin/python manage.py disable_staff_user NUME
+.venv/bin/python manage.py enable_staff_user NUME
+.venv/bin/python manage.py set_staff_role NUME admin --confirm
+.venv/bin/python manage.py revoke_staff_sessions NUME --confirm
+.venv/bin/python manage.py reset_staff_mfa NUME --confirm
+.venv/bin/python manage.py changepassword NUME
+```
+
+Dezactivarea și schimbarea rolului revocă sesiunile relevante. Ultimul administrator activ este protejat.
+Nu șterge conturile care apar în jurnal; dezactivează-le pentru a păstra trasabilitatea.
+
+## 9. Depanare rapidă
 
 ### Scraperul spune că există deja o scanare activă
 
