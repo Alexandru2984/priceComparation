@@ -1,0 +1,37 @@
+[Unit]
+Description=PriceMatch staging Django application
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pricematch-staging
+Group=pricematch-staging
+WorkingDirectory=/srv/pricematch-staging
+EnvironmentFile=/etc/pricematch/staging.env
+ExecStartPre=/srv/pricematch-staging/.venv/bin/python manage.py check --deploy
+ExecStartPre=/srv/pricematch-staging/.venv/bin/python manage.py migrate --noinput
+ExecStartPre=/srv/pricematch-staging/.venv/bin/python manage.py collectstatic --noinput
+ExecStart=/srv/pricematch-staging/.venv/bin/gunicorn pricecompare.wsgi:application --bind 127.0.0.1:8020 --workers 2 --timeout 180 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/pricematch-staging/media /srv/pricematch-staging/backups /srv/pricematch-staging/data /srv/pricematch-staging/staticfiles /srv/pricematch-staging/reports
+
+[Install]
+WantedBy=multi-user.target

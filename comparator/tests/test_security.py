@@ -87,6 +87,11 @@ class AccessControlTests(TestCase):
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
         self.assertIn("camera=()", response["Permissions-Policy"])
 
+    @override_settings(DEPLOYMENT_ENVIRONMENT="staging")
+    def test_staging_environment_is_visibly_marked(self):
+        response = self.client.get("/")
+        self.assertContains(response, "MEDIU DE TEST")
+
     def test_login_and_mfa_pages_are_never_cached(self):
         response = self.client.get("/account/login/")
         self.assertEqual(response.status_code, 200)

@@ -38,6 +38,7 @@
       <a class="button primary small" href="{% url 'two_factor:login' %}?next={% url 'comparator:dashboard' %}">Login admin</a>
     {% endif %}
   </header>
+  {% if deployment_environment == "staging" %}<div class="staging-banner">MEDIU DE TEST · Nu introduce documente sau secrete reale</div>{% endif %}
 
   <main class="container">
     {% if messages %}

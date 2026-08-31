@@ -1,0 +1,6 @@
+# Adaugă această regulă înainte de fallbackul http_status:404 din tunnel-ul existent.
+- hostname: staging.preturi.example.ro
+  service: http://127.0.0.1:8081
+  originRequest:
+    httpHostHeader: staging.preturi.example.ro
+    connectTimeout: 10s

@@ -1,0 +1,33 @@
+[Unit]
+Description=PriceMatch staging document worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pricematch-staging
+Group=pricematch-staging
+WorkingDirectory=/srv/pricematch-staging
+EnvironmentFile=/etc/pricematch/staging.env
+ExecStart=/srv/pricematch-staging/.venv/bin/python manage.py process_document_queue --poll-seconds 2
+Restart=always
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/pricematch-staging/media /srv/pricematch-staging/data
+
+[Install]
+WantedBy=multi-user.target
