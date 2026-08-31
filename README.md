@@ -45,6 +45,8 @@ Pentru o copie criptată în afara VPS-ului folosește [ghidul de backup restic]
 - backup comprimat, verificat SHA-256 și restaurare izolată de test;
 - retenție automată pentru sesiuni, jurnal, staging METRO, joburi tehnice și versiuni OCR vechi;
 - paginare pentru cataloagele mari și căutare locală autocomplete, fără încărcarea miilor de opțiuni în HTML.
+- interogări cu preîncărcare controlată și indexuri PostgreSQL pentru dashboard, documente, potriviri și
+  ofertele METRO curente, protejate prin teste care refuză reapariția query-urilor per produs.
 
 ## Instalare rapidă pe Ubuntu/Debian
 
@@ -477,6 +479,8 @@ Pentru aceeași suită de calitate folosită în CI:
 
 GitHub Actions rulează automat aceste verificări pe PostgreSQL la fiecare push și pull request. Dependabot
 verifică săptămânal pachetele Python și versiunile acțiunilor din workflow.
+Suita include bugete explicite de interogări pentru potriviri, comparații și sursele de aprovizionare;
+adăugarea mai multor produse nu trebuie să crească numărul de query-uri executate de fiecare rând.
 
 Administratorul are în meniul `Operare` un rezumat fără secrete al conturilor, MFA, cozilor OCR,
 scanărilor METRO, jurnalului și integrității datelor. Înainte de publicare rulează
