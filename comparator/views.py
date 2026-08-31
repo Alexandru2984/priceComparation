@@ -534,6 +534,8 @@ def product_detail(request, pk):
 
 
 def price_alert_list(request):
+    if request.method == "POST" and not request.user.is_superuser:
+        raise PermissionDenied("Configurarea alertelor necesită rolul de administrator PriceMatch.")
     form = PriceAlertForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -709,6 +711,8 @@ def shopping_list_item_delete(request, pk):
 
 
 def inventory_index(request):
+    if request.method == "POST" and not request.user.is_superuser:
+        raise PermissionDenied("Configurarea stocului necesită rolul de administrator PriceMatch.")
     instance = None
     posted_product = request.POST.get("product", "") if request.method == "POST" else ""
     if posted_product.isdigit():

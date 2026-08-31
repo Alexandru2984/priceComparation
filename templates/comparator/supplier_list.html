@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Furnizori · PriceMatch{% endblock %}
 {% block content %}
-<div class="page-head"><div><p class="eyebrow">Administrare</p><h1>Furnizori</h1></div><div class="actions"><a class="button" href="{% url 'comparator:supplier_price_import_create' %}">Importă listă de preț</a><a class="button primary" href="{% url 'comparator:supplier_create' %}">+ Furnizor</a></div></div>
+<div class="page-head"><div><p class="eyebrow">Administrare</p><h1>Furnizori</h1></div>{% if request.user.is_superuser %}<div class="actions"><a class="button" href="{% url 'comparator:supplier_price_import_create' %}">Importă listă de preț</a><a class="button primary" href="{% url 'comparator:supplier_create' %}">+ Furnizor</a></div>{% endif %}</div>
 <section class="panel table-wrap">
   <table><thead><tr><th>Denumire</th><th>Tip</th><th>CUI</th><th>Documente</th><th>Observații</th><th></th></tr></thead>
-  <tbody>{% for supplier in suppliers %}<tr><td><strong>{{ supplier.name }}</strong></td><td>{% if supplier.is_metro %}<span class="badge processed">METRO</span>{% else %}Alt furnizor{% endif %}</td><td>{{ supplier.tax_id|default:"—" }}</td><td>{{ supplier.invoice_count }}</td><td>{{ supplier.notes|truncatechars:80|default:"—" }}</td><td><a href="{% url 'comparator:supplier_parsing_profile' supplier.pk %}">Profil parsare</a></td></tr>{% empty %}<tr><td colspan="6" class="empty">Adaugă primul furnizor.</td></tr>{% endfor %}</tbody></table>
+  <tbody>{% for supplier in suppliers %}<tr><td><strong>{{ supplier.name }}</strong></td><td>{% if supplier.is_metro %}<span class="badge processed">METRO</span>{% else %}Alt furnizor{% endif %}</td><td>{{ supplier.tax_id|default:"—" }}</td><td>{{ supplier.invoice_count }}</td><td>{{ supplier.notes|truncatechars:80|default:"—" }}</td><td>{% if request.user.is_superuser %}<a href="{% url 'comparator:supplier_parsing_profile' supplier.pk %}">Profil parsare</a>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="empty">Nu există furnizori.</td></tr>{% endfor %}</tbody></table>
 </section>
 {% endblock %}

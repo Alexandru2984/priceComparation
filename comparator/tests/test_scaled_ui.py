@@ -10,8 +10,8 @@ from comparator.models import Invoice, InvoiceLine, MetroOffer, PriceAlert, Prod
 class ScaledCatalogViewsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.staff = get_user_model().objects.create_user(
-            username="scale-admin", password="A-test-password-2026!", is_staff=True
+        cls.staff = get_user_model().objects.create_superuser(
+            username="scale-admin", password="A-test-password-2026!"
         )
         cls.products = [
             Product(name=f"Produs scalare {index:03d}", brand="Test", base_unit="BUC")

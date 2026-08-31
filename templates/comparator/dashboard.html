@@ -9,7 +9,7 @@
   </div>
   <div class="actions">
     <a class="button primary" href="{% url 'comparator:invoice_create' %}">Adaugă factură sau bon</a>
-    <a class="button" href="{% url 'comparator:metro_offer_create' %}">Adaugă preț METRO</a>
+    {% if request.user.is_superuser %}<a class="button" href="{% url 'comparator:metro_offer_create' %}">Adaugă preț METRO</a>{% endif %}
     <a class="button" href="{% url 'comparator:readiness' %}">Verifică sistemul</a>
   </div>
 </section>
@@ -63,7 +63,7 @@
 </div>
 
 <div class="grid two dashboard-secondary">
-  <section class="panel"><div class="panel-head"><h2>Alerte declanșate</h2><a href="{% url 'comparator:price_alert_list' %}">Configurează</a></div><div class="list">{% for alert in triggered_alerts %}<a class="list-row" href="{% url 'comparator:product_detail' alert.product_id %}"><div><strong>{{ alert.product.name }}</strong><small>Prag {{ alert.target_price|floatformat:2 }} lei/{{ alert.product.base_unit }}</small></div><span class="badge processed">PREȚ BUN</span></a>{% empty %}<div class="empty">Nicio alertă declanșată.</div>{% endfor %}</div></section>
+  <section class="panel"><div class="panel-head"><h2>Alerte declanșate</h2><a href="{% url 'comparator:price_alert_list' %}">{% if request.user.is_superuser %}Configurează{% else %}Vezi toate{% endif %}</a></div><div class="list">{% for alert in triggered_alerts %}<a class="list-row" href="{% url 'comparator:product_detail' alert.product_id %}"><div><strong>{{ alert.product.name }}</strong><small>Prag {{ alert.target_price|floatformat:2 }} lei/{{ alert.product.base_unit }}</small></div><span class="badge processed">PREȚ BUN</span></a>{% empty %}<div class="empty">Nicio alertă declanșată.</div>{% endfor %}</div></section>
   <section class="panel"><div class="panel-head"><h2>Schimbări recente METRO</h2></div><div class="list">{% for change in metro_changes %}<a class="list-row" href="{% url 'comparator:product_detail' change.offer.product_id %}"><div><strong>{{ change.offer.product.name }}</strong><small>{{ change.previous.price_per_base_unit|floatformat:2 }} → {{ change.offer.price_per_base_unit|floatformat:2 }} lei/{{ change.offer.product.base_unit }}</small></div><span class="money {% if change.percent < 0 %}mai_ieftin{% else %}mai_scump{% endif %}">{{ change.percent|floatformat:1 }}%</span></a>{% empty %}<div class="empty">Nu există încă două capturi comparabile.</div>{% endfor %}</div></section>
 </div>
 
