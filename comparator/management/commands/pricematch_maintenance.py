@@ -26,6 +26,7 @@ class Command(BaseCommand):
             help="Pornește scanarea completă sau țintită numai dacă intervalul configurat a expirat.",
         )
         parser.add_argument("--skip-notifications", action="store_true")
+        parser.add_argument("--skip-cleanup", action="store_true")
         parser.add_argument("--backup-output", type=Path, default=Path(settings.BASE_DIR) / "backups")
         parser.add_argument("--store", default=settings.METRO_STORE_QUERY)
 
@@ -93,6 +94,10 @@ class Command(BaseCommand):
             if not options["skip_backup"]:
                 call_command("backup_pricematch", output=options["backup_output"])
                 actions.append("backup verificat creat")
+
+            if not options["skip_cleanup"]:
+                call_command("cleanup_pricematch", confirm=True, verbosity=0)
+                actions.append("date tehnice expirate curățate")
 
             scan_requested = options["scan_metro"] or options["scheduled_metro"] or settings.METRO_AUTOMATION_ENABLED
             if scan_requested:

@@ -36,7 +36,8 @@ Pentru publicarea pe VPS-ul existent, cu Nginx și Cloudflare Tunnel, urmează
 - raport operațional săptămânal în interfață și Excel, generat automat lunea;
 - scanări METRO automate țintite/complet și coadă pentru abateri mari de preț;
 - MFA cu aplicație TOTP pentru publicare pe internet;
-- backup comprimat, verificat SHA-256 și restaurare izolată de test.
+- backup comprimat, verificat SHA-256 și restaurare izolată de test;
+- retenție automată pentru sesiuni, jurnal, staging METRO, joburi tehnice și versiuni OCR vechi;
 - paginare pentru cataloagele mari și căutare locală autocomplete, fără încărcarea miilor de opțiuni în HTML.
 
 ## Instalare rapidă pe Ubuntu/Debian
@@ -420,6 +421,18 @@ Pentru cron sau timerul systemd inclus, comanda periodică face backupul, verifi
 # backup + actualizare completă METRO
 .venv/bin/python manage.py pricematch_maintenance --scan-metro --store Targoviste
 ```
+
+Mentenanța rulează curățarea după backup și elimină numai date tehnice expirate. Poți vedea întâi exact
+ce ar fi eliminat, fără nicio modificare:
+
+```bash
+.venv/bin/python manage.py cleanup_pricematch
+.venv/bin/python manage.py cleanup_pricematch --confirm
+```
+
+Facturile, bonurile, produsele, prețurile confirmate, stocul și fișierele documentelor nu sunt șterse.
+Retenția este configurabilă prin `ACTIVITY_LOG_RETENTION_DAYS`, `TECHNICAL_DATA_RETENTION_DAYS` și
+`INVOICE_REVISION_LIMIT`.
 
 Scanarea țintită caută produsele active din stoc și listele de cumpărături; cea completă rulează implicit la 7 zile. Aplicația refuză suprapunerea scanărilor și trimite schimbările mai mari decât `METRO_PRICE_ANOMALY_PERCENT` în pagina „Abateri de preț”. Păstrează directorul `backups/` în afara Git, pe un disc separat.
 

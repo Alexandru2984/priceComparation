@@ -35,6 +35,8 @@ fișierele private, configurarea PostgreSQL, scraperul METRO și configurația V
 - camera este permisă prin Permissions-Policy exclusiv pe pagina privată a scannerului EAN;
 - EAN/GTIN este validat prin cifra de control, iar codurile duplicate sunt refuzate;
 - backupurile locale sunt comprimate, au permisiuni restrictive și manifest SHA-256;
+- mentenanța curăță după backup sesiunile expirate și datele tehnice care depășesc retenția, fără să
+  elimine documente, produse, prețuri confirmate ori mișcări de stoc;
 - `verify_backup_restore` probează restaurarea completă într-o bază temporară izolată;
 - restaurarea refuză arhive cu căi nesigure și cere confirmarea literală `RESTORE`;
 - secretele și configurația bazei rămân în `.env`, exclus din Git;
