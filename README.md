@@ -32,6 +32,7 @@ Pentru publicarea pe VPS-ul existent, cu Nginx și Cloudflare Tunnel, urmează
 - scanare EAN/GTIN din browserul telefonului, cu introducere manuală de rezervă;
 - stoc auditat, reaprovizionare și optimizarea comenzilor după bax, transport, prag și buget;
 - import cu previzualizare pentru listele de preț CSV/XLSX și exporturi POS idempotente;
+- import inițial XLSX, cu foi separate pentru furnizori, produse și stoc și aplicare idempotentă;
 - marjă netă cu TVA, pierderi estimate și recomandare de preț la raft;
 - raport operațional săptămânal în interfață și Excel, generat automat lunea;
 - scanări METRO automate țintite/complet și coadă pentru abateri mari de preț;
@@ -72,6 +73,11 @@ de cumpărături. Toate operațiile private care modifică date apar în `Jurnal
 Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
 rolul `pricecompare`. Pentru autentificare locală `peer`, lasă `DB_PASSWORD` și `DB_HOST` goale și setează
 `DB_USER` la utilizatorul Linux care rulează aplicația. SQLite rămâne disponibil cu `DB_ENGINE=sqlite`.
+
+Pentru mutarea datelor existente din Excel, autentifică-te ca administrator și intră în `Import inițial`.
+Descarcă șablonul XLSX, completează foile `Furnizori`, `Produse` și `Stoc`, apoi verifică previzualizarea.
+Rândurile greșite sunt omise, iar confirmarea nu poate dubla stocul dacă același fișier este trimis din nou.
+EAN-ul este recomandat în foaia de stoc pentru o asociere fără ambiguități.
 
 Pentru acces din internet setează `MFA_REQUIRED=1`. După autentificarea cu parola, aplicația te trimite la
 `/account/two_factor/setup/`: scanează codul QR cu o aplicație TOTP și salvează codurile de recuperare în

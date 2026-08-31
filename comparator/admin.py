@@ -11,6 +11,7 @@ from .models import (
     Invoice,
     InvoiceLine,
     InvoiceRevision,
+    InitialDataImport,
     InventoryItem,
     MetroOffer,
     MetroOfferTier,
@@ -123,6 +124,7 @@ admin.site.register(PushSubscription)
 admin.site.register(DocumentProcessingJob)
 admin.site.register(MetroPriceAnomaly)
 admin.site.register(AutomationRun)
+admin.site.register(InitialDataImport)
 
 
 @admin.register(ActivityLog)

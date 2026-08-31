@@ -48,6 +48,34 @@ class ActivityLog(models.Model):
         return f"{actor} · {self.method} {self.path} · {self.status_code}"
 
 
+class InitialDataImport(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Previzualizare"
+        APPLIED = "APPLIED", "Aplicat"
+
+    original_filename = models.CharField(max_length=255)
+    file_hash = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    rows = models.JSONField(default=list)
+    row_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="initial_data_imports",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.original_filename} · {self.get_status_display()}"
+
+
 class Supplier(models.Model):
     name = models.CharField("denumire", max_length=180, unique=True)
     tax_id = models.CharField("CUI", max_length=30, blank=True)

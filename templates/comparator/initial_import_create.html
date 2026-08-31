@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Import inițial · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Pornire controlată</p><h1>Import inițial din Excel</h1><p>Încarcă furnizorii, produsele și stocul într-un singur registru. Vezi toate erorile înainte de aplicare.</p></div><a class="button primary" href="{% url 'comparator:initial_import_template' %}">Descarcă șablonul XLSX</a></div>
+<section class="panel form-panel"><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}<small>{{ field.help_text }}</small></div>{% endfor %}<div class="form-actions"><button class="button primary">Generează previzualizarea</button></div></form></section>
+{% if recent_imports %}<section class="panel"><div class="panel-head"><h2>Importuri recente</h2></div><div class="list">{% for item in recent_imports %}<a class="list-row" href="{% url 'comparator:initial_import_detail' item.pk %}"><div><strong>{{ item.original_filename }}</strong><small>{{ item.created_at|date:"d.m.Y H:i" }} · {{ item.row_count }} rânduri · {{ item.warning_count }} avertismente</small></div><span class="badge {% if item.status == 'APPLIED' %}processed{% else %}new{% endif %}">{{ item.get_status_display }}</span></a>{% endfor %}</div></section>{% endif %}
+{% endblock %}

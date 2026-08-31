@@ -134,6 +134,21 @@ class SalesImportUploadForm(forms.Form):
     )
 
 
+class InitialDataImportForm(forms.Form):
+    file = forms.FileField(
+        label="Registru inițial XLSX",
+        validators=[validate_price_list_upload],
+        widget=forms.ClearableFileInput(attrs={"accept": ".xlsx"}),
+        help_text="Folosește șablonul cu foile Furnizori, Produse și Stoc.",
+    )
+
+    def clean_file(self):
+        upload = self.cleaned_data["file"]
+        if not upload.name.lower().endswith(".xlsx"):
+            raise forms.ValidationError("Importul inițial acceptă numai registrul XLSX.")
+        return upload
+
+
 class SalesImportLineForm(forms.ModelForm):
     product = forms.ModelChoiceField(
         label="Produs din catalog",

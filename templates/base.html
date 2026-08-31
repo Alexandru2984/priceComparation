@@ -28,7 +28,7 @@
         <a href="{% url 'comparator:notification_settings' %}">Notificări</a>
         <a href="{% url 'comparator:supplier_list' %}">Furnizori</a>
         <a href="{% url 'comparator:readiness' %}">Stare</a>
-        {% if user.is_superuser %}<a href="{% url 'comparator:activity_log' %}">Jurnal</a>{% endif %}
+        {% if user.is_superuser %}<a href="{% url 'comparator:initial_import_create' %}">Import inițial</a><a href="{% url 'comparator:activity_log' %}">Jurnal</a>{% endif %}
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
       <a href="{% url 'two_factor:profile' %}">MFA</a>

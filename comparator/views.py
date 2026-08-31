@@ -20,6 +20,7 @@ from .forms import (
     InvoiceForm,
     InvoiceEditForm,
     DocumentPagesForm,
+    InitialDataImportForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
     InventoryItemForm,
@@ -42,6 +43,7 @@ from .models import (
     BaseUnit,
     DocumentPage,
     DocumentProcessingJob,
+    InitialDataImport,
     Invoice,
     InvoiceLine,
     InvoiceRevision,
@@ -78,6 +80,7 @@ from .services.invoices import (
     sync_supplier_offer_from_line,
 )
 from .services.inventory import create_replenishment_list, inventory_with_balance, sync_invoice_stock, sync_stock_from_line
+from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
 from .services.health import system_readiness
 from .services.exports import build_catalog_csv, build_catalog_xlsx
 from .services.matching import apply_match
@@ -259,6 +262,79 @@ def invoice_evaluation_toggle(request, pk):
 def supplier_list(request):
     suppliers = Supplier.objects.annotate(invoice_count=Count("invoices"))
     return render(request, "comparator/supplier_list.html", {"suppliers": suppliers})
+
+
+def initial_import_template(request):
+    response = HttpResponse(
+        build_initial_workbook_template(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="pricematch-import-initial.xlsx"'
+    return response
+
+
+def initial_import_create(request):
+    form = InitialDataImportForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        upload = form.cleaned_data["file"]
+        try:
+            file_hash, rows = parse_initial_workbook(upload)
+        except (OSError, ValueError) as exc:
+            form.add_error("file", str(exc))
+        else:
+            existing = InitialDataImport.objects.filter(file_hash=file_hash).first()
+            if existing:
+                messages.info(request, "Același fișier a fost încărcat deja; am deschis importul existent.")
+                return redirect("comparator:initial_import_detail", pk=existing.pk)
+            initial_import = InitialDataImport.objects.create(
+                original_filename=Path(upload.name).name[:255],
+                file_hash=file_hash,
+                rows=rows,
+                row_count=len(rows),
+                warning_count=sum(bool(row["errors"]) for row in rows),
+                created_by=request.user,
+            )
+            return redirect("comparator:initial_import_detail", pk=initial_import.pk)
+    return render(
+        request,
+        "comparator/initial_import_create.html",
+        {"form": form, "recent_imports": InitialDataImport.objects.select_related("created_by")[:20]},
+    )
+
+
+def initial_import_detail(request, pk):
+    initial_import = get_object_or_404(InitialDataImport.objects.select_related("created_by"), pk=pk)
+    return render(
+        request,
+        "comparator/initial_import_detail.html",
+        {
+            "initial_import": initial_import,
+            "supplier_rows": [row for row in initial_import.rows if row["kind"] == "SUPPLIER"],
+            "product_rows": [row for row in initial_import.rows if row["kind"] == "PRODUCT"],
+            "stock_rows": [row for row in initial_import.rows if row["kind"] == "STOCK"],
+        },
+    )
+
+
+def initial_import_confirm(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    initial_import = get_object_or_404(InitialDataImport, pk=pk)
+    try:
+        stats = apply_initial_import(initial_import)
+    except (ValidationError, ValueError) as exc:
+        messages.error(request, f"Importul nu a fost aplicat: {exc}")
+    else:
+        if stats.get("already_applied"):
+            messages.info(request, "Importul fusese deja aplicat; stocul nu a fost dublat.")
+        else:
+            messages.success(
+                request,
+                "Import aplicat: "
+                f"{stats['suppliers_created']} furnizori noi, {stats['products_created']} produse noi, "
+                f"{stats['stock_policies']} politici de stoc și {stats['opening_movements']} stocuri inițiale.",
+            )
+    return redirect("comparator:initial_import_detail", pk=initial_import.pk)
 
 
 def supplier_create(request):
