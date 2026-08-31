@@ -21,18 +21,18 @@ class DataIntegrityAuditTests(TestCase):
 
         self.assertIn("0 erori, 0 avertismente", output.getvalue())
 
-    def test_invalid_confirmed_line_fails_gate(self):
+    def test_confirmed_unmatched_line_fails_gate(self):
         InvoiceLine.objects.create(
             invoice=self.invoice,
-            original_name="Linie imposibilă",
-            quantity=-1,
-            unit_price_gross=-2,
+            original_name="Linie fără asociere",
+            quantity=1,
+            unit_price_gross=2,
             needs_review=False,
         )
 
         report = audit_data_integrity()
 
-        self.assertGreaterEqual(report["error_count"], 2)
+        self.assertEqual(report["error_count"], 1)
         with self.assertRaisesMessage(CommandError, "Audit finalizat"):
             call_command("audit_data_integrity")
 

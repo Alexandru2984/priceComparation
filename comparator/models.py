@@ -279,6 +279,16 @@ class MetroOffer(models.Model):
                 name="metro_product_source_date",
             )
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    units_per_package__gt=0,
+                    unit_size__gt=0,
+                    price_gross__gte=0,
+                ),
+                name="metro_offer_valid_values",
+            )
+        ]
         verbose_name = "preț METRO"
         verbose_name_plural = "prețuri METRO"
 
@@ -352,7 +362,16 @@ class MetroOfferTier(models.Model):
 
     class Meta:
         ordering = ["min_packages"]
-        constraints = [models.UniqueConstraint(fields=["offer", "min_packages"], name="unique_metro_volume_tier")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["offer", "min_packages"],
+                name="unique_metro_volume_tier",
+            ),
+            models.CheckConstraint(
+                condition=Q(min_packages__gte=2, price_gross__gte=0),
+                name="metro_tier_valid_values",
+            ),
+        ]
         verbose_name = "prag de volum METRO"
         verbose_name_plural = "praguri de volum METRO"
 
@@ -400,9 +419,7 @@ class MetroScrapeJob(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["status", "-created_at"], name="metro_job_status_date")
-        ]
+        indexes = [models.Index(fields=["status", "-created_at"], name="metro_job_status_date")]
 
     def __str__(self):
         return f"Scanare METRO #{self.pk} · {self.get_status_display()}"
@@ -671,7 +688,15 @@ class Invoice(models.Model):
                 "issued_at",
                 condition=~Q(number=""),
                 name="unique_supplier_document_number_date",
-            )
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    transport_gross__gte=0,
+                    document_discount_gross__gte=0,
+                    document_total_gross__gte=0,
+                ),
+                name="invoice_nonnegative_totals",
+            ),
         ]
 
     def __str__(self):
@@ -930,6 +955,34 @@ class InvoiceLine(models.Model):
                 name="line_review_match",
             )
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    quantity__gt=0,
+                    units_per_package__gt=0,
+                    unit_size__gt=0,
+                ),
+                name="invoice_line_positive_units",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    unit_price_gross__gte=0,
+                    line_total_gross__gte=0,
+                    discount_gross__gte=0,
+                    deposit_gross__gte=0,
+                ),
+                name="invoice_line_nonnegative_money",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    vat_rate__gte=0,
+                    vat_rate__lte=100,
+                    match_score__lte=100,
+                    match_gap__lte=100,
+                ),
+                name="invoice_line_valid_scores",
+            ),
+        ]
         verbose_name = "linie factură"
         verbose_name_plural = "linii factură"
 
@@ -1027,6 +1080,12 @@ class SupplierOffer(models.Model):
     class Meta:
         ordering = ["-valid_from", "price_per_base_unit"]
         indexes = [models.Index(fields=["product", "supplier", "-valid_from"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(price_per_base_unit__gte=0),
+                name="supplier_offer_nonnegative_price",
+            )
+        ]
 
     def __str__(self):
         return f"{self.product} · {self.supplier}: {self.price_per_base_unit}"
@@ -1048,6 +1107,12 @@ class PriceAlert(models.Model):
 
     class Meta:
         ordering = ["product__name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(target_price__gte=0, last_notified_price__gte=0),
+                name="price_alert_nonnegative_values",
+            )
+        ]
 
     @property
     def current_offer(self):
@@ -1091,6 +1156,12 @@ class ShoppingList(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(budget_gross__gte=0),
+                name="shopping_list_nonnegative_budget",
+            )
+        ]
 
     def __str__(self):
         return self.name
@@ -1116,7 +1187,14 @@ class ShoppingListItem(models.Model):
     class Meta:
         ordering = ["product__name"]
         constraints = [
-            models.UniqueConstraint(fields=["shopping_list", "product"], name="unique_product_per_shopping_list")
+            models.UniqueConstraint(
+                fields=["shopping_list", "product"],
+                name="unique_product_per_shopping_list",
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0),
+                name="shopping_item_positive_quantity",
+            ),
         ]
 
 
@@ -1192,7 +1270,34 @@ class InventoryItem(models.Model):
             models.CheckConstraint(
                 condition=Q(target_quantity__gte=models.F("minimum_quantity")),
                 name="inventory_target_at_least_minimum",
-            )
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    minimum_quantity__gte=0,
+                    target_quantity__gte=0,
+                    retail_price_gross__gte=0,
+                    retail_unit_size__gt=0,
+                ),
+                name="inventory_valid_quantities",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    retail_vat_rate__gte=0,
+                    retail_vat_rate__lte=100,
+                    purchase_vat_rate__gte=0,
+                    purchase_vat_rate__lte=100,
+                ),
+                name="inventory_valid_vat_rates",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    target_margin_percent__gte=0,
+                    target_margin_percent__lt=100,
+                    expected_waste_percent__gte=0,
+                    expected_waste_percent__lt=100,
+                ),
+                name="inventory_valid_percentages",
+            ),
         ]
 
     @property
@@ -1268,7 +1373,16 @@ class SalesImportLine(models.Model):
 
     class Meta:
         ordering = ["row_number"]
-        constraints = [models.UniqueConstraint(fields=["sales_import", "row_number"], name="unique_sales_import_row")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sales_import", "row_number"],
+                name="unique_sales_import_row",
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0, match_score__lte=100),
+                name="sales_line_valid_values",
+            ),
+        ]
 
     @property
     def needs_review(self):
