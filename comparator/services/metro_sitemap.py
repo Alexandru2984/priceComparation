@@ -1,9 +1,10 @@
 import re
-import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from urllib.parse import unquote, urlparse
 
 import requests
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 from django.db import transaction
 
 from comparator.catalog import infer_category
@@ -37,7 +38,7 @@ def _locations(xml_content):
         raise MetroSitemapError("Fișierul sitemap METRO depășește limita de siguranță.")
     try:
         root = ElementTree.fromstring(xml_content)
-    except ElementTree.ParseError as exc:
+    except (ElementTree.ParseError, DefusedXmlException) as exc:
         raise MetroSitemapError("METRO a returnat un sitemap XML invalid.") from exc
     return [
         (node.text or "").strip()

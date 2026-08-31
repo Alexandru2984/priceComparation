@@ -7,7 +7,9 @@ from django.test import TestCase
 from comparator.models import BaseUnit, Product, ProductCode
 from comparator.services.metro_sitemap import (
     METRO_SITEMAP_URL,
+    MetroSitemapError,
     SitemapProduct,
+    _locations,
     fetch_metro_sitemap_products,
     import_metro_sitemap_products,
     parse_product_url,
@@ -52,6 +54,14 @@ class MetroSitemapTests(TestCase):
         self.assertEqual(products[0].external_id, "BTY-1")
         self.assertEqual(session.get.call_count, 2)
         self.assertEqual(session.get.call_args_list[0].args[0], METRO_SITEMAP_URL)
+
+    def test_sitemap_rejects_xml_entities(self):
+        malicious_xml = b"""<!DOCTYPE urlset [
+            <!ENTITY secret SYSTEM "file:///etc/passwd">
+        ]><urlset><url><loc>&secret;</loc></url></urlset>"""
+
+        with self.assertRaises(MetroSitemapError):
+            _locations(malicious_xml)
 
     def test_import_adds_unknown_codes_without_overwriting_known_product(self):
         known = Product.objects.create(name="Nume verificat din card", base_unit=BaseUnit.PIECE)
