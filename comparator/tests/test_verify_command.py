@@ -17,14 +17,15 @@ class VerifyPriceMatchCommandTests(TestCase):
 
         self.assertIn("PriceMatch este pregătit", output.getvalue())
 
-    def test_missing_admin_and_invalid_data_fail_gate(self):
+    def test_missing_admin_and_inconsistent_data_fail_gate(self):
         supplier = Supplier.objects.create(name="Furnizor gate")
         invoice = Invoice.objects.create(supplier=supplier, issued_at=date(2026, 8, 31))
         InvoiceLine.objects.create(
             invoice=invoice,
-            original_name="Linie nevalidă",
-            quantity=-1,
+            original_name="Linie confirmată fără produs",
+            quantity=1,
             unit_price_gross=1,
+            needs_review=False,
         )
 
         with self.assertRaisesMessage(CommandError, "niciun administrator activ"):
