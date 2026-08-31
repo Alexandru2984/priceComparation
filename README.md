@@ -17,6 +17,7 @@ Pentru publicarea pe VPS-ul existent, cu Nginx și Cloudflare Tunnel, urmează
 - OCR local cu Tesseract (`ron+eng`);
 - coadă PostgreSQL și worker local separat, astfel încât OCR-ul nu blochează cererea web;
 - scor de calitate per imagine/PDF, încercări OCR automate și avertismente pentru cadre slabe;
+- centru de calibrare OCR pe bonuri/facturi confirmate manual, cu recall, precizie și erori recurente;
 - structurarea textului cu Ollama și JSON Schema, cu parser simplu de rezervă;
 - asociere locală fuzzy și memorarea corecțiilor;
 - profil de parsare și TVA implicit separat pentru fiecare furnizor;
@@ -95,6 +96,11 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
 6. Urmărește jobul în `Documente → Inbox procesare`; pagina documentului se actualizează automat.
 7. Dacă OCR-ul nu citește corect, verifică scorul și avertismentele fiecărei imagini, apoi refotografiază
    sau adaugă liniile manual.
+
+După ce un document este verificat complet, apasă `Folosește la calibrare`. Pagina `Calibrare OCR`
+compară din nou parserul local cu liniile confirmate și arată separat produsele omise, cantitățile,
+prețurile, unitățile și imaginile slabe. Un set variat de 10–20 de documente reale este suficient pentru
+prima bază de măsurare; nu folosi documente care mai au linii bifate `necesită verificare`.
 
 După salvare, secțiunea `Fișiere și ordinea OCR` permite adăugarea altor cadre, mutarea lor sus/jos și
 ștergerea unei fotografii greșite. Ordinea afișată este exact ordinea folosită de OCR. Orice modificare a

@@ -576,6 +576,12 @@ class Invoice(models.Model):
         default=False,
         help_text="Bifează numai pentru achiziții care trebuie adăugate la stocul curent.",
     )
+    evaluation_sample = models.BooleanField(
+        "mostră calibrare OCR",
+        default=False,
+        db_index=True,
+        help_text="Folosește liniile confirmate manual drept adevăr de referință pentru evaluarea locală.",
+    )
     transport_gross = models.DecimalField(
         "transport cu TVA", max_digits=12, decimal_places=2, default=0,
         validators=[MinValueValidator(Decimal("0"))],

@@ -13,6 +13,7 @@ urlpatterns = [
     path("rapoarte/saptamanal/", staff_member_required(views.weekly_report), name="weekly_report"),
     path("rapoarte/saptamanal/export/", staff_member_required(views.weekly_report_export), name="weekly_report_export"),
     path("calitate-potriviri/", staff_member_required(views.matching_quality), name="matching_quality"),
+    path("calibrare-ocr/", staff_member_required(views.ocr_evaluation), name="ocr_evaluation"),
     path("furnizori/", staff_member_required(views.supplier_list), name="supplier_list"),
     path("furnizori/adauga/", app_admin_required(views.supplier_create), name="supplier_create"),
     path("furnizori/<int:pk>/parsare/", app_admin_required(views.supplier_parsing_profile), name="supplier_parsing_profile"),
@@ -78,6 +79,7 @@ urlpatterns = [
     path("documente/pagini/<int:pk>/muta/", staff_member_required(views.document_page_move), name="document_page_move"),
     path("documente/pagini/<int:pk>/sterge/", staff_member_required(views.document_page_delete), name="document_page_delete"),
     path("facturi/<int:pk>/proceseaza/", staff_member_required(views.invoice_process), name="invoice_process"),
+    path("facturi/<int:pk>/calibrare-ocr/", staff_member_required(views.invoice_evaluation_toggle), name="invoice_evaluation_toggle"),
     path(
         "facturi/<int:pk>/versiuni/<int:revision_pk>/restaureaza/",
         staff_member_required(views.invoice_revision_restore),

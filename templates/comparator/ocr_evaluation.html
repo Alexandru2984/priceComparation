@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Calibrare OCR · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Măsurare pe documente reale</p><h1>Centru de calibrare OCR</h1><p>Parserul local este comparat cu liniile pe care le-ai confirmat manual. Fișierele și textul OCR rămân private și nu părăsesc aplicația.</p></div></div>
+
+{% if not report.selected_count %}
+<section class="panel empty">Deschide 10–20 de bonuri sau facturi verificate complet și apasă <strong>Folosește la calibrare</strong>.</section>
+{% else %}
+<section class="stats compact-stats">
+  <article><strong>{{ report.evaluated_count }}/{{ report.selected_count }}</strong><span>documente evaluate</span></article>
+  <article><strong>{{ report.metrics.recall|floatformat:1 }}%</strong><span>produse găsite</span></article>
+  <article><strong>{{ report.metrics.precision|floatformat:1 }}%</strong><span>linii extrase corect</span></article>
+</section>
+<section class="stats compact-stats">
+  <article><strong>{{ report.metrics.quantity_accuracy|floatformat:1 }}%</strong><span>cantități corecte</span></article>
+  <article><strong>{{ report.metrics.price_accuracy|floatformat:1 }}%</strong><span>prețuri corecte</span></article>
+  <article><strong>{{ report.metrics.unit_accuracy|floatformat:1 }}%</strong><span>unități corecte</span></article>
+</section>
+<section class="stats compact-stats">
+  <article class="{% if report.low_quality_pages %}warn{% endif %}"><strong>{{ report.average_ocr_quality|default:"—" }}</strong><span>scor mediu imagini</span></article>
+  <article class="{% if report.low_quality_pages %}warn{% endif %}"><strong>{{ report.low_quality_pages }}</strong><span>pagini sub 60%</span></article>
+  <article class="{% if report.pending_count %}warn{% endif %}"><strong>{{ report.pending_count }}</strong><span>mostre încă incomplete</span></article>
+</section>
+
+{% if report.recurring_issues %}<section class="panel"><div class="panel-head"><h2>Erori recurente</h2></div><div class="list">{% for issue, count in report.recurring_issues %}<div class="list-row"><strong>{{ issue }}</strong><span class="badge {% if count > 1 %}review{% else %}new{% endif %}">{{ count }}</span></div>{% endfor %}</div></section>{% endif %}
+
+<section class="panel table-wrap">
+  <table><thead><tr><th>Document</th><th>Imagine</th><th>Linii</th><th>Recall</th><th>Preț</th><th>Stare</th></tr></thead><tbody>
+  {% for row in report.rows %}<tr>
+    <td><a href="{% url 'comparator:invoice_detail' row.invoice.pk %}"><strong>{{ row.invoice.supplier }}</strong><small>{{ row.invoice.number|default:"Fără număr" }} · {{ row.invoice.issued_at|date:"d.m.Y" }}</small></a></td>
+    <td>{% if row.ocr_quality != None %}{{ row.ocr_quality|floatformat:1 }}%{% else %}—{% endif %}</td>
+    <td>{{ row.expected_count }}{% if row.ready %} confirmate · {{ row.predicted_count }} extrase{% endif %}</td>
+    <td>{% if row.ready %}{{ row.metrics.recall|floatformat:1 }}%{% else %}—{% endif %}</td>
+    <td>{% if row.ready %}{{ row.metrics.price_accuracy|floatformat:1 }}%{% else %}—{% endif %}</td>
+    <td>{% if row.ready %}<span class="badge processed">Evaluat</span>{% else %}<span class="badge review">{{ row.reason }}</span>{% endif %}</td>
+  </tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+{% endblock %}

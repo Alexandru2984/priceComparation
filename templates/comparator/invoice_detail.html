@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <div><p class="eyebrow">{{ invoice.supplier }} · {{ invoice.get_document_type_display }}</p><h1>{{ invoice.number|default:"Document fără număr" }}</h1><p>{{ invoice.issued_at|date:"d.m.Y" }} · <span class="badge {{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>{% if invoice.supplier.is_metro %} · <strong>actualizează METRO după confirmare</strong>{% endif %}</p></div>
-  <div class="actions"><form method="post" action="{% url 'comparator:invoice_process' invoice.pk %}">{% csrf_token %}<button class="button">Reprocesează OCR</button></form><a class="button" href="{% url 'comparator:invoice_edit' invoice.pk %}">Editează documentul</a><a class="button primary" href="{% url 'comparator:line_create' invoice.pk %}">+ Linie manuală</a></div>
+  <div class="actions"><form method="post" action="{% url 'comparator:invoice_evaluation_toggle' invoice.pk %}">{% csrf_token %}<button class="button">{% if invoice.evaluation_sample %}Scoate din calibrare{% else %}Folosește la calibrare{% endif %}</button></form><form method="post" action="{% url 'comparator:invoice_process' invoice.pk %}">{% csrf_token %}<button class="button">Reprocesează OCR</button></form><a class="button" href="{% url 'comparator:invoice_edit' invoice.pk %}">Editează documentul</a><a class="button primary" href="{% url 'comparator:line_create' invoice.pk %}">+ Linie manuală</a></div>
 </div>
 
 {% if invoice.processing_error %}<div class="message warning"><strong>Procesare:</strong> {{ invoice.processing_error }}</div>{% endif %}

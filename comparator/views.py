@@ -67,6 +67,7 @@ from .models import (
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.documents import add_document_pages, delete_document_page, move_document_page
+from .services.evaluation import evaluate_confirmed_documents
 from .services.invoices import (
     delete_invoice,
     delete_invoice_line,
@@ -226,6 +227,33 @@ def matching_quality(request):
             "page_query": _page_query(request),
         },
     )
+
+
+def ocr_evaluation(request):
+    invoices = (
+        Invoice.objects.filter(evaluation_sample=True)
+        .select_related("supplier")
+        .prefetch_related("lines", "pages")
+        .order_by("-issued_at", "-created_at")
+    )
+    return render(
+        request,
+        "comparator/ocr_evaluation.html",
+        {"report": evaluate_confirmed_documents(invoices)},
+    )
+
+
+def invoice_evaluation_toggle(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice.evaluation_sample = not invoice.evaluation_sample
+    invoice.save(update_fields=["evaluation_sample"])
+    if invoice.evaluation_sample:
+        messages.success(request, "Documentul a fost adăugat în setul local de calibrare OCR.")
+    else:
+        messages.success(request, "Documentul a fost scos din setul de calibrare OCR.")
+    return redirect("comparator:invoice_detail", pk=invoice.pk)
 
 
 def supplier_list(request):
