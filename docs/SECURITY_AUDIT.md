@@ -1,7 +1,7 @@
 # Audit de securitate și publicare
 
-Data ultimei actualizări: 26 august 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
-fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
+Data ultimei actualizări: 31 august 2026. Domeniu analizat: aplicația Django, autentificarea, rutele, uploadurile,
+fișierele private, configurarea PostgreSQL, scraperul METRO și configurația VPS/Nginx/Cloudflare Tunnel.
 
 ## Măsuri implementate
 
@@ -9,7 +9,12 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 - toate rutele `/app/` cer un utilizator activ cu `is_staff=True`;
 - loginul unic este furnizat de `django-two-factor-auth`, cu parolă de minimum 12 caractere și TOTP;
 - `MFA_REQUIRED=1` impune înrolarea și o sesiune OTP verificată pe toate rutele `/app/` și `/admin/`;
-- `django-axes` blochează temporar combinația utilizator/IP după 5 autentificări eșuate;
+- `django-axes` protejează inclusiv loginul principal `/account/login/`, nu doar Django Admin, și blochează
+  temporar combinația utilizator/IP după 5 autentificări eșuate;
+- prin reverse proxy, IP-ul clientului este acceptat numai din `X-Real-IP` rescris de un proxy aflat în
+  `DJANGO_TRUSTED_PROXY_IPS`; un header trimis de altă sursă este ignorat;
+- nu există înregistrare publică; conturile staff se creează, listează, dezactivează și resetează MFA numai
+  prin comenzi locale, iar User/Group nu pot fi administrate din interfața Django Admin;
 - CSRF este activ pe toate formularele, iar operațiile distructive folosesc POST;
 - documentele nu mai sunt servite direct din `MEDIA_URL`; descărcarea cere autentificare staff;
 - PDF-urile și imaginile sunt verificate după semnătură/structură, extensie, dimensiune și rezoluție;
@@ -22,7 +27,7 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 - fișierele noi primesc permisiuni `0600`, directoarele `0700`, iar `start.sh` folosește `umask 077`;
 - sunt active CSP, anti-framing, `nosniff`, Referrer-Policy, Permissions-Policy și `no-store` pe zona privată;
 - modul de producție activează cookies `Secure`, redirect HTTPS și HSTS;
-- Selenium este dezactivat implicit în producție și se activează numai explicit;
+- API-ul de catalog și Selenium au comutatoare separate; Selenium este dezactivat implicit în producție;
 - camera este permisă prin Permissions-Policy exclusiv pe pagina privată a scannerului EAN;
 - EAN/GTIN este validat prin cifra de control, iar codurile duplicate sunt refuzate;
 - backupurile locale sunt comprimate, au permisiuni restrictive și manifest SHA-256;
@@ -34,7 +39,8 @@ fișierele private, configurarea PostgreSQL, Selenium și dependențele Python.
 
 ## Configurație obligatorie înainte de publicare
 
-Folosește un domeniu dedicat și un reverse proxy cu TLS, de exemplu Caddy sau Nginx. Nu expune direct
+Pentru VPS-ul cu Nginx și Cloudflare Tunnel folosește configurațiile din `deploy/` și urmează
+`docs/DEPLOY_VPS_CLOUDFLARE.md`. Nginx și Gunicorn trebuie să asculte numai pe loopback. Nu expune direct
 Gunicorn, PostgreSQL, directorul `media/`, Ollama sau portul Selenium.
 
 ```dotenv
@@ -44,9 +50,11 @@ DJANGO_SECRET_KEY=genereaza-o-cu-secrets-token-urlsafe
 DJANGO_ALLOWED_HOSTS=preturi.exemplu.ro
 DJANGO_CSRF_TRUSTED_ORIGINS=https://preturi.exemplu.ro
 DJANGO_TRUST_PROXY=1
+DJANGO_TRUSTED_PROXY_IPS=127.0.0.1,::1
 DJANGO_SECURE_SSL_REDIRECT=1
 MFA_REQUIRED=1
-METRO_SCRAPER_ENABLED=0
+METRO_API_ENABLED=1
+METRO_SELENIUM_ENABLED=0
 OLLAMA_ENABLED=0
 ```
 
@@ -71,7 +79,8 @@ exclusiv prin HTTPS, setează `DJANGO_HSTS_SECONDS=31536000`, `DJANGO_HSTS_INCLU
 
 ## Backup și operare
 
-- rulează zilnic `.venv/bin/python manage.py pricematch_maintenance --scheduled-metro` și copiază backupul pe alt disc;
+- rulează zilnic `.venv/bin/python manage.py pricematch_maintenance --scheduled-metro` și copiază backupul
+  criptat pe alt sistem, nu doar în alt director de pe același VPS;
 - pentru redundanță PostgreSQL poți păstra și `pg_dump -Fc pricecompare > pricecompare.dump`;
 - backupul aplicației include `media/`, dar discul extern trebuie criptat și accesul limitat;
 - testează periodic restaurarea cu `.venv/bin/python manage.py verify_backup_restore <director-backup>`;
@@ -88,3 +97,5 @@ exclusiv prin HTTPS, setează `DJANGO_HSTS_SECONDS=31536000`, `DJANGO_HSTS_INCLU
 - acesta este un audit automat și de cod, nu un test de penetrare extern pe infrastructura finală;
 - `runserver` nu este acceptabil în producție;
 - baza PostgreSQL trebuie să asculte numai local sau într-o rețea privată, niciodată pe internet.
+- Cloudflare Access și regulile WAF pot adăuga o barieră în fața aplicației, dar nu înlocuiesc parola, MFA,
+  autorizarea Django, backupurile și actualizarea regulată a sistemului.

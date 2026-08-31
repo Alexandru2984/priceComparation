@@ -1,0 +1,10 @@
+tunnel: SCHIMBA_CU_UUID_TUNEL
+credentials-file: /etc/cloudflared/SCHIMBA_CU_UUID_TUNEL.json
+
+ingress:
+  - hostname: preturi.example.ro
+    service: http://127.0.0.1:8080
+    originRequest:
+      httpHostHeader: preturi.example.ro
+      connectTimeout: 10s
+  - service: http_status:404

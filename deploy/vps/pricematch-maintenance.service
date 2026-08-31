@@ -1,0 +1,32 @@
+[Unit]
+Description=PriceMatch daily backup and METRO maintenance
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pricematch
+Group=pricematch
+WorkingDirectory=/srv/pricematch
+EnvironmentFile=/etc/pricematch/pricematch.env
+ExecStart=/srv/pricematch/.venv/bin/python manage.py pricematch_maintenance --scheduled-metro
+KillMode=process
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/pricematch/backups /srv/pricematch/media /srv/pricematch/data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run PriceMatch maintenance every day
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=pricematch-maintenance.service
+
+[Install]
+WantedBy=timers.target

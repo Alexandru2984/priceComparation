@@ -5,6 +5,9 @@ Aplicație personală pentru compararea achizițiilor unui magazin alimentar cu 
 Pentru operarea zilnică, comenzile scraperului, reluarea joburilor și depanare folosește
 [Ghidul practic PriceMatch](docs/GHID_OPERARE.md).
 
+Pentru publicarea pe VPS-ul existent, cu Nginx și Cloudflare Tunnel, urmează
+[ghidul de deploy securizat](docs/DEPLOY_VPS_CLOUDFLARE.md).
+
 ## Ce face MVP-ul
 
 - catalog incremental de produse urmărite;
@@ -52,12 +55,11 @@ cp .env.example .env
 Deschide `http://127.0.0.1:8010`. Portul 8010 este folosit implicit fiindcă portul 8000 este deja ocupat pe acest calculator.
 
 Pagina `/` este un demo public cu date statice. Datele reale sunt în `/app/` și pot fi accesate numai de
-un utilizator `staff`. Creează primul administrator sau setează-i parola astfel:
+un utilizator `staff`. Conturile se creează numai din terminal, cu parolă cerută interactiv:
 
 ```bash
-.venv/bin/python manage.py createsuperuser
-# pentru utilizatorul local pregătit deja:
-.venv/bin/python manage.py changepassword micu
+.venv/bin/python manage.py create_staff_user NUME --superuser
+.venv/bin/python manage.py list_staff_users
 ```
 
 Configurația implicită din `.env.example` folosește PostgreSQL prin TCP și necesită setarea parolei pentru
@@ -438,7 +440,9 @@ Raportul operațional curent este disponibil în `Raport` și poate fi exportat 
 
 Zona privată necesită cont staff, documentele sunt descărcate numai autentificat, iar încercările repetate
 de login sunt limitate. Configurația completă, rezultatele auditului și pașii obligatorii pentru HTTPS,
-Gunicorn, backup și HSTS sunt în [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
+Gunicorn, backup și HSTS sunt în [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md). Pentru serverul public
+folosește separat [ghidul VPS cu Nginx și Cloudflare Tunnel](docs/DEPLOY_VPS_CLOUDFLARE.md); secțiunea Caddy
+de mai sus rămâne configurația accesului din rețeaua locală.
 
 ## Observație importantă
 
