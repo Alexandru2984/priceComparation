@@ -4,12 +4,28 @@ from decimal import ROUND_CEILING, Decimal
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Avg, Count, Max
+from django.db.models import Avg, Count, Max, Prefetch, Q
 from django.utils import timezone
 
-from comparator.models import InvoiceLine, MetroOffer, Product
+from comparator.models import InvoiceLine, MetroOffer, Product, SupplierOffer
 
 from .matching import normalize_name
+
+
+def source_option_prefetches(prefix=""):
+    cutoff = timezone.localdate() - timedelta(days=settings.SUPPLIER_PRICE_MAX_AGE_DAYS)
+    return (
+        f"{prefix}metro_offers__volume_tiers",
+        Prefetch(
+            f"{prefix}supplier_offers",
+            queryset=(
+                SupplierOffer.objects.filter(valid_from__gte=cutoff)
+                .select_related("supplier", "invoice_line")
+                .order_by("supplier_id", "-valid_from", "price_per_base_unit")
+            ),
+            to_attr="_current_supplier_offers",
+        ),
+    )
 
 
 def _catalog_cache_key(prefix):
@@ -17,10 +33,7 @@ def _catalog_cache_key(prefix):
     offer_state = MetroOffer.objects.aggregate(total=Count("id"), latest=Max("updated_at"))
     product_latest = product_state["latest"].isoformat() if product_state["latest"] else "none"
     offer_latest = offer_state["latest"].isoformat() if offer_state["latest"] else "none"
-    return (
-        f"pricematch:{prefix}:{product_state['total']}:{product_latest}:"
-        f"{offer_state['total']}:{offer_latest}"
-    )
+    return f"pricematch:{prefix}:{product_state['total']}:{product_latest}:{offer_state['total']}:{offer_latest}"
 
 
 def current_source_options(product, quantity=None):
@@ -41,10 +54,14 @@ def current_source_options(product, quantity=None):
             }
         )
 
-    cutoff = timezone.localdate() - timedelta(days=settings.SUPPLIER_PRICE_MAX_AGE_DAYS)
-    offers = product.supplier_offers.select_related("supplier", "invoice_line").filter(valid_from__gte=cutoff).order_by(
-        "supplier_id", "-valid_from", "price_per_base_unit"
-    )
+    offers = getattr(product, "_current_supplier_offers", None)
+    if offers is None:
+        cutoff = timezone.localdate() - timedelta(days=settings.SUPPLIER_PRICE_MAX_AGE_DAYS)
+        offers = (
+            product.supplier_offers.select_related("supplier", "invoice_line")
+            .filter(valid_from__gte=cutoff)
+            .order_by("supplier_id", "-valid_from", "price_per_base_unit")
+        )
     seen = set()
     for offer in offers:
         if offer.supplier_id in seen or offer.supplier.is_metro:
@@ -210,11 +227,7 @@ def _optimize_assignments(items):
     invalid_suppliers = set()
     for _ in range(5):
         orders = _build_source_orders(rows)
-        newly_invalid = {
-            order["supplier"].pk
-            for order in orders
-            if order["supplier"] and order["below_minimum"]
-        }
+        newly_invalid = {order["supplier"].pk for order in orders if order["supplier"] and order["below_minimum"]}
         if not newly_invalid - invalid_suppliers:
             invalid_suppliers |= newly_invalid
             break
@@ -223,10 +236,7 @@ def _optimize_assignments(items):
             current = result["best"]
             if current and current.get("supplier_id") in invalid_suppliers:
                 replacement = next(
-                    (
-                        option for option in result["options"]
-                        if option.get("supplier_id") not in invalid_suppliers
-                    ),
+                    (option for option in result["options"] if option.get("supplier_id") not in invalid_suppliers),
                     None,
                 )
                 if replacement:
@@ -261,13 +271,7 @@ def _optimize_assignments(items):
 
 
 def optimize_shopping_list(shopping_list):
-    items = list(
-        shopping_list.items.select_related("product").prefetch_related(
-            "product__metro_offers__volume_tiers",
-            "product__supplier_offers__supplier",
-            "product__supplier_offers__invoice_line",
-        )
-    )
+    items = list(shopping_list.items.select_related("product").prefetch_related(*source_option_prefetches("product__")))
     active_items = [item for item in items if not item.purchased]
     rows, orders = _optimize_assignments(active_items)
     for item in items:
@@ -301,9 +305,7 @@ def optimize_shopping_list(shopping_list):
         result = rows[item.pk]
         result["deferred"] = item.pk in deferred_ids
         result["total"] = (
-            result["best"]["total"]
-            if result["best"] and not result["deferred"] and not item.purchased
-            else None
+            result["best"]["total"] if result["best"] and not result["deferred"] and not item.purchased else None
         )
         if len(result["options"]) > 1 and not result["deferred"] and not item.purchased:
             result["saving"] = result["options"][-1]["total"] - result["best"]["total"]
@@ -358,8 +360,10 @@ def recent_metro_changes(limit=8):
     if cached is not None:
         return cached
     grouped = defaultdict(list)
-    offers = MetroOffer.objects.select_related("product").filter(active=True).order_by(
-        "product_id", "source", "-valid_from", "-created_at"
+    offers = (
+        MetroOffer.objects.select_related("product")
+        .filter(active=True)
+        .order_by("product_id", "source", "-valid_from", "-created_at")
     )
     for offer in offers:
         key = (offer.product_id, offer.source)
@@ -395,7 +399,8 @@ def catalog_quality_summary():
         if not product.category or product.category == "Altele":
             missing_categories += 1
         suspicious_prices += sum(
-            1 for offer in product.metro_offers.all()
+            1
+            for offer in product.metro_offers.all()
             if offer.price_per_base_unit <= 0 or offer.price_per_base_unit > Decimal("10000")
         )
     duplicates = sum(len(group) - 1 for group in normalized.values() if len(group) > 1)
@@ -412,25 +417,40 @@ def catalog_quality_summary():
 
 def matching_quality_summary():
     lines = InvoiceLine.objects.all()
-    confirmed = lines.filter(needs_review=False)
-    evaluated = confirmed.exclude(match_method=InvoiceLine.MatchMethod.NONE)
-    corrected = evaluated.filter(match_corrected=True).count()
-    evaluated_count = evaluated.count()
-    aggregates = lines.aggregate(total=Count("id"), average_score=Avg("match_score"))
+    evaluated_filter = Q(needs_review=False) & ~Q(match_method=InvoiceLine.MatchMethod.NONE)
+    aggregates = lines.aggregate(
+        total=Count("id"),
+        average_score=Avg("match_score"),
+        needs_review_count=Count("id", filter=Q(needs_review=True)),
+        unmatched_count=Count("id", filter=Q(matched_product__isnull=True)),
+        confirmed_count=Count("id", filter=Q(needs_review=False)),
+        exact_count=Count(
+            "id",
+            filter=Q(
+                match_method__in=[
+                    InvoiceLine.MatchMethod.CODE,
+                    InvoiceLine.MatchMethod.ALIAS,
+                ]
+            ),
+        ),
+        fuzzy_count=Count("id", filter=Q(match_method=InvoiceLine.MatchMethod.FUZZY)),
+        evaluated_count=Count("id", filter=evaluated_filter),
+        corrected_count=Count("id", filter=evaluated_filter & Q(match_corrected=True)),
+    )
     return {
         "total": aggregates["total"],
         "average_score": aggregates["average_score"] or Decimal("0"),
-        "needs_review": lines.filter(needs_review=True).count(),
-        "unmatched": lines.filter(matched_product__isnull=True).count(),
-        "confirmed": confirmed.count(),
-        "exact": lines.filter(
-            match_method__in=[InvoiceLine.MatchMethod.CODE, InvoiceLine.MatchMethod.ALIAS]
-        ).count(),
-        "fuzzy": lines.filter(match_method=InvoiceLine.MatchMethod.FUZZY).count(),
-        "corrected": corrected,
+        "needs_review": aggregates["needs_review_count"],
+        "unmatched": aggregates["unmatched_count"],
+        "confirmed": aggregates["confirmed_count"],
+        "exact": aggregates["exact_count"],
+        "fuzzy": aggregates["fuzzy_count"],
+        "corrected": aggregates["corrected_count"],
         "observed_precision": (
-            Decimal(evaluated_count - corrected) / Decimal(evaluated_count) * 100
-            if evaluated_count
+            Decimal(aggregates["evaluated_count"] - aggregates["corrected_count"])
+            / Decimal(aggregates["evaluated_count"])
+            * 100
+            if aggregates["evaluated_count"]
             else None
         ),
     }

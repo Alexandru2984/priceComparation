@@ -81,6 +81,7 @@ from .services.insights import (
     profitability_analysis,
     profitability_summary,
     recent_metro_changes,
+    source_option_prefetches,
 )
 from .services.inventory import (
     create_replenishment_list,
@@ -91,6 +92,7 @@ from .services.inventory import (
 from .services.invoices import (
     delete_invoice,
     delete_invoice_line,
+    prime_invoice_merchandise_totals,
     reconcile_derived_metro_offer,
     restore_invoice_revision,
     sync_all_confirmed_metro_lines,
@@ -195,13 +197,22 @@ def dashboard(request):
     recent_invoices = Invoice.objects.select_related("supplier")[:6]
     review_count = InvoiceLine.objects.filter(needs_review=True).count()
     comparisons = []
-    for line in InvoiceLine.objects.select_related("invoice", "invoice__supplier", "matched_product"):
+    comparison_lines = InvoiceLine.objects.select_related(
+        "invoice", "invoice__supplier", "matched_product"
+    ).prefetch_related("matched_product__metro_offers__volume_tiers")
+    for line in prime_invoice_merchandise_totals(comparison_lines):
         comparison = line.comparison()
         if comparison:
             comparisons.append((line, comparison))
     comparisons.sort(key=lambda item: abs(item[1]["total_impact"]), reverse=True)
     total_impact = sum((item[1]["total_impact"] for item in comparisons), Decimal("0"))
-    alerts = [alert for alert in PriceAlert.objects.select_related("product").filter(active=True) if alert.is_triggered]
+    alerts = [
+        alert
+        for alert in PriceAlert.objects.select_related("product")
+        .prefetch_related("product__metro_offers__volume_tiers")
+        .filter(active=True)
+        if alert.is_triggered
+    ]
     supplier_count = Supplier.objects.count()
     document_count = Invoice.objects.count()
     inventory_count = InventoryItem.objects.filter(active=True).count()
@@ -604,7 +615,7 @@ def price_alert_list(request):
         form.save()
         messages.success(request, "Alerta de preț a fost salvată.")
         return redirect("comparator:price_alert_list")
-    alerts = PriceAlert.objects.select_related("product")
+    alerts = PriceAlert.objects.select_related("product").prefetch_related("product__metro_offers__volume_tiers")
     page_obj = Paginator(alerts, 50).get_page(request.GET.get("page"))
     return render(
         request,
@@ -878,7 +889,11 @@ def inventory_item_edit(request, pk):
 
 def margin_analysis(request):
     query = request.GET.get("q", "").strip()
-    items = InventoryItem.objects.select_related("product").filter(active=True)
+    items = (
+        InventoryItem.objects.select_related("product")
+        .prefetch_related(*source_option_prefetches("product__"))
+        .filter(active=True)
+    )
     if query:
         items = items.filter(Q(product__name__icontains=query) | Q(product__brand__icontains=query))
     summary = profitability_summary(items)
@@ -1458,12 +1473,15 @@ def invoice_detail(request, pk):
         Invoice.objects.select_related("supplier").prefetch_related("lines", "processing_jobs"),
         pk=pk,
     )
-    rows = [
-        (line, line.comparison())
-        for line in invoice.lines.select_related("matched_product").prefetch_related(
-            "matched_product__metro_offers__volume_tiers"
-        )
-    ]
+    comparison_lines = list(
+        invoice.lines.select_related("matched_product").prefetch_related("matched_product__metro_offers__volume_tiers")
+    )
+    invoice._prefetched_merchandise_total_gross = sum(
+        (line.merchandise_total_gross for line in comparison_lines), Decimal("0")
+    )
+    for line in comparison_lines:
+        line.invoice = invoice
+    rows = [(line, line.comparison()) for line in comparison_lines]
     formset = InvoiceLineFormSet(queryset=invoice.lines.select_related("matched_product"), prefix="lines")
     return render(
         request,

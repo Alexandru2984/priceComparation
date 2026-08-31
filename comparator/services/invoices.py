@@ -35,6 +35,20 @@ LINE_DECIMAL_FIELDS = (
 )
 
 
+def prime_invoice_merchandise_totals(lines):
+    """Prime invoice totals once for a collection of lines used in comparisons."""
+    lines = list(lines)
+    totals = {}
+    invoices = {}
+    for line in lines:
+        totals[line.invoice_id] = totals.get(line.invoice_id, Decimal("0")) + line.merchandise_total_gross
+        invoices.setdefault(line.invoice_id, []).append(line.invoice)
+    for invoice_id, invoice_instances in invoices.items():
+        for invoice in invoice_instances:
+            invoice._prefetched_merchandise_total_gross = totals[invoice_id]
+    return lines
+
+
 def _serialize_invoice_line(line):
     data = {
         "original_name": line.original_name,
@@ -93,10 +107,14 @@ def delete_derived_metro_offers(invoice):
 def reconcile_derived_metro_offer(invoice, product_id):
     if not invoice.supplier.is_metro or not product_id:
         return
-    replacement = invoice.lines.select_related("invoice", "invoice__supplier").filter(
-        matched_product_id=product_id,
-        needs_review=False,
-    ).first()
+    replacement = (
+        invoice.lines.select_related("invoice", "invoice__supplier")
+        .filter(
+            matched_product_id=product_id,
+            needs_review=False,
+        )
+        .first()
+    )
     if replacement:
         sync_metro_offer_from_line(replacement)
         return
@@ -127,12 +145,14 @@ def process_invoice(invoice, force_ocr=False, created_by=None):
                 page.ocr_quality_score = result.quality_score
                 page.ocr_strategy = result.strategy
                 page.ocr_warnings = result.warnings
-                page.save(update_fields=[
-                    "ocr_text",
-                    "ocr_quality_score",
-                    "ocr_strategy",
-                    "ocr_warnings",
-                ])
+                page.save(
+                    update_fields=[
+                        "ocr_text",
+                        "ocr_quality_score",
+                        "ocr_strategy",
+                        "ocr_warnings",
+                    ]
+                )
         invoice.ocr_text = merge_ocr_pages(chunks)
 
     profile = get_supplier_profile(invoice.supplier)
@@ -209,9 +229,7 @@ def delete_invoice(invoice):
     if invoice.document and invoice.document.name:
         stored_files.append((invoice.document.storage, invoice.document.name))
     stored_files.extend(
-        (page.file.storage, page.file.name)
-        for page in invoice.pages.all()
-        if page.file and page.file.name
+        (page.file.storage, page.file.name) for page in invoice.pages.all() if page.file and page.file.name
     )
 
     def remove_stored_files():
@@ -237,11 +255,7 @@ def restore_invoice_revision(revision, created_by=None):
     delete_derived_metro_offers(invoice)
     invoice.lines.all().delete()
 
-    product_ids = {
-        item.get("matched_product_id")
-        for item in snapshot["lines"]
-        if item.get("matched_product_id")
-    }
+    product_ids = {item.get("matched_product_id") for item in snapshot["lines"] if item.get("matched_product_id")}
     existing_product_ids = set(Product.objects.filter(pk__in=product_ids).values_list("pk", flat=True))
     restored_lines = []
     for item in snapshot["lines"]:
@@ -255,11 +269,7 @@ def restore_invoice_revision(revision, created_by=None):
             original_name=str(item.get("original_name", ""))[:240],
             ean=str(item.get("ean", ""))[:80],
             base_unit=base_unit,
-            line_total_gross=(
-                Decimal(item["line_total_gross"])
-                if item.get("line_total_gross") is not None
-                else None
-            ),
+            line_total_gross=(Decimal(item["line_total_gross"]) if item.get("line_total_gross") is not None else None),
             matched_product_id=product_id if product_id in existing_product_ids else None,
             match_score=int(item.get("match_score", 0)) if product_exists else 0,
             match_gap=int(item.get("match_gap", 0)) if product_exists else 0,

@@ -79,7 +79,11 @@ class InitialDataImport(models.Model):
 class Supplier(models.Model):
     name = models.CharField("denumire", max_length=180, unique=True)
     tax_id = models.CharField("CUI", max_length=30, blank=True)
-    is_metro = models.BooleanField("este METRO", default=False, help_text="Documentele confirmate de la acest furnizor actualizează prețurile METRO.")
+    is_metro = models.BooleanField(
+        "este METRO",
+        default=False,
+        help_text="Documentele confirmate de la acest furnizor actualizează prețurile METRO.",
+    )
     notes = models.TextField("observații", blank=True)
     minimum_order_gross = models.DecimalField(
         "comandă minimă cu TVA",
@@ -171,9 +175,7 @@ class Product(models.Model):
 
     class Meta:
         ordering = ["name", "brand"]
-        constraints = [
-            models.UniqueConstraint(fields=["name", "brand", "base_unit"], name="unique_catalog_product")
-        ]
+        constraints = [models.UniqueConstraint(fields=["name", "brand", "base_unit"], name="unique_catalog_product")]
         verbose_name = "produs urmărit"
         verbose_name_plural = "produse urmărite"
 
@@ -241,15 +243,23 @@ class ProductCode(models.Model):
 class MetroOffer(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="metro_offers")
     units_per_package = models.DecimalField(
-        "bucăți în pachet", max_digits=10, decimal_places=3, default=1,
+        "bucăți în pachet",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     unit_size = models.DecimalField(
-        "cantitate per bucată", max_digits=10, decimal_places=3, default=1,
+        "cantitate per bucată",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     price_gross = models.DecimalField(
-        "preț pachet cu TVA", max_digits=12, decimal_places=2,
+        "preț pachet cu TVA",
+        max_digits=12,
+        decimal_places=2,
         validators=[MinValueValidator(Decimal("0"))],
     )
     valid_from = models.DateField("valabil de la")
@@ -333,9 +343,7 @@ class MetroOfferTier(models.Model):
 
     class Meta:
         ordering = ["min_packages"]
-        constraints = [
-            models.UniqueConstraint(fields=["offer", "min_packages"], name="unique_metro_volume_tier")
-        ]
+        constraints = [models.UniqueConstraint(fields=["offer", "min_packages"], name="unique_metro_volume_tier")]
         verbose_name = "prag de volum METRO"
         verbose_name_plural = "praguri de volum METRO"
 
@@ -426,7 +434,9 @@ class MetroScrapedProduct(models.Model):
     category = models.CharField(max_length=80, choices=CATEGORY_CHOICES, blank=True, db_index=True)
     price_gross = models.DecimalField("preț cu TVA", max_digits=12, decimal_places=2)
     volume_prices = models.JSONField("praguri de volum", default=list, blank=True)
-    matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="metro_scrape_rows")
+    matched_product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="metro_scrape_rows"
+    )
     match_score = models.PositiveSmallIntegerField(default=0)
     imported = models.BooleanField(default=False)
     captured_at = models.DateTimeField(auto_now=True)
@@ -524,9 +534,7 @@ class MetroPriceAnomaly(models.Model):
 
     class Meta:
         ordering = ["-detected_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["state", "job"], name="unique_metro_price_anomaly_per_job")
-        ]
+        constraints = [models.UniqueConstraint(fields=["state", "job"], name="unique_metro_price_anomaly_per_job")]
 
     def __str__(self):
         return f"{self.product.name}: {self.change_percent:+.2f}%"
@@ -568,9 +576,7 @@ class ProductAlias(models.Model):
 
     class Meta:
         ordering = ["alias"]
-        constraints = [
-            models.UniqueConstraint(fields=["supplier", "alias"], name="unique_supplier_product_alias")
-        ]
+        constraints = [models.UniqueConstraint(fields=["supplier", "alias"], name="unique_supplier_product_alias")]
 
     def __str__(self):
         return f"{self.alias} → {self.product.name}"
@@ -589,7 +595,9 @@ class Invoice(models.Model):
         ERROR = "ERROR", "Eroare OCR"
 
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="invoices")
-    document_type = models.CharField("tip document", max_length=10, choices=DocumentType.choices, default=DocumentType.INVOICE)
+    document_type = models.CharField(
+        "tip document", max_length=10, choices=DocumentType.choices, default=DocumentType.INVOICE
+    )
     number = models.CharField("număr factură/bon", max_length=80, blank=True)
     issued_at = models.DateField("data documentului")
     document = models.FileField(
@@ -611,11 +619,17 @@ class Invoice(models.Model):
         help_text="Folosește liniile confirmate manual drept adevăr de referință pentru evaluarea locală.",
     )
     transport_gross = models.DecimalField(
-        "transport cu TVA", max_digits=12, decimal_places=2, default=0,
+        "transport cu TVA",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
     document_discount_gross = models.DecimalField(
-        "reducere document", max_digits=12, decimal_places=2, default=0,
+        "reducere document",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
     document_total_gross = models.DecimalField(
@@ -648,6 +662,9 @@ class Invoice(models.Model):
 
     @property
     def merchandise_total_gross(self):
+        prefetched_total = getattr(self, "_prefetched_merchandise_total_gross", None)
+        if prefetched_total is not None:
+            return prefetched_total
         return sum((line.merchandise_total_gross for line in self.lines.all()), Decimal("0"))
 
     def allocated_transport(self, line):
@@ -821,20 +838,31 @@ class InvoiceLine(models.Model):
     original_name = models.CharField("denumire de pe factură", max_length=240)
     ean = models.CharField("EAN / cod produs", max_length=80, blank=True, db_index=True)
     quantity = models.DecimalField(
-        "număr pachete/bucăți", max_digits=10, decimal_places=3, default=1,
+        "număr pachete/bucăți",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     units_per_package = models.DecimalField(
-        "bucăți în pachet", max_digits=10, decimal_places=3, default=1,
+        "bucăți în pachet",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     unit_size = models.DecimalField(
-        "cantitate per bucată", max_digits=10, decimal_places=3, default=1,
+        "cantitate per bucată",
+        max_digits=10,
+        decimal_places=3,
+        default=1,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     base_unit = models.CharField("unitate de bază", max_length=3, choices=BaseUnit.choices, default=BaseUnit.PIECE)
     unit_price_gross = models.DecimalField(
-        "preț pachet/bucată cu TVA", max_digits=12, decimal_places=2,
+        "preț pachet/bucată cu TVA",
+        max_digits=12,
+        decimal_places=2,
         validators=[MinValueValidator(Decimal("0"))],
     )
     vat_rate = models.DecimalField(
@@ -853,14 +881,22 @@ class InvoiceLine(models.Model):
         validators=[MinValueValidator(Decimal("0"))],
     )
     discount_gross = models.DecimalField(
-        "reducere linie", max_digits=12, decimal_places=2, default=0,
+        "reducere linie",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
     deposit_gross = models.DecimalField(
-        "SGR/garanție", max_digits=12, decimal_places=2, default=0,
+        "SGR/garanție",
+        max_digits=12,
+        decimal_places=2,
+        default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    matched_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines")
+    matched_product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines"
+    )
     match_score = models.PositiveSmallIntegerField(default=0)
     match_gap = models.PositiveSmallIntegerField(default=0)
     match_method = models.CharField(max_length=10, choices=MatchMethod.choices, default=MatchMethod.NONE)
@@ -959,9 +995,7 @@ class InvoiceLine(models.Model):
 class SupplierOffer(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="offers")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="supplier_offers")
-    invoice_line = models.OneToOneField(
-        InvoiceLine, on_delete=models.CASCADE, related_name="supplier_offer"
-    )
+    invoice_line = models.OneToOneField(InvoiceLine, on_delete=models.CASCADE, related_name="supplier_offer")
     price_per_base_unit = models.DecimalField(max_digits=14, decimal_places=4)
     base_unit = models.CharField(max_length=3, choices=BaseUnit.choices)
     valid_from = models.DateField()
@@ -978,7 +1012,9 @@ class SupplierOffer(models.Model):
 class PriceAlert(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="price_alerts")
     target_price = models.DecimalField(
-        "prag lei/unitate", max_digits=12, decimal_places=2,
+        "prag lei/unitate",
+        max_digits=12,
+        decimal_places=2,
         validators=[MinValueValidator(Decimal("0"))],
     )
     active = models.BooleanField(default=True)
@@ -1046,7 +1082,9 @@ class ShoppingListItem(models.Model):
     shopping_list = models.ForeignKey(ShoppingList, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="shopping_items")
     quantity = models.DecimalField(
-        "cantitate necesară", max_digits=12, decimal_places=3,
+        "cantitate necesară",
+        max_digits=12,
+        decimal_places=3,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
     purchased = models.BooleanField(default=False)
@@ -1197,7 +1235,9 @@ class SalesImportLine(models.Model):
         decimal_places=3,
         validators=[MinValueValidator(Decimal("0.001"))],
     )
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True, related_name="sales_import_lines")
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, null=True, blank=True, related_name="sales_import_lines"
+    )
     match_score = models.PositiveSmallIntegerField(default=0)
     error = models.CharField(max_length=240, blank=True)
     ignored = models.BooleanField(default=False)
@@ -1205,13 +1245,15 @@ class SalesImportLine(models.Model):
 
     class Meta:
         ordering = ["row_number"]
-        constraints = [
-            models.UniqueConstraint(fields=["sales_import", "row_number"], name="unique_sales_import_row")
-        ]
+        constraints = [models.UniqueConstraint(fields=["sales_import", "row_number"], name="unique_sales_import_row")]
 
     @property
     def needs_review(self):
-        return not self.ignored and not self.applied_at and bool(self.error or not self.product_id or self.match_score < 75)
+        return (
+            not self.ignored
+            and not self.applied_at
+            and bool(self.error or not self.product_id or self.match_score < 75)
+        )
 
     def __str__(self):
         return f"{self.sales_import} · rând {self.row_number}"
