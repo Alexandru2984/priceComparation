@@ -1,13 +1,14 @@
 from collections import defaultdict
 from datetime import timedelta
-from decimal import Decimal, ROUND_CEILING
+from decimal import ROUND_CEILING, Decimal
 
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Avg, Count, Max
 from django.utils import timezone
 
-from comparator.models import InvoiceLine, MetroOffer, Product, SupplierOffer
+from comparator.models import InvoiceLine, MetroOffer, Product
+
 from .matching import normalize_name
 
 

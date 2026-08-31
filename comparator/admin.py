@@ -1,24 +1,24 @@
 from django.contrib import admin
+from django.contrib.admin.sites import NotRegistered
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.contrib.admin.sites import NotRegistered
 
 from .models import (
     ActivityLog,
     AutomationRun,
     DocumentPage,
     DocumentProcessingJob,
+    InitialDataImport,
+    InventoryItem,
     Invoice,
     InvoiceLine,
     InvoiceRevision,
-    InitialDataImport,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroPriceAnomaly,
     MetroProductState,
-    MetroScrapeJob,
     MetroScrapedProduct,
+    MetroScrapeJob,
     MetroScrapeTerm,
     PriceAlert,
     Product,
@@ -35,7 +35,6 @@ from .models import (
     SupplierParsingProfile,
     SupplierPriceImport,
 )
-
 
 admin.site.site_header = "PriceMatch · administrare securizată"
 admin.site.site_title = "PriceMatch Admin"

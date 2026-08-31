@@ -3,7 +3,7 @@ from datetime import date
 from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
-from django.core.checks import run_checks, Tags
+from django.core.checks import Tags, run_checks
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import get_resolver
@@ -11,9 +11,8 @@ from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from PIL import Image
 
-from pricecompare.security import get_client_ip_address
-
 from comparator.models import DocumentPage, Invoice, Product, Supplier
+from pricecompare.security import get_client_ip_address
 
 
 def valid_jpeg(name="bon.jpg"):

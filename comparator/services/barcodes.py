@@ -1,8 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from comparator.models import Product, ProductCode
-
+from comparator.models import ProductCode
 
 GTIN_LENGTHS = {8, 12, 13, 14}
 

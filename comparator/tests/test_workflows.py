@@ -1,5 +1,5 @@
-import json
 import gzip
+import json
 import tarfile
 from datetime import date
 from decimal import Decimal
@@ -12,10 +12,11 @@ from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
+from comparator.management.commands.restore_pricematch import file_sha256, safe_members
 from comparator.models import (
+    InventoryItem,
     Invoice,
     InvoiceLine,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroScrapeJob,
@@ -34,7 +35,6 @@ from comparator.services.invoices import sync_supplier_offer_from_line
 from comparator.services.matching import suggest_product
 from comparator.services.metro_scraper import store_captured_rows
 from comparator.services.ocr import merge_ocr_pages
-from comparator.management.commands.restore_pricematch import file_sha256, safe_members
 
 
 class CostAndLearningTests(TestCase):

@@ -2,8 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import override_settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from comparator.models import (
@@ -12,13 +11,12 @@ from comparator.models import (
     MetroOffer,
     MetroPriceAnomaly,
     MetroProductState,
-    MetroScrapeJob,
     MetroScrapedProduct,
+    MetroScrapeJob,
     MetroScrapeTerm,
     Product,
 )
 from comparator.services.metro_scraper import finalize_catalog_job, import_scraped_rows
-
 
 STORE = "METRO PUNCT TARGOVISTE"
 

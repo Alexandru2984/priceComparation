@@ -1,6 +1,6 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 
 from django.conf import settings
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps

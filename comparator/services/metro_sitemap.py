@@ -12,7 +12,6 @@ from comparator.models import Product, ProductCode
 
 from .metro_scraper import parse_measurement
 
-
 METRO_SITEMAP_URL = (
     "https://produse.metro.ro/searchdiscover/sitemap/country/RO/locale/ro-RO/sitemap"
 )

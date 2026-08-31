@@ -4,7 +4,6 @@ from two_factor.urls import urlpatterns as two_factor_urls
 
 from .views import public_demo, service_worker
 
-
 urlpatterns = [
     path("service-worker.js", service_worker, name="service_worker"),
     path("", public_demo, name="public_demo"),

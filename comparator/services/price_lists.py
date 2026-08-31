@@ -13,7 +13,6 @@ from comparator.models import BaseUnit, Invoice, InvoiceLine, SupplierPriceImpor
 
 from .matching import apply_match, suggest_product
 
-
 MAX_ROWS = 5000
 MAX_XLSX_UNCOMPRESSED = 50 * 1024 * 1024
 

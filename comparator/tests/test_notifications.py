@@ -9,7 +9,6 @@ from django.test import TestCase, override_settings
 from comparator.models import MetroOffer, PriceAlert, Product, PushSubscription
 from comparator.services.notifications import is_allowed_push_endpoint, send_triggered_price_alerts
 
-
 PUSH_SETTINGS = {
     "WEBPUSH_VAPID_PRIVATE_KEY": "/tmp/test-vapid.pem",
     "WEBPUSH_VAPID_PUBLIC_KEY": "B" + "x" * 86,

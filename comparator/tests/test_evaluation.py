@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from django.core.management import call_command
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
 from comparator.models import DocumentPage, Invoice, InvoiceLine, Supplier

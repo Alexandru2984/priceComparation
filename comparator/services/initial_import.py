@@ -15,7 +15,6 @@ from comparator.models import BaseUnit, InitialDataImport, InventoryItem, Produc
 
 from .barcodes import assign_ean, is_valid_gtin, normalize_barcode
 
-
 MAX_ROWS = 5000
 MAX_XLSX_UNCOMPRESSED = 50 * 1024 * 1024
 CATEGORIES = {value for value, _ in CATEGORY_CHOICES}
@@ -142,7 +141,7 @@ def _product_rows(sheet):
             "ean": ean,
             "base_unit": unit or "",
             "category": category,
-            "active": not _normal(_value(record, "activ")) in {"nu", "0", "false"},
+            "active": _normal(_value(record, "activ")) not in {"nu", "0", "false"},
         }
         result.append({"kind": "PRODUCT", "sheet": sheet.title, "row": number, "data": values, "errors": errors})
     return result

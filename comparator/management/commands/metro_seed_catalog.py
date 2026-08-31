@@ -6,14 +6,13 @@ from django.utils import timezone
 
 from comparator.catalog import CATEGORY_BREADTH_TERMS, CATEGORY_CHOICES, CATEGORY_SEARCH_TERMS
 from comparator.models import MetroScrapeJob, MetroScrapeTerm
+from comparator.services.metro_api import capture_api_catalog
 from comparator.services.metro_scraper import (
     capture_category_catalog,
     capture_search_terms,
     finalize_catalog_job,
     import_scraped_rows,
 )
-from comparator.services.metro_api import capture_api_catalog
-
 
 DEFAULT_TERMS = [term for terms in CATEGORY_SEARCH_TERMS.values() for term in terms]
 ALPHABET_TERMS = [first + second for first in string.ascii_lowercase for second in string.ascii_lowercase]

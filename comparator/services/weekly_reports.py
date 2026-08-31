@@ -7,7 +7,7 @@ from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
-from comparator.models import Invoice, InvoiceLine, InventoryItem, MetroPriceAnomaly, StockMovement
+from comparator.models import InventoryItem, Invoice, InvoiceLine, MetroPriceAnomaly, StockMovement
 
 from .exports import _safe_cell
 from .insights import current_source_options, profitability_summary

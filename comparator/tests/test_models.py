@@ -4,8 +4,8 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from PIL import Image
 
 from comparator.models import Invoice, InvoiceLine, MetroOffer, MetroOfferTier, Product, Supplier

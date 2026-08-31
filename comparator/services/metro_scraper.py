@@ -1,5 +1,6 @@
 import logging
 import re
+
 # The process uses a fixed argv, shell=False and the current trusted interpreter.
 import subprocess  # nosec B404
 import sys
@@ -26,15 +27,14 @@ from comparator.models import (
     MetroOfferTier,
     MetroPriceAnomaly,
     MetroProductState,
-    MetroScrapeJob,
     MetroScrapedProduct,
+    MetroScrapeJob,
     MetroScrapeTerm,
     Product,
     ProductCode,
 )
 
 from .matching import suggest_product
-
 
 logger = logging.getLogger(__name__)
 

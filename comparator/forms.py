@@ -1,9 +1,9 @@
 from django import forms
 
 from .models import (
+    InventoryItem,
     Invoice,
     InvoiceLine,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     PriceAlert,
@@ -15,6 +15,7 @@ from .models import (
     Supplier,
     SupplierParsingProfile,
 )
+from .services.barcodes import is_valid_gtin, normalize_barcode
 from .validators import (
     MAX_DOCUMENT_PAGES,
     MAX_DOCUMENT_TOTAL_SIZE,
@@ -22,7 +23,6 @@ from .validators import (
     validate_document_upload,
     validate_price_list_upload,
 )
-from .services.barcodes import is_valid_gtin, normalize_barcode
 from .widgets import ProductAutocompleteWidget, set_product_widget_label
 
 

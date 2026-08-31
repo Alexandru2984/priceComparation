@@ -3,7 +3,6 @@ from django.urls import path
 from . import views
 from .auth import app_admin_required, staff_member_required
 
-
 app_name = "comparator"
 
 urlpatterns = [

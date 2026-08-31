@@ -10,7 +10,6 @@ from pywebpush import WebPushException, webpush
 
 from comparator.models import PriceAlert, PushSubscription
 
-
 logger = logging.getLogger(__name__)
 
 

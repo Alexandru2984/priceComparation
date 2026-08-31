@@ -7,7 +7,6 @@ from comparator.models import DocumentProcessingJob, Invoice
 
 from .invoices import process_invoice
 
-
 ACTIVE_STATUSES = [DocumentProcessingJob.Status.PENDING, DocumentProcessingJob.Status.RUNNING]
 
 

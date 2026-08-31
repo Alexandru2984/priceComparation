@@ -18,7 +18,6 @@ from .metro_scraper import (
     store_captured_rows,
 )
 
-
 METRO_ORIGIN = "https://produse.metro.ro"
 STORE_INFO_URL = f"{METRO_ORIGIN}/cia/content/sitecore/storeinformation/RO/ro-RO"
 MAIN_CATEGORIES_URL = f"{METRO_ORIGIN}/searchdiscover/articlesearch/mainCategories"

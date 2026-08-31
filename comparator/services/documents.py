@@ -6,7 +6,6 @@ from django.db import transaction
 from comparator.models import DocumentPage, Invoice
 from comparator.validators import MAX_DOCUMENT_PAGES, MAX_DOCUMENT_TOTAL_SIZE
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -8,7 +8,7 @@ from django.test import TestCase
 from openpyxl import load_workbook
 
 from comparator.catalog import infer_category
-from comparator.models import MetroOffer, MetroOfferTier, MetroScrapeJob, MetroScrapedProduct, Product
+from comparator.models import MetroOffer, MetroOfferTier, MetroScrapedProduct, MetroScrapeJob, Product
 
 
 class CategoryTests(TestCase):

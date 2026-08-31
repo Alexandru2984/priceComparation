@@ -9,8 +9,8 @@ from django.test import TestCase, override_settings
 from comparator.models import (
     MetroOffer,
     MetroOfferTier,
-    MetroScrapeJob,
     MetroScrapedProduct,
+    MetroScrapeJob,
     Product,
     ProductCode,
 )

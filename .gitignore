@@ -7,6 +7,10 @@ staticfiles/
 .env
 .idea/
 .vscode/
+.coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
 data/
 backups/
 reports/

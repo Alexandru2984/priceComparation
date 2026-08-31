@@ -3,7 +3,6 @@ from pathlib import Path
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
-
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
 MAX_DOCUMENT_TOTAL_SIZE = 50 * 1024 * 1024
 MAX_DOCUMENT_PAGES = 12

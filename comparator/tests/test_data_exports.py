@@ -8,9 +8,9 @@ from openpyxl import load_workbook
 
 from comparator.models import (
     ActivityLog,
+    InventoryItem,
     Invoice,
     InvoiceLine,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     PriceAlert,

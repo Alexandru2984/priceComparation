@@ -15,12 +15,11 @@ from comparator.models import (
     SupplierOffer,
 )
 
+from .inventory import sync_stock_from_line
 from .matching import apply_match
 from .ocr import extract_text_result, merge_ocr_pages
 from .parser import parse_invoice_text
-from .inventory import sync_stock_from_line
 from .supplier_profiles import get_supplier_profile
-
 
 logger = logging.getLogger(__name__)
 

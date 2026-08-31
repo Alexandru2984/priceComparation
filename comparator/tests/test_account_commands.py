@@ -9,7 +9,6 @@ from django.core.management import CommandError, call_command
 from django.test import TestCase
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-
 STRONG_PASSWORD = "Parola-PriceMatch-2026!"
 
 

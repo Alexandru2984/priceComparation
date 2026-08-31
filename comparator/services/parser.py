@@ -8,7 +8,6 @@ from rapidfuzz import fuzz
 
 from comparator.models import BaseUnit
 
-
 PRODUCT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -180,7 +179,9 @@ def _candidate_line_count(text):
 
 
 def _names_match(left, right):
-    normalize = lambda value: " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+    def normalize(value):
+        return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+
     return fuzz.token_set_ratio(normalize(left), normalize(right)) >= 82
 
 

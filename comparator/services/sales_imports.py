@@ -7,11 +7,10 @@ import pandas as pd
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from comparator.models import InventoryItem, SalesImport, SalesImportLine, StockMovement
+from comparator.models import InventoryItem, SalesImport, StockMovement
 
 from .matching import suggest_product
 from .price_lists import _decimal, _normalize, _read_table
-
 
 SALES_COLUMN_ALIASES = {
     "name": {"produs", "denumire", "nume", "product", "articol"},

@@ -8,7 +8,6 @@ from rapidfuzz import fuzz
 
 from comparator.models import BaseUnit, InvoiceLine, Product, ProductAlias, ProductCode
 
-
 STOPWORDS = {
     "buc", "bucati", "bucata", "cutie", "cutii", "bax", "baxuri", "pet", "punga",
     "sticla", "kg", "g", "gr", "l", "litri", "ml", "x", "folie", "imp",

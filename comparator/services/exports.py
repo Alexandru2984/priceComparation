@@ -8,9 +8,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
 from comparator.models import (
+    InventoryItem,
     Invoice,
     InvoiceLine,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     PriceAlert,
@@ -22,7 +22,6 @@ from comparator.models import (
 )
 
 from .inventory import inventory_with_balance
-
 
 CATALOG_HEADERS = [
     "Produs", "Marcă", "EAN", "Categorie", "Unitate bază", "Preț pachet", "Bucăți/pachet",

@@ -1,6 +1,5 @@
 import unicodedata
 
-
 CATEGORY_SEARCH_TERMS = {
     "Lactate": [
         "iaurt", "iaurt grecesc", "iaurt de baut", "smantana", "lapte", "lapte UHT", "lapte batut",

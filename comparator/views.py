@@ -6,8 +6,8 @@ from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from django.contrib import messages
 from django.conf import settings
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -17,14 +17,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import (
-    InvoiceForm,
-    InvoiceEditForm,
-    DocumentPagesForm,
     DataExportForm,
+    DocumentPagesForm,
     InitialDataImportForm,
+    InventoryItemForm,
+    InvoiceEditForm,
+    InvoiceForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
-    InventoryItemForm,
     MetroImportForm,
     MetroOfferForm,
     PriceAlertForm,
@@ -45,10 +45,10 @@ from .models import (
     DocumentPage,
     DocumentProcessingJob,
     InitialDataImport,
+    InventoryItem,
     Invoice,
     InvoiceLine,
     InvoiceRevision,
-    InventoryItem,
     MetroOffer,
     MetroOfferTier,
     MetroPriceAnomaly,
@@ -56,8 +56,8 @@ from .models import (
     MetroScrapeJob,
     PriceAlert,
     Product,
-    ProductCode,
     ProductAlias,
+    ProductCode,
     PushSubscription,
     SalesImport,
     SalesImportLine,
@@ -65,12 +65,29 @@ from .models import (
     ShoppingListItem,
     StockMovement,
     Supplier,
-    SupplierParsingProfile,
     SupplierPriceImport,
 )
 from .services.barcodes import assign_ean, is_valid_gtin, normalize_barcode
 from .services.documents import add_document_pages, delete_document_page, move_document_page
 from .services.evaluation import evaluate_confirmed_documents
+from .services.exports import build_catalog_csv, build_catalog_xlsx, build_complete_data_xlsx
+from .services.health import system_readiness
+from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
+from .services.insights import (
+    catalog_quality_summary,
+    matching_quality_summary,
+    optimize_shopping_list,
+    product_history,
+    profitability_analysis,
+    profitability_summary,
+    recent_metro_changes,
+)
+from .services.inventory import (
+    create_replenishment_list,
+    inventory_with_balance,
+    sync_invoice_stock,
+    sync_stock_from_line,
+)
 from .services.invoices import (
     delete_invoice,
     delete_invoice_line,
@@ -80,10 +97,6 @@ from .services.invoices import (
     sync_metro_offer_from_line,
     sync_supplier_offer_from_line,
 )
-from .services.inventory import create_replenishment_list, inventory_with_balance, sync_invoice_stock, sync_stock_from_line
-from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
-from .services.health import system_readiness
-from .services.exports import build_catalog_csv, build_catalog_xlsx, build_complete_data_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import (
     import_scraped_rows,
@@ -98,21 +111,12 @@ from .services.metro_sitemap import (
     fetch_metro_sitemap_products,
     import_metro_sitemap_products,
 )
-from .services.insights import (
-    catalog_quality_summary,
-    matching_quality_summary,
-    optimize_shopping_list,
-    profitability_analysis,
-    profitability_summary,
-    product_history,
-    recent_metro_changes,
-)
 from .services.notifications import is_allowed_push_endpoint, send_to_active_staff, webpush_configured
-from .services.processing_queue import enqueue_document
 from .services.price_lists import create_price_list_invoice, parse_supplier_price_list
+from .services.processing_queue import enqueue_document
 from .services.sales_imports import apply_sales_import, parse_sales_file
-from .services.weekly_reports import build_weekly_report, build_weekly_report_xlsx
 from .services.supplier_profiles import refresh_supplier_profile_metrics
+from .services.weekly_reports import build_weekly_report, build_weekly_report_xlsx
 
 
 def activity_log(request):
