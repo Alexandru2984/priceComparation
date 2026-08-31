@@ -38,6 +38,8 @@ Pentru o copie criptată în afara VPS-ului folosește [ghidul de backup restic]
 - import inițial XLSX, cu foi separate pentru furnizori, produse și stoc și aplicare idempotentă;
 - marjă netă cu TVA, pierderi estimate și recomandare de preț la raft;
 - raport operațional săptămânal în interfață și Excel, generat automat lunea;
+- export administrativ XLSX cu 12 foi pentru catalog, prețuri, documente, stoc, liste și alerte, filtrabil
+  după perioadă și protejat împotriva formulelor injectate;
 - scanări METRO automate țintite/complet și coadă pentru abateri mari de preț;
 - MFA cu aplicație TOTP pentru publicare pe internet;
 - backup comprimat, verificat SHA-256 și restaurare izolată de test;
@@ -450,6 +452,20 @@ Scanarea țintită caută produsele active din stoc și listele de cumpărături
 ```bash
 .venv/bin/python manage.py test
 ```
+
+Pentru aceeași suită de calitate folosită în CI:
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/ruff check comparator pricecompare
+.venv/bin/coverage run manage.py test
+.venv/bin/coverage report --fail-under=70
+.venv/bin/pip-audit -r requirements.txt
+.venv/bin/bandit -q -r comparator pricecompare -x comparator/tests -ll
+```
+
+GitHub Actions rulează automat aceste verificări pe PostgreSQL la fiecare push și pull request. Dependabot
+verifică săptămânal pachetele Python și versiunile acțiunilor din workflow.
 
 Pentru a măsura parserul pe documentele tale reale fără a le trimite nicăieri, copiază manifestul exemplu,
 adaugă lângă el fotografiile/PDF-urile și rulează:
