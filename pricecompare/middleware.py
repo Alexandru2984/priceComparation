@@ -26,6 +26,7 @@ class ActivityAuditMiddleware:
     """Record mutating private requests without storing form data or document contents."""
 
     MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+    AUDITED_READ_VIEWS = {"comparator:data_export_download"}
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -33,8 +34,10 @@ class ActivityAuditMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         user = getattr(request, "user", None)
+        resolver_match = getattr(request, "resolver_match", None)
+        view_name = resolver_match.view_name if resolver_match else ""
         if (
-            request.method in self.MUTATING_METHODS
+            (request.method in self.MUTATING_METHODS or view_name in self.AUDITED_READ_VIEWS)
             and request.path.startswith(("/app/", "/admin/"))
             and user is not None
             and user.is_authenticated
@@ -46,13 +49,12 @@ class ActivityAuditMiddleware:
                 outcome = ActivityLog.Outcome.ERROR
             else:
                 outcome = ActivityLog.Outcome.SUCCESS
-            resolver_match = getattr(request, "resolver_match", None)
             try:
                 ActivityLog.objects.create(
                     user=user,
                     method=request.method,
                     path=request.path[:500],
-                    view_name=(resolver_match.view_name if resolver_match else "")[:180],
+                    view_name=view_name[:180],
                     status_code=response.status_code,
                     outcome=outcome,
                     ip_address=get_client_ip_address(request),

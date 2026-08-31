@@ -30,6 +30,23 @@ class DateInput(forms.DateInput):
     input_type = "date"
 
 
+class DataExportForm(forms.Form):
+    start_date = forms.DateField(label="De la data", required=False, widget=DateInput())
+    end_date = forms.DateField(label="Până la data", required=False, widget=DateInput())
+    include_inactive = forms.BooleanField(
+        label="Include produse/oferte inactive și liste arhivate",
+        required=False,
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start_date = cleaned.get("start_date")
+        end_date = cleaned.get("end_date")
+        if start_date and end_date and start_date > end_date:
+            raise forms.ValidationError("Data de început nu poate fi după data de sfârșit.")
+        return cleaned
+
+
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier

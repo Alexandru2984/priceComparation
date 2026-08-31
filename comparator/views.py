@@ -20,6 +20,7 @@ from .forms import (
     InvoiceForm,
     InvoiceEditForm,
     DocumentPagesForm,
+    DataExportForm,
     InitialDataImportForm,
     InvoiceLineForm,
     InvoiceLineFormSet,
@@ -82,7 +83,7 @@ from .services.invoices import (
 from .services.inventory import create_replenishment_list, inventory_with_balance, sync_invoice_stock, sync_stock_from_line
 from .services.initial_import import apply_initial_import, build_initial_workbook_template, parse_initial_workbook
 from .services.health import system_readiness
-from .services.exports import build_catalog_csv, build_catalog_xlsx
+from .services.exports import build_catalog_csv, build_catalog_xlsx, build_complete_data_xlsx
 from .services.matching import apply_match
 from .services.metro_scraper import (
     import_scraped_rows,
@@ -141,6 +142,50 @@ def activity_log(request):
             "query": query,
         },
     )
+
+
+def data_export_index(request):
+    return render(
+        request,
+        "comparator/data_export.html",
+        {
+            "form": DataExportForm(request.GET or None),
+            "counts": {
+                "products": Product.objects.count(),
+                "documents": Invoice.objects.count(),
+                "inventory": InventoryItem.objects.count(),
+                "suppliers": Supplier.objects.count(),
+            },
+        },
+    )
+
+
+def data_export_download(request):
+    form = DataExportForm(request.GET)
+    if not form.is_valid():
+        return render(
+            request,
+            "comparator/data_export.html",
+            {
+                "form": form,
+                "counts": {
+                    "products": Product.objects.count(),
+                    "documents": Invoice.objects.count(),
+                    "inventory": InventoryItem.objects.count(),
+                    "suppliers": Supplier.objects.count(),
+                },
+            },
+            status=400,
+        )
+    content = build_complete_data_xlsx(**form.cleaned_data)
+    response = HttpResponse(
+        content,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = (
+        f'attachment; filename="pricematch-date-{timezone.localdate().isoformat()}.xlsx"'
+    )
+    return response
 
 
 def dashboard(request):

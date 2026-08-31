@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Exporturi · PriceMatch{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Portabilitatea datelor</p><h1>Export administrativ</h1><p>Descarcă datele operaționale într-un registru Excel cu foi separate. Fișierele încărcate, textul OCR, parolele, MFA și tokenurile push nu sunt incluse.</p></div></div>
+<section class="stats compact-stats"><article><strong>{{ counts.products }}</strong><span>produse</span></article><article><strong>{{ counts.documents }}</strong><span>documente</span></article><article><strong>{{ counts.inventory }}</strong><span>produse în stoc</span></article><article><strong>{{ counts.suppliers }}</strong><span>furnizori</span></article></section>
+<section class="panel form-panel wide">
+  <h2>Registru complet XLSX</h2>
+  <p>Intervalul filtrează prețurile, documentele, mișcările, listele și alertele. Produsele și furnizorii de bază sunt păstrați pentru ca registrul să rămână inteligibil.</p>
+  <form method="get" action="{% url 'comparator:data_export_download' %}">
+    {% include "comparator/partials/form_fields.html" %}
+    <div class="form-actions"><button class="button primary" type="submit">Descarcă exportul complet</button></div>
+  </form>
+</section>
+<section class="panel"><h2>Foi incluse</h2><p>Rezumat, Produse, Prețuri METRO, Praguri METRO, Furnizori, Prețuri furnizori, Documente, Linii documente, Inventar, Mișcări stoc, Liste cumpărături și Alerte.</p><p class="muted">Exportul conține date comerciale private. Păstrează-l criptat și nu îl trimite prin servicii publice necontrolate.</p></section>
+{% endblock %}

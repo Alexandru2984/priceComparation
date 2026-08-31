@@ -98,3 +98,16 @@ class CatalogExportTests(TestCase):
         self.assertIn("Chipsuri test 100 g".encode(), response.content)
         self.assertIn(b";", response.content)
         self.assertIn(b"4+ pachete", response.content)
+
+    def test_csv_and_excel_neutralize_formula_prefixes(self):
+        dangerous = Product.objects.create(name="\t=SUM(1,1)", base_unit="BUC")
+
+        csv_response = self.client.get("/app/catalog/export/csv/")
+        xlsx_response = self.client.get("/app/catalog/export/xlsx/")
+        workbook = load_workbook(io.BytesIO(xlsx_response.content), read_only=True, data_only=False)
+        rows = list(workbook["Catalog curent"].iter_rows(values_only=True))
+        exported = next(row[0] for row in rows if "SUM(1,1)" in str(row[0]))
+
+        self.assertIn(b"'\t=SUM(1,1)", csv_response.content)
+        self.assertEqual(exported, "'\t=SUM(1,1)")
+        dangerous.delete()
