@@ -4,10 +4,12 @@ from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from PIL import Image
+
+from pricecompare.security import get_client_ip_address
 
 from comparator.models import DocumentPage, Invoice, Product, Supplier
 
@@ -79,6 +81,35 @@ class AccessControlTests(TestCase):
         response = client.post("/app/furnizori/adauga/", {"name": "Atac CSRF"})
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Supplier.objects.filter(name="Atac CSRF").exists())
+
+    def test_axes_protects_primary_login_not_only_django_admin(self):
+        from django.conf import settings
+
+        self.assertFalse(settings.AXES_ONLY_ADMIN_SITE)
+
+    @override_settings(
+        TRUST_REVERSE_PROXY=True,
+        TRUSTED_REVERSE_PROXY_IPS={"127.0.0.1"},
+    )
+    def test_axes_uses_real_ip_rewritten_by_trusted_reverse_proxy(self):
+        request = RequestFactory().get(
+            "/account/login/",
+            HTTP_X_REAL_IP="203.0.113.42",
+            REMOTE_ADDR="127.0.0.1",
+        )
+        self.assertEqual(get_client_ip_address(request), "203.0.113.42")
+
+    @override_settings(
+        TRUST_REVERSE_PROXY=True,
+        TRUSTED_REVERSE_PROXY_IPS={"127.0.0.1"},
+    )
+    def test_real_ip_header_is_ignored_from_untrusted_peer(self):
+        request = RequestFactory().get(
+            "/account/login/",
+            HTTP_X_REAL_IP="203.0.113.42",
+            REMOTE_ADDR="198.51.100.8",
+        )
+        self.assertEqual(get_client_ip_address(request), "198.51.100.8")
 
 
 class UploadSecurityTests(TestCase):

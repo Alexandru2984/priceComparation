@@ -109,7 +109,8 @@ OTP_TOTP_ISSUER = "PriceMatch"
 MFA_REQUIRED = os.getenv("MFA_REQUIRED", "1" if PRODUCTION else "0") == "1" and not TESTING
 TWO_FACTOR_PATCH_ADMIN = True
 
-AXES_ONLY_ADMIN_SITE = True
+# Protejează atât Django Admin, cât și fluxul principal django-two-factor-auth.
+AXES_ONLY_ADMIN_SITE = False
 AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
 AXES_COOLOFF_TIME = 1
 AXES_RESET_ON_SUCCESS = True
@@ -131,8 +132,15 @@ SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "3600")) if PRODUCTIO
 SECURE_HSTS_INCLUDE_SUBDOMAINS = PRODUCTION and os.getenv("DJANGO_HSTS_INCLUDE_SUBDOMAINS", "0") == "1"
 SECURE_HSTS_PRELOAD = PRODUCTION and os.getenv("DJANGO_HSTS_PRELOAD", "0") == "1"
 X_FRAME_OPTIONS = "DENY"
-if os.getenv("DJANGO_TRUST_PROXY", "0") == "1":
+TRUST_REVERSE_PROXY = os.getenv("DJANGO_TRUST_PROXY", "0") == "1"
+TRUSTED_REVERSE_PROXY_IPS = {
+    ip.strip()
+    for ip in os.getenv("DJANGO_TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(",")
+    if ip.strip()
+}
+if TRUST_REVERSE_PROXY:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    AXES_CLIENT_IP_CALLABLE = "pricecompare.security.get_client_ip_address"
 LANGUAGE_CODE = "ro-ro"
 TIME_ZONE = "Europe/Bucharest"
 USE_I18N = True
