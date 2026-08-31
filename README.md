@@ -50,6 +50,15 @@ Pentru o copie criptată în afara VPS-ului folosește [ghidul de backup restic]
 - constrângeri PostgreSQL pentru cantități, prețuri, procente, praguri METRO și scoruri, astfel încât
   importurile sau scripturile locale nu pot ocoli regulile financiare ale formularelor;
 
+## Organizarea aplicației
+
+Interfața Django este împărțită pe domenii, ca modificările unui flux să nu afecteze accidental restul
+aplicației: `views_catalog.py` gestionează catalogul, alertele și EAN-urile, `views_inventory.py` stocul,
+marjele, listele și importurile POS, iar modulele `views_admin.py`, `views_reports.py` și
+`views_notifications.py` izolează administrarea, rapoartele și Web Push. `views.py` păstrează deocamdată
+fluxurile comune pentru furnizori, documente și METRO. Permisiunile operator/admin sunt declarate central
+în `urls.py` și sunt verificate automat de testele de roluri.
+
 ## Instalare rapidă pe Ubuntu/Debian
 
 ```bash
