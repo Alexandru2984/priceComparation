@@ -56,9 +56,10 @@ Interfața Django este împărțită pe domenii, ca modificările unui flux să 
 aplicației: `views_catalog.py` gestionează catalogul, alertele și EAN-urile, `views_inventory.py` stocul,
 marjele, listele și importurile POS, `views_suppliers.py` furnizorii și importurile de configurare, iar
 `views_metro.py` catalogarea, importurile și sincronizările METRO. Modulele `views_admin.py`,
-`views_reports.py` și `views_notifications.py` izolează administrarea, rapoartele și Web Push; `views.py`
-păstrează doar dashboardul și fluxurile documentelor. Permisiunile operator/admin sunt declarate central în
-`urls.py` și sunt verificate automat de testele de roluri.
+`views_reports.py` și `views_notifications.py` izolează administrarea, rapoartele și Web Push, iar
+`views_documents.py` grupează facturile, bonurile, fișierele OCR și liniile lor. `views.py` păstrează numai
+dashboardul. Permisiunile operator/admin sunt declarate central în `urls.py` și sunt verificate automat de
+testele de roluri.
 
 ## Instalare rapidă pe Ubuntu/Debian
 
