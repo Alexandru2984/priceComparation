@@ -2,6 +2,7 @@ import io
 from datetime import date
 from tempfile import TemporaryDirectory
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.checks import Tags, run_checks
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -106,9 +107,14 @@ class AccessControlTests(TestCase):
         self.assertFalse(Supplier.objects.filter(name="Atac CSRF").exists())
 
     def test_axes_protects_primary_login_not_only_django_admin(self):
-        from django.conf import settings
-
         self.assertFalse(settings.AXES_ONLY_ADMIN_SITE)
+
+    def test_test_environment_does_not_require_a_collectstatic_manifest(self):
+        self.assertTrue(settings.TESTING)
+        self.assertEqual(
+            settings.STORAGES["staticfiles"]["BACKEND"],
+            "django.contrib.staticfiles.storage.StaticFilesStorage",
+        )
 
     def test_every_private_route_declares_an_access_role(self):
         comparator_resolver = next(
