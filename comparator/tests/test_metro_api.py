@@ -6,12 +6,39 @@ from django.test import SimpleTestCase, override_settings
 from comparator.services.metro_api import (
     MetroApiStore,
     _leaf_categories,
+    _measurement,
     normalize_api_details,
     resolve_metro_api_store,
 )
 
 
 class MetroApiTests(SimpleTestCase):
+    def test_single_piece_count_keeps_api_content_until_identity_alignment(self):
+        measurement = _measurement(
+            {
+                "bundleSize": "1",
+                "basePriceContent": "0.08",
+                "basePriceContentMeasureUnit": "kg",
+            },
+            "Raffaello Praline cu Nuca de Cocos si Migdale 8 bucati 80 g",
+        )
+
+        self.assertEqual(
+            measurement,
+            (Decimal("1"), Decimal("0.08"), "KG", "1 x 0.08 KG"),
+        )
+
+    def test_explicit_nested_piece_count_wins_over_api_bundle_size(self):
+        measurement = _measurement(
+            {"bundleSize": "4"},
+            "aro Foi Prosop Interfoliate V 4 X 250 bucati",
+        )
+
+        self.assertEqual(
+            measurement,
+            (Decimal("1000"), Decimal("1"), "BUC", "1000 BUCATI"),
+        )
+
     def test_leaf_categories_keep_live_paths_and_local_category(self):
         payload = {
             "children": {

@@ -4,11 +4,13 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from PIL import Image
 
 from comparator.models import Invoice, InvoiceLine, MetroOffer, MetroOfferTier, Product, Supplier
+from comparator.services.insights import recent_metro_changes
 
 
 class ComparisonTests(TestCase):
@@ -141,6 +143,71 @@ class DashboardSmokeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "PriceMatch")
         self.assertContains(response, "Pregătire pentru primele date reale")
+
+    @override_settings(METRO_PRICE_ANOMALY_PERCENT=Decimal("40"))
+    def test_dashboard_shows_only_comparable_non_anomalous_package_changes(self):
+        comparable = Product.objects.create(name="Produs cu schimbare validă", base_unit="BUC")
+        package_shift = Product.objects.create(name="Produs cu ambalaj schimbat", base_unit="BUC")
+        anomaly = Product.objects.create(name="Produs cu abatere", base_unit="BUC")
+        source = "Selenium METRO TEST"
+        MetroOffer.objects.create(
+            product=comparable,
+            units_per_package=1,
+            unit_size=1,
+            price_gross=10,
+            valid_from=date(2026, 8, 30),
+            source=source,
+        )
+        MetroOffer.objects.create(
+            product=comparable,
+            units_per_package=1,
+            unit_size=1,
+            price_gross=12,
+            valid_from=date(2026, 9, 1),
+            source=source,
+        )
+        MetroOffer.objects.create(
+            product=package_shift,
+            units_per_package=80,
+            unit_size=1,
+            price_gross=44,
+            valid_from=date(2026, 8, 30),
+            source=source,
+        )
+        MetroOffer.objects.create(
+            product=package_shift,
+            units_per_package=4,
+            unit_size=1,
+            price_gross=44,
+            valid_from=date(2026, 9, 1),
+            source=source,
+        )
+        MetroOffer.objects.create(
+            product=anomaly,
+            units_per_package=1,
+            unit_size=1,
+            price_gross=10,
+            valid_from=date(2026, 8, 30),
+            source=source,
+        )
+        MetroOffer.objects.create(
+            product=anomaly,
+            units_per_package=1,
+            unit_size=1,
+            price_gross=100,
+            valid_from=date(2026, 9, 1),
+            source=source,
+        )
+        cache.clear()
+
+        changes = recent_metro_changes()
+        response = self.client.get("/app/")
+
+        self.assertEqual([change["offer"].product for change in changes], [comparable])
+        self.assertContains(response, "Produs cu schimbare validă")
+        self.assertContains(response, "lei/pachet")
+        self.assertNotContains(response, "Produs cu ambalaj schimbat")
+        self.assertNotContains(response, "Produs cu abatere")
 
     @patch("comparator.views_admin.system_readiness")
     def test_readiness_page_renders_private_diagnostics(self, readiness):

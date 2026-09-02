@@ -17,6 +17,7 @@ from comparator.models import (
 from comparator.services.metro_scraper import (
     _direct_category_children,
     _load_all_visible_cards,
+    _price_from_text,
     _rows_matching_exact_term,
     import_scraped_rows,
     normalize_dom_rows,
@@ -117,6 +118,26 @@ class MetroNormalizationTests(TestCase):
         units, size, base_unit = parse_measurement("aro Oua M 20 buc", "1 CASEROLA")
         self.assertEqual((units, size, base_unit), (Decimal("20"), Decimal("1"), "BUC"))
 
+    def test_nested_piece_packages_use_the_leaf_piece_count(self):
+        units, size, base_unit = parse_measurement(
+            "Pampers Fresh Clean Servetele Umede 4 x 80 bucăți",
+            "4 BUCATI",
+        )
+
+        self.assertEqual((units, size, base_unit), (Decimal("320"), Decimal("1"), "BUC"))
+
+    def test_dom_price_parser_preserves_thousands_groups(self):
+        cases = {
+            "incl. TVA 11.798,50 RON": Decimal("11798.50"),
+            "incl. TVA 8 595,49 lei": Decimal("8595.49"),
+            "incl. TVA 11,798.50 RON": Decimal("11798.50"),
+            "incl. TVA 12,20 RON": Decimal("12.20"),
+        }
+
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(_price_from_text(text), expected)
+
 
 class MetroStagingTests(TestCase):
     def setUp(self):
@@ -152,6 +173,38 @@ class MetroStagingTests(TestCase):
         tier = product.metro_offers.get().volume_tiers.get()
         self.assertEqual(tier.min_packages, 6)
         self.assertEqual(tier.price_gross, Decimal("7.90"))
+
+    def test_known_piece_product_overrides_incompatible_api_weight(self):
+        product = Product.objects.create(name="Raffaello 8 bucati 80 g", base_unit="BUC")
+        ProductCode.objects.create(
+            product=product,
+            kind=ProductCode.Kind.METRO,
+            code="BTY-RAFFAELLO",
+        )
+        job = MetroScrapeJob.objects.create(start_url="https://produse.metro.ro/shop")
+
+        store_captured_rows(
+            job,
+            [
+                {
+                    "external_id": "BTY-RAFFAELLO",
+                    "name": "Raffaello 8 bucati 80 g",
+                    "product_url": "https://produse.metro.ro/shop/pv/BTY-RAFFAELLO/test",
+                    "store_name": "METRO PUNCT TARGOVISTE",
+                    "package_text": "1 x 0.08 KG",
+                    "units_per_package": Decimal("1"),
+                    "unit_size": Decimal("0.08"),
+                    "base_unit": "KG",
+                    "price_gross": Decimal("12.20"),
+                }
+            ],
+        )
+
+        row = MetroScrapedProduct.objects.get(job=job)
+        self.assertEqual(
+            (row.units_per_package, row.unit_size, row.base_unit),
+            (Decimal("8"), Decimal("1"), "BUC"),
+        )
 
     def test_does_not_merge_a_weak_fuzzy_match(self):
         existing = Product.objects.create(name="PFANNER Suc Ananas 1 L", brand="", base_unit="L")

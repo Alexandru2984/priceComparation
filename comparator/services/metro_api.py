@@ -14,6 +14,7 @@ from .metro_scraper import (
     _convert_size,
     _decimal,
     _local_category_for_path,
+    nested_piece_count,
     parse_measurement,
     store_captured_rows,
 )
@@ -173,6 +174,9 @@ def _measurement(bundle, name):
     if bundle.get("isWeightArticle") == "WEIGHT":
         return Decimal("1"), Decimal("1"), BaseUnit.KILOGRAM, "1 KILOGRAM"
     units, unit_size, base_unit = parse_measurement(name)
+    advertised_pieces = nested_piece_count(name)
+    if advertised_pieces:
+        return advertised_pieces, Decimal("1"), BaseUnit.PIECE, f"{advertised_pieces} BUCATI"
     content = _decimal(bundle.get("basePriceContent"))
     measure_unit = (bundle.get("basePriceContentMeasureUnit") or "").lower()
     bundle_size = _decimal(bundle.get("bundleSize"))

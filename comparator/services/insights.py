@@ -366,7 +366,9 @@ def recent_metro_changes(limit=8):
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    grouped = defaultdict(list)
+    latest = {}
+    comparable_pairs = []
+    resolved = set()
     offers = (
         MetroOffer.objects.select_related("product")
         .filter(active=True)
@@ -374,15 +376,25 @@ def recent_metro_changes(limit=8):
     )
     for offer in offers:
         key = (offer.product_id, offer.source)
-        if len(grouped[key]) < 2:
-            grouped[key].append(offer)
-    changes = []
-    for pair in grouped.values():
-        if len(pair) < 2 or not pair[1].price_per_base_unit:
+        if key in resolved:
             continue
-        percent = (pair[0].price_per_base_unit - pair[1].price_per_base_unit) / pair[1].price_per_base_unit * 100
-        if abs(percent) >= Decimal("0.1"):
-            changes.append({"offer": pair[0], "previous": pair[1], "percent": percent})
+        current = latest.setdefault(key, offer)
+        if current is offer:
+            continue
+        if (
+            current.units_per_package == offer.units_per_package
+            and current.unit_size == offer.unit_size
+        ):
+            comparable_pairs.append((current, offer))
+            resolved.add(key)
+    changes = []
+    anomaly_threshold = Decimal(str(settings.METRO_PRICE_ANOMALY_PERCENT))
+    for current, previous in comparable_pairs:
+        if not previous.price_gross:
+            continue
+        percent = (current.price_gross - previous.price_gross) / previous.price_gross * 100
+        if Decimal("0.1") <= abs(percent) < anomaly_threshold:
+            changes.append({"offer": current, "previous": previous, "percent": percent})
     changes.sort(key=lambda item: abs(item["percent"]), reverse=True)
     result = changes[:limit]
     cache.set(cache_key, result, 300)

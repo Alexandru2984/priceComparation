@@ -22,7 +22,7 @@ STORE = "METRO PUNCT TARGOVISTE"
 
 
 class MetroLifecycleTests(TestCase):
-    def complete_job_with_product(self, external_id, name, price="5.00"):
+    def complete_job_with_product(self, external_id, name, price="5.00", units=1, unit_size=1):
         job = MetroScrapeJob.objects.create(
             status=MetroScrapeJob.Status.COMPLETED,
             scan_type=MetroScrapeJob.ScanType.FULL,
@@ -45,8 +45,8 @@ class MetroLifecycleTests(TestCase):
             product_url=f"https://produse.metro.ro/shop/pv/{external_id}/test",
             store_name=STORE,
             package_text="1 BUCATA",
-            units_per_package=1,
-            unit_size=1,
+            units_per_package=units,
+            unit_size=unit_size,
             base_unit="BUC",
             price_gross=Decimal(price),
         )
@@ -170,6 +170,24 @@ class MetroLifecycleTests(TestCase):
         self.assertEqual(anomaly.new_price_per_base, Decimal("8"))
         self.assertEqual(anomaly.change_percent, Decimal("60"))
         self.assertEqual(anomaly.status, MetroPriceAnomaly.Status.OPEN)
+
+    def test_package_change_is_not_reported_as_a_price_anomaly(self):
+        self.complete_job_with_product(
+            "PACKAGE-SHIFT",
+            "Produs cu ambalaj variabil",
+            "44.00",
+            units=80,
+        )
+        second_job, row = self.complete_job_with_product(
+            "PACKAGE-SHIFT",
+            "Produs cu ambalaj variabil",
+            "44.00",
+            units=4,
+        )
+
+        self.assertFalse(MetroPriceAnomaly.objects.filter(job=second_job, product=row.matched_product).exists())
+        second_job.refresh_from_db()
+        self.assertEqual(second_job.package_changes_count, 1)
 
 
 class MetroAutomationTests(TestCase):

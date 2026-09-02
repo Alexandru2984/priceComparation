@@ -124,7 +124,7 @@ def update_metro_product_state(row, product):
         row.units_per_package,
         row.unit_size,
     )
-    if old_base_price and new_base_price:
+    if old_base_price and new_base_price and not package_changed:
         change_percent = (new_base_price - old_base_price) / old_base_price * Decimal("100")
         if abs(change_percent) >= settings.METRO_PRICE_ANOMALY_PERCENT:
             MetroPriceAnomaly.objects.update_or_create(
@@ -304,9 +304,41 @@ def _decimal(value):
         return None
 
 
+def _localized_decimal(value):
+    """Parse prices that use either Romanian or international separators."""
+    token = str(value or "").replace("\xa0", "").replace(" ", "").strip()
+    if not token or not re.fullmatch(r"\d[\d.,]*", token):
+        return None
+
+    comma = token.rfind(",")
+    dot = token.rfind(".")
+    if comma >= 0 and dot >= 0:
+        decimal_separator = "," if comma > dot else "."
+    elif comma >= 0:
+        decimal_separator = "," if len(token) - comma - 1 in {1, 2} else None
+    elif dot >= 0:
+        decimal_separator = "." if len(token) - dot - 1 in {1, 2} else None
+    else:
+        decimal_separator = None
+
+    if decimal_separator:
+        integer, fraction = token.rsplit(decimal_separator, 1)
+        normalized = f"{integer.replace(',', '').replace('.', '')}.{fraction}"
+    else:
+        normalized = token.replace(",", "").replace(".", "")
+    try:
+        return Decimal(normalized)
+    except InvalidOperation:
+        return None
+
+
 def _price_from_text(text):
-    matches = re.findall(r"(\d+(?:[.,]\d+)?)\s*(?:RON|LEI)", text or "", flags=re.IGNORECASE)
-    return _decimal(matches[-1]) if matches else None
+    matches = re.findall(
+        r"(?<!\w)(\d[\d\s\xa0.,]*?)\s*(?:RON|LEI)\b",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    return _localized_decimal(matches[-1]) if matches else None
 
 
 def _volume_prices_from_texts(texts):
@@ -316,13 +348,13 @@ def _volume_prices_from_texts(texts):
     for raw_text in texts:
         label = " ".join(str(raw_text or "").split())[:120]
         match = re.search(
-            r"(\d+(?:[.,]\d+)?)\s*(?:RON|LEI).*?pentru\s+(\d+)\s*\+",
+            r"(?<!\w)(\d[\d\s\xa0.,]*?)\s*(?:RON|LEI).*?pentru\s+(\d+)\s*\+",
             label,
             flags=re.IGNORECASE,
         )
         if not match:
             continue
-        price = _decimal(match.group(1))
+        price = _localized_decimal(match.group(1))
         min_packages = int(match.group(2))
         if price is None or min_packages < 2:
             continue
@@ -358,6 +390,37 @@ def _convert_size(size, unit):
     return value, BaseUnit.LITER
 
 
+def _normalized_measurement_name(name):
+    normalized = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode("ascii")
+    return normalized.replace(",", ".")
+
+
+def nested_piece_count(name):
+    """Return the leaf count from an unambiguous ``outer x inner pieces`` name."""
+    normalized = _normalized_measurement_name(name)
+    suffix = r"buc(?:ata|ati)?\.?(?!\w)"
+    multi = re.search(
+        rf"(?i)\b(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*{suffix}",
+        normalized,
+    )
+    if multi:
+        outer = _decimal(multi.group(1))
+        inner = _decimal(multi.group(2))
+        return outer * inner if outer and inner else None
+    return None
+
+
+def explicit_piece_count(name):
+    """Return the leaf-piece count explicitly advertised in a product name."""
+    nested = nested_piece_count(name)
+    if nested:
+        return nested
+    normalized = _normalized_measurement_name(name)
+    suffix = r"buc(?:ata|ati)?\.?(?!\w)"
+    pieces = re.search(rf"(?i)\b(\d+(?:\.\d+)?)\s*{suffix}", normalized)
+    return _decimal(pieces.group(1)) if pieces else None
+
+
 def parse_measurement(name, package_text=""):
     package = " ".join((package_text or "").upper().split())
     if re.search(r"\b1\s+KILOGRAM\b", package):
@@ -366,6 +429,10 @@ def parse_measurement(name, package_text=""):
         return Decimal("1"), Decimal("1"), BaseUnit.LITER
 
     normalized_name = (name or "").replace(",", ".")
+    pieces = explicit_piece_count(normalized_name)
+    if pieces:
+        return pieces, Decimal("1"), BaseUnit.PIECE
+
     multi = re.search(
         r"(?i)\b(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|gr?|g|ml|l)\b",
         normalized_name,
@@ -373,10 +440,6 @@ def parse_measurement(name, package_text=""):
     if multi:
         unit_size, base_unit = _convert_size(multi.group(2), multi.group(3))
         return _decimal(multi.group(1)) or Decimal("1"), unit_size, base_unit
-
-    pieces = re.search(r"(?i)\b(\d+(?:\.\d+)?)\s*buc(?:ata|ati)?\b", normalized_name)
-    if pieces:
-        return _decimal(pieces.group(1)) or Decimal("1"), Decimal("1"), BaseUnit.PIECE
 
     sizes = list(re.finditer(r"(?i)\b(\d+(?:\.\d+)?)\s*(kg|gr?|g|ml|l)\b", normalized_name))
     if sizes:
@@ -799,11 +862,19 @@ def capture_category_catalog(
 @transaction.atomic
 def store_captured_rows(job, rows):
     for data in rows:
+        data = data.copy()
         identity = ProductCode.objects.select_related("product").filter(
             kind=ProductCode.Kind.METRO, code=data["external_id"], supplier__isnull=True
         ).first()
         if identity:
             product, score = identity.product, 100
+            advertised_pieces = explicit_piece_count(data["name"])
+            if product.base_unit == BaseUnit.PIECE and advertised_pieces:
+                data.update(
+                    units_per_package=advertised_pieces,
+                    unit_size=Decimal("1"),
+                    base_unit=BaseUnit.PIECE,
+                )
         else:
             product, score = suggest_product(data["name"], base_unit=data["base_unit"])
         # METRO variants often share only a package size; fuzzy scores around 85
@@ -1040,6 +1111,16 @@ def import_scraped_rows(rows):
                 base_unit=row.base_unit,
                 defaults={"category": row.category},
             )
+        advertised_pieces = explicit_piece_count(row.name)
+        if product.base_unit == BaseUnit.PIECE and advertised_pieces and (
+            row.units_per_package != advertised_pieces
+            or row.unit_size != Decimal("1")
+            or row.base_unit != BaseUnit.PIECE
+        ):
+            row.units_per_package = advertised_pieces
+            row.unit_size = Decimal("1")
+            row.base_unit = BaseUnit.PIECE
+            row.save(update_fields=["units_per_package", "unit_size", "base_unit"])
         if row.category and product.category in {"", "Altele"}:
             product.category = row.category
             product.save(update_fields=["category"])
