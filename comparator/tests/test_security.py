@@ -97,7 +97,16 @@ class AccessControlTests(TestCase):
     def test_login_and_mfa_pages_are_never_cached(self):
         response = self.client.get("/account/login/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(response["Cache-Control"], "private, no-store, no-transform")
+
+    def test_login_uses_local_csp_compatible_two_factor_template(self):
+        response = self.client.get("/account/login/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "PriceMatch")
+        self.assertContains(response, "/static/two_factor.css")
+        self.assertNotContains(response, "Provide a template named")
+        self.assertNotContains(response, "cdnjs.cloudflare.com")
+        self.assertNotContains(response, "<script")
 
     def test_private_post_rejects_missing_csrf_token(self):
         client = Client(enforce_csrf_checks=True)
@@ -210,7 +219,7 @@ class UploadSecurityTests(TestCase):
                 response = self.client.get(private_url)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn("attachment", response["Content-Disposition"])
-                self.assertEqual(response["Cache-Control"], "private, no-store")
+                self.assertEqual(response["Cache-Control"], "private, no-store, no-transform")
 
 
 class DeploymentSecurityCheckTests(TestCase):

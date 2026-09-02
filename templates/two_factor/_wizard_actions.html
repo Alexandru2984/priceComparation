@@ -1,0 +1,13 @@
+{% load i18n %}
+
+<div class="auth-actions">
+  {% if wizard.steps.prev %}
+    <button name="wizard_goto_step" type="submit" value="{{ wizard.steps.prev }}" class="btn btn-secondary">
+      {% trans "Back" %}
+    </button>
+  {% endif %}
+  <button type="submit" class="btn btn-primary">{% trans "Next" %}</button>
+  {% if cancel_url %}
+    <a href="{{ cancel_url }}" class="btn btn-link">{% trans "Cancel" %}</a>
+  {% endif %}
+</div>

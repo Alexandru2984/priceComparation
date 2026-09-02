@@ -1,0 +1,23 @@
+{% extends "two_factor/_base.html" %}
+
+{% block content_wrapper %}
+  <main id="auth-content" class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-context">
+        <span class="auth-mark" aria-hidden="true">✓</span>
+        <div>
+          <p class="eyebrow">Acces protejat</p>
+          <p class="auth-context-copy">Datele reale sunt disponibile numai utilizatorilor autorizați.</p>
+        </div>
+      </div>
+      {% if messages %}
+        <div class="messages" aria-live="polite">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </section>
+  </main>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% load i18n static %}
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#195c44">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>{% block title %}{% trans "Account Security" %}{% endblock %} · PriceMatch</title>
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+  <link rel="stylesheet" href="{% static 'two_factor.css' %}">
+  {% block extra_media %}{% endblock %}
+</head>
+<body class="auth-page">
+  <a class="skip-link" href="#auth-content">Sari la formular</a>
+
+  <header class="auth-header">
+    <a class="brand" href="{% url 'public_demo' %}" aria-label="PriceMatch — pagina publică">
+      <span aria-hidden="true">PM</span>
+      PriceMatch
+    </a>
+    <a class="auth-demo-link" href="{% url 'public_demo' %}">Demo public</a>
+  </header>
+
+  {% block content_wrapper %}
+    <main id="auth-content" class="auth-shell">
+      <section class="auth-card auth-card-wide">
+        <div class="auth-context">
+          <span class="auth-mark" aria-hidden="true">✓</span>
+          <div>
+            <p class="eyebrow">Securitatea contului</p>
+            <p class="auth-context-copy">Setările de acces și autentificare în doi pași.</p>
+          </div>
+        </div>
+        {% if messages %}
+          <div class="messages" aria-live="polite">
+            {% for message in messages %}
+              <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </section>
+    </main>
+  {% endblock %}
+
+  <footer class="auth-footer">PriceMatch · zonă protejată · MFA obligatoriu</footer>
+</body>
+</html>

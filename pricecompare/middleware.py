@@ -83,5 +83,7 @@ class SecurityHeadersMiddleware:
             "Permissions-Policy", f"camera={camera}, microphone=(), geolocation=(), payment=()"
         )
         if request.path.startswith(("/app/", "/admin/", "/account/")):
-            response["Cache-Control"] = "private, no-store"
+            # Keep authentication and private HTML unchanged between Django and the browser.
+            # In particular, this prevents edge-side script injection on sensitive pages.
+            response["Cache-Control"] = "private, no-store, no-transform"
         return response
