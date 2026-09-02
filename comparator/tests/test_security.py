@@ -108,6 +108,38 @@ class AccessControlTests(TestCase):
         self.assertNotContains(response, "cdnjs.cloudflare.com")
         self.assertNotContains(response, "<script")
 
+    @override_settings(MFA_REQUIRED=False)
+    def test_password_only_login_bypasses_existing_totp_device_when_mfa_is_disabled(self):
+        TOTPDevice.objects.create(user=self.staff, name="default", confirmed=True)
+
+        response = self.client.post(
+            "/account/login/?next=/app/",
+            {
+                "login_view-current_step": "auth",
+                "auth-username": self.staff.username,
+                "auth-password": "A-test-password-2026!",
+            },
+        )
+
+        self.assertRedirects(response, "/app/", fetch_redirect_response=False)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.staff.pk)
+
+    @override_settings(MFA_REQUIRED=True)
+    def test_login_still_requires_totp_when_mfa_is_enabled(self):
+        TOTPDevice.objects.create(user=self.staff, name="default", confirmed=True)
+
+        response = self.client.post(
+            "/account/login/?next=/app/",
+            {
+                "login_view-current_step": "auth",
+                "auth-username": self.staff.username,
+                "auth-password": "A-test-password-2026!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="token-otp_token"')
+
     def test_private_post_rejects_missing_csrf_token(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.staff)

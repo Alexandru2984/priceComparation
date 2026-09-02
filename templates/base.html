@@ -31,7 +31,7 @@
         {% if user.is_superuser %}<a href="{% url 'comparator:operations' %}">Operare</a><a href="{% url 'comparator:data_export_index' %}">Exporturi</a><a href="{% url 'comparator:initial_import_create' %}">Import inițial</a><a href="{% url 'comparator:activity_log' %}">Jurnal</a>{% endif %}
       </nav>
       <a class="button primary small" href="{% url 'comparator:invoice_create' %}">+ Document</a>
-      <a href="{% url 'two_factor:profile' %}">MFA</a>
+      {% if mfa_required %}<a href="{% url 'two_factor:profile' %}">MFA</a>{% endif %}
       <form method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button class="link" type="submit">Ieșire</button></form>
     {% else %}
       <nav><a href="{% url 'public_demo' %}">Demo public</a></nav>

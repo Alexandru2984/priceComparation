@@ -29,7 +29,7 @@
           <span class="auth-mark" aria-hidden="true">✓</span>
           <div>
             <p class="eyebrow">Securitatea contului</p>
-            <p class="auth-context-copy">Setările de acces și autentificare în doi pași.</p>
+            <p class="auth-context-copy">{% if mfa_required %}Setările de acces și autentificare în doi pași.{% else %}Autentificare securizată cu utilizator și parolă.{% endif %}</p>
           </div>
         </div>
         {% if messages %}
@@ -44,6 +44,6 @@
     </main>
   {% endblock %}
 
-  <footer class="auth-footer">PriceMatch · zonă protejată · MFA obligatoriu</footer>
+  <footer class="auth-footer">PriceMatch · zonă protejată · {% if mfa_required %}MFA obligatoriu{% else %}acces cu parolă{% endif %}</footer>
 </body>
 </html>

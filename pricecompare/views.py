@@ -1,6 +1,26 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.shortcuts import redirect, render
+from two_factor.views import LoginView as TwoFactorLoginView
+
+
+class PriceMatchLoginView(TwoFactorLoginView):
+    """Use password-only login when MFA is explicitly disabled."""
+
+    def get_prefix(self, request, *args, **kwargs):
+        return "login_view"
+
+    def has_token_step(self):
+        return settings.MFA_REQUIRED and super().has_token_step()
+
+    def has_backup_step(self):
+        return settings.MFA_REQUIRED and super().has_backup_step()
+
+    condition_dict = {
+        TwoFactorLoginView.TOKEN_STEP: has_token_step,
+        TwoFactorLoginView.BACKUP_STEP: has_backup_step,
+    }
 
 
 def public_demo(request):
