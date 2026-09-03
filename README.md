@@ -471,6 +471,15 @@ Retenția este configurabilă prin `ACTIVITY_LOG_RETENTION_DAYS`, `TECHNICAL_DAT
 
 Scanarea țintită caută produsele active din stoc și listele de cumpărături; cea completă rulează implicit la 7 zile. Aplicația refuză suprapunerea scanărilor și trimite schimbările mai mari decât `METRO_PRICE_ANOMALY_PERCENT` în pagina „Abateri de preț”. Păstrează directorul `backups/` în afara Git, pe un disc separat.
 
+După actualizarea regulilor de ambalare, anomaliile istorice care compară unități diferite pot fi
+reconciliate fără ștergerea capturilor sau modificarea prețurilor. Prima comandă este numai simulare;
+rulează varianta `--apply` exclusiv după backup:
+
+```bash
+.venv/bin/python manage.py reconcile_metro_anomalies
+.venv/bin/python manage.py reconcile_metro_anomalies --apply
+```
+
 ## Teste
 
 ```bash
