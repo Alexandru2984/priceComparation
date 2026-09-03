@@ -135,7 +135,7 @@ def invoice_create(request):
     form = InvoiceForm(request.POST or None, request.FILES or None)
     if form.is_valid():
         invoice = form.save()
-        for order, upload in enumerate(form.cleaned_data["documents"], start=1):
+        for order, upload in enumerate(form.cleaned_data["uploads"], start=1):
             DocumentPage.objects.create(invoice=invoice, file=upload, page_order=order)
         has_files = invoice.document or invoice.pages.exists()
         if form.cleaned_data["process_now"] and (has_files or invoice.ocr_text.strip()):
@@ -239,7 +239,7 @@ def invoice_pages_add(request, pk):
         messages.error(request, errors or "Fișierele nu sunt valide.")
         return redirect("comparator:invoice_detail", pk=pk)
     try:
-        added = add_document_pages(invoice, form.cleaned_data["documents"])
+        added = add_document_pages(invoice, form.cleaned_data["uploads"])
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
     else:

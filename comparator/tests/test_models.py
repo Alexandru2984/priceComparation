@@ -1,6 +1,7 @@
 import io
 from datetime import date
 from decimal import Decimal
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -230,6 +231,39 @@ class DashboardSmokeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Date demonstrative")
 
+    def test_document_form_exposes_mobile_camera_and_gallery_controls(self):
+        response = self.client.get("/app/facturi/adauga/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Încarcă direct de pe telefon")
+        self.assertContains(response, 'name="camera_documents"')
+        self.assertContains(response, 'capture="environment"')
+        self.assertContains(response, 'data-gallery-input="true"')
+        self.assertContains(response, "Alege poze sau PDF")
+
+    def test_receipt_accepts_camera_and_gallery_images_together(self):
+        supplier = Supplier.objects.create(name="Magazin mobil")
+        with TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            response = self.client.post(
+                "/app/facturi/adauga/",
+                {
+                    "document_type": Invoice.DocumentType.RECEIPT,
+                    "supplier": supplier.pk,
+                    "number": "MOBILE-1",
+                    "issued_at": "2026-09-03",
+                    "camera_documents": [self.image_upload("camera.jpg")],
+                    "documents": [self.image_upload("galerie.jpg")],
+                    "ocr_text": "",
+                    "notes": "",
+                },
+            )
+
+            self.assertEqual(response.status_code, 302)
+            invoice = Invoice.objects.get(number="MOBILE-1")
+            self.assertEqual(invoice.pages.count(), 2)
+            self.assertTrue(invoice.pages.get(page_order=1).file.name.endswith("camera.jpg"))
+            self.assertTrue(invoice.pages.get(page_order=2).file.name.endswith("galerie.jpg"))
+
     def test_receipt_accepts_multiple_images(self):
         supplier = Supplier.objects.create(name="Magazin test")
         uploads = [
@@ -251,6 +285,27 @@ class DashboardSmokeTests(TestCase):
         self.assertEqual(response.status_code, 302)
         invoice = Invoice.objects.get(number="R1")
         self.assertEqual(invoice.pages.count(), 2)
+
+    @override_settings(DATA_UPLOAD_MAX_NUMBER_FILES=20)
+    def test_combined_mobile_upload_respects_twelve_file_limit(self):
+        supplier = Supplier.objects.create(name="Magazin limită mobilă")
+        response = self.client.post(
+            "/app/facturi/adauga/",
+            {
+                "document_type": Invoice.DocumentType.RECEIPT,
+                "supplier": supplier.pk,
+                "number": "MOBILE-LIMIT",
+                "issued_at": "2026-09-03",
+                "camera_documents": [self.image_upload(f"camera-{index}.jpg") for index in range(7)],
+                "documents": [self.image_upload(f"galerie-{index}.jpg") for index in range(6)],
+                "ocr_text": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "maximum 12 imagini/PDF-uri")
+        self.assertFalse(Invoice.objects.filter(number="MOBILE-LIMIT").exists())
 
     def test_confirming_new_metro_line_creates_product_and_offer(self):
         supplier = Supplier.objects.create(name="METRO Automat", is_metro=True)

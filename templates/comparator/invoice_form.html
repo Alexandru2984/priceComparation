@@ -2,5 +2,5 @@
 {% block title %}Document nou · PriceMatch{% endblock %}
 {% block content %}
 <div class="page-head"><div><p class="eyebrow">OCR local sau manual</p><h1>Factură sau bon nou</h1><p>Încarcă un PDF, o fotografie sau mai multe cadre pentru un bon lung. Poți adăuga produsele și manual după salvare.</p></div></div>
-<section class="panel form-panel wide"><form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "comparator/partials/form_fields.html" %}<div class="form-actions"><button class="button primary">Salvează documentul</button><a class="button" href="{% url 'comparator:invoice_list' %}">Renunță</a></div></form></section>
+<section class="panel form-panel wide"><form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "comparator/partials/document_upload.html" with upload_form=form %}{% include "comparator/partials/form_fields.html" with exclude_document_uploads=True %}<div class="form-actions"><button class="button primary">Salvează documentul</button><a class="button" href="{% url 'comparator:invoice_list' %}">Renunță</a></div></form></section>
 {% endblock %}

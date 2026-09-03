@@ -205,6 +205,28 @@ class MultipleFileField(forms.FileField):
         return cleaned
 
 
+DOCUMENT_UPLOAD_ACCEPT = (
+    ".jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf,"
+    "image/jpeg,image/png,image/webp,image/tiff,application/pdf"
+)
+
+
+def _combine_document_uploads(form, *, required=False):
+    camera_uploads = form.cleaned_data.get("camera_documents") or []
+    selected_uploads = form.cleaned_data.get("documents") or []
+    uploads = [*camera_uploads, *selected_uploads]
+    if required and not uploads:
+        form.add_error("documents", "Fotografiază documentul sau alege cel puțin un fișier.")
+    if len(uploads) > MAX_DOCUMENT_PAGES:
+        form.add_error(
+            "documents",
+            f"Poți încărca maximum {MAX_DOCUMENT_PAGES} imagini/PDF-uri pentru un document.",
+        )
+    if sum(upload.size for upload in uploads) > MAX_DOCUMENT_TOTAL_SIZE:
+        form.add_error("documents", "Documentul poate avea maximum 50 MB în total.")
+    return uploads
+
+
 class InvoiceIdentityValidationMixin:
     def clean_number(self):
         return (self.cleaned_data.get("number") or "").strip()
@@ -233,11 +255,31 @@ class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
     document_discount_gross = forms.DecimalField(
         label="Reducere document", required=False, initial=0, min_value=0
     )
+    camera_documents = MultipleFileField(
+        label="Fotografii realizate acum",
+        required=False,
+        validators=[validate_document_upload],
+        widget=MultipleFileInput(
+            attrs={
+                "accept": "image/jpeg,image/png,image/webp",
+                "capture": "environment",
+                "class": "upload-native-input",
+                "data-camera-input": "true",
+                "multiple": False,
+            }
+        ),
+    )
     documents = MultipleFileField(
         label="Fotografii sau PDF-uri",
         required=False,
         validators=[validate_document_upload],
-        widget=MultipleFileInput(attrs={"accept": "image/*,.pdf"}),
+        widget=MultipleFileInput(
+            attrs={
+                "accept": DOCUMENT_UPLOAD_ACCEPT,
+                "class": "upload-native-input",
+                "data-gallery-input": "true",
+            }
+        ),
         help_text="Pentru un bon lung poți selecta mai multe fotografii, în ordinea de sus în jos.",
     )
     process_now = forms.BooleanField(label="Procesează automat după salvare", required=False, initial=True)
@@ -259,14 +301,45 @@ class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
     def clean_document_discount_gross(self):
         return self.cleaned_data.get("document_discount_gross") or 0
 
+    def clean(self):
+        cleaned = super().clean()
+        cleaned["uploads"] = _combine_document_uploads(self)
+        return cleaned
+
 
 class DocumentPagesForm(forms.Form):
+    camera_documents = MultipleFileField(
+        label="Fotografii realizate acum",
+        required=False,
+        validators=[validate_document_upload],
+        widget=MultipleFileInput(
+            attrs={
+                "accept": "image/jpeg,image/png,image/webp",
+                "capture": "environment",
+                "class": "upload-native-input",
+                "data-camera-input": "true",
+                "multiple": False,
+            }
+        ),
+    )
     documents = MultipleFileField(
         label="Adaugă fotografii sau PDF-uri",
+        required=False,
         validators=[validate_document_upload],
-        widget=MultipleFileInput(attrs={"accept": "image/*,.pdf"}),
+        widget=MultipleFileInput(
+            attrs={
+                "accept": DOCUMENT_UPLOAD_ACCEPT,
+                "class": "upload-native-input",
+                "data-gallery-input": "true",
+            }
+        ),
         help_text="Fișierele sunt adăugate la final; apoi le poți muta în ordinea corectă.",
     )
+
+    def clean(self):
+        cleaned = super().clean()
+        cleaned["uploads"] = _combine_document_uploads(self, required=True)
+        return cleaned
 
 
 class InvoiceEditForm(InvoiceIdentityValidationMixin, forms.ModelForm):

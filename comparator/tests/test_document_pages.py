@@ -58,6 +58,26 @@ class DocumentPageManagementTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(self.invoice.pages.exists())
 
+    def test_adds_photo_captured_from_mobile_camera(self):
+        with TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            response = self.client.post(
+                f"/app/facturi/{self.invoice.pk}/pagini/adauga/",
+                {"camera_documents": valid_jpeg("camera-mobil.jpg")},
+            )
+
+            self.assertEqual(response.status_code, 302)
+            page = self.invoice.pages.get()
+            self.assertTrue(page.file.name.endswith("camera-mobil.jpg"))
+
+    def test_adding_pages_requires_a_camera_photo_or_selected_file(self):
+        response = self.client.post(
+            f"/app/facturi/{self.invoice.pk}/pagini/adauga/",
+            follow=True,
+        )
+
+        self.assertContains(response, "Fotografiază documentul sau alege cel puțin un fișier.")
+        self.assertFalse(self.invoice.pages.exists())
+
     def test_maximum_file_count_includes_existing_pages(self):
         for order in range(1, 13):
             DocumentPage.objects.create(

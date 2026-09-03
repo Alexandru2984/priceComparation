@@ -220,6 +220,26 @@ class UploadSecurityTests(TestCase):
         self.assertContains(response, "nu este o imagine validă")
         self.assertFalse(Invoice.objects.filter(number="BAD-1").exists())
 
+    def test_fake_camera_image_uses_the_same_validation(self):
+        response = self.client.post(
+            "/app/facturi/adauga/",
+            {
+                "document_type": Invoice.DocumentType.RECEIPT,
+                "supplier": self.supplier.pk,
+                "number": "BAD-CAMERA",
+                "issued_at": "2026-09-03",
+                "camera_documents": SimpleUploadedFile(
+                    "malware.jpg", b"not-an-image", content_type="image/jpeg"
+                ),
+                "ocr_text": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "nu este o imagine validă")
+        self.assertFalse(Invoice.objects.filter(number="BAD-CAMERA").exists())
+
     def test_fake_pdf_header_is_not_enough_to_pass_validation(self):
         response = self.client.post(
             "/app/facturi/adauga/",

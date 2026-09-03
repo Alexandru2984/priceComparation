@@ -1,0 +1,31 @@
+<section class="document-upload" data-document-upload data-max-files="12" data-max-file-bytes="10485760" data-max-total-bytes="52428800" data-upload-required="{% if require_upload %}true{% else %}false{% endif %}">
+  <div class="document-upload-heading">
+    <div>
+      <strong>Încarcă direct de pe telefon</strong>
+      <small>Fotografiază acum sau alege imagini și PDF-uri deja salvate.</small>
+    </div>
+    <span class="private-upload-note">Privat · OCR local</span>
+  </div>
+  <div class="document-upload-choices">
+    <div class="document-upload-choice">
+      <div data-camera-inputs>{{ upload_form.camera_documents }}</div>
+      <label class="upload-choice-button camera" for="{{ upload_form.camera_documents.id_for_label }}" data-camera-trigger>
+        <span class="upload-choice-icon" aria-hidden="true">📷</span>
+        <span><strong>Fotografiază</strong><small>Deschide camera din spate</small></span>
+      </label>
+    </div>
+    <div class="document-upload-choice">
+      {{ upload_form.documents }}
+      <label class="upload-choice-button" for="{{ upload_form.documents.id_for_label }}">
+        <span class="upload-choice-icon" aria-hidden="true">▣</span>
+        <span><strong>Alege poze sau PDF</strong><small>Galerie ori aplicația Fișiere</small></span>
+      </label>
+    </div>
+  </div>
+  <div class="upload-selection" data-upload-summary role="status" aria-live="polite">Niciun fișier selectat.</div>
+  <button class="link upload-clear" type="button" data-upload-clear hidden>Golește selecția</button>
+  <small class="upload-help" id="{{ upload_form.documents.auto_id }}_helptext">Maximum 12 fișiere, 10 MB fiecare și 50 MB în total. Formate: JPG, PNG, WEBP, TIFF și PDF. Pentru un bon lung, fotografiază cadrele de sus în jos.</small>
+  <small class="upload-privacy">Fișierele nu sunt publicate și pot fi descărcate doar de utilizatorii autentificați.</small>
+  {% for error in upload_form.camera_documents.errors %}<span class="error">{{ error }}</span>{% endfor %}
+  {% for error in upload_form.documents.errors %}<span class="error">{{ error }}</span>{% endfor %}
+</section>
