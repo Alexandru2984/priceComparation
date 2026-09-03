@@ -8,14 +8,24 @@ MAX_DOCUMENT_TOTAL_SIZE = 50 * 1024 * 1024
 MAX_DOCUMENT_PAGES = 12
 MAX_CSV_SIZE = 2 * 1024 * 1024
 MAX_PRICE_LIST_SIZE = 5 * 1024 * 1024
-ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF"}
-ALLOWED_DOCUMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".pdf"}
+ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF", "HEIF"}
+ALLOWED_DOCUMENT_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".pdf",
+}
 
 
 def validate_document_upload(upload):
     extension = Path(upload.name).suffix.lower()
     if extension not in ALLOWED_DOCUMENT_EXTENSIONS:
-        raise ValidationError("Sunt acceptate numai PDF, JPG, PNG, WEBP și TIFF.")
+        raise ValidationError("Sunt acceptate numai PDF, JPG, PNG, WEBP, TIFF și HEIC/HEIF.")
     if not upload.size or upload.size > MAX_DOCUMENT_SIZE:
         raise ValidationError("Fiecare fișier trebuie să aibă maximum 10 MB.")
 

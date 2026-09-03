@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from comparator.models import Invoice, InvoiceLine, Product, Supplier
 from comparator.services.invoices import process_invoice, sync_metro_offer_from_line
 from comparator.services.matching import apply_match, normalize_name, rank_product_candidates, suggest_product
-from comparator.services.ocr import extract_text, extract_text_result
+from comparator.services.ocr import OCRResult, extract_text, extract_text_result
 from comparator.services.parser import parse_heuristic, parse_invoice_text
 
 
@@ -201,6 +201,24 @@ class InvoiceProcessingTests(TestCase):
 
 
 class OCRIntegrationTests(TestCase):
+    @patch("comparator.services.ocr._tesseract_image")
+    def test_heic_is_decoded_before_local_ocr(self, tesseract):
+        def inspect_image(image):
+            self.assertEqual(image.format, "HEIF")
+            self.assertEqual(image.size, (640, 480))
+            image.load()
+            return OCRResult("BON IPHONE", 80, "TEST_HEIC", [])
+
+        tesseract.side_effect = inspect_image
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "bon-iphone.heic"
+            Image.new("RGB", (640, 480), "white").save(path, format="HEIF")
+
+            result = extract_text_result(path)
+
+        self.assertEqual(result.text, "BON IPHONE")
+        self.assertEqual(result.strategy, "TEST_HEIC")
+
     def test_tesseract_reads_local_invoice_image(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "invoice.png"

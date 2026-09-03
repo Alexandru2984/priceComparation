@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,6 +17,7 @@ DEPLOYMENT_ENVIRONMENT = os.getenv(
     "PRICEMATCH_ENVIRONMENT", "production" if PRODUCTION else "local"
 ).strip().lower()
 TESTING = os.getenv("DJANGO_TESTING", "0") == "1" or "test" in sys.argv
+TEST_RUNNER = "pricecompare.test_runner.IsolatedMediaTestRunner"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
 CSRF_TRUSTED_ORIGINS = [
     origin.strip() for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
@@ -164,7 +166,12 @@ STORAGES = {
     },
 }
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+_TEST_MEDIA_DIRECTORY = None
+if TESTING:
+    _TEST_MEDIA_DIRECTORY = tempfile.TemporaryDirectory(prefix="price-metro-test-media-")
+    MEDIA_ROOT = Path(_TEST_MEDIA_DIRECTORY.name)
+else:
+    MEDIA_ROOT = BASE_DIR / "media"
 FILE_UPLOAD_PERMISSIONS = 0o600
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o700
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024

@@ -203,6 +203,10 @@ class UploadSecurityTests(TestCase):
         self.client.force_login(self.staff)
         self.supplier = Supplier.objects.create(name="Furnizor upload")
 
+    def test_test_uploads_use_an_isolated_media_directory(self):
+        self.assertTrue(settings.TESTING)
+        self.assertNotEqual(settings.MEDIA_ROOT, settings.BASE_DIR / "media")
+
     def test_fake_image_is_rejected_before_storage(self):
         response = self.client.post(
             "/app/facturi/adauga/",
@@ -239,6 +243,26 @@ class UploadSecurityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "nu este o imagine validă")
         self.assertFalse(Invoice.objects.filter(number="BAD-CAMERA").exists())
+
+    def test_fake_heic_is_rejected_before_storage(self):
+        response = self.client.post(
+            "/app/facturi/adauga/",
+            {
+                "document_type": Invoice.DocumentType.RECEIPT,
+                "supplier": self.supplier.pk,
+                "number": "BAD-HEIC",
+                "issued_at": "2026-09-03",
+                "documents": SimpleUploadedFile(
+                    "malware.heic", b"not-a-heic-image", content_type="image/heic"
+                ),
+                "ocr_text": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "nu este o imagine validă")
+        self.assertFalse(Invoice.objects.filter(number="BAD-HEIC").exists())
 
     def test_fake_pdf_header_is_not_enough_to_pass_validation(self):
         response = self.client.post(

@@ -139,6 +139,12 @@ class DashboardSmokeTests(TestCase):
         Image.new("RGB", (40, 40), "white").save(content, format="JPEG")
         return SimpleUploadedFile(name, content.getvalue(), content_type="image/jpeg")
 
+    @staticmethod
+    def heic_upload(name="bon-iphone.heic"):
+        content = io.BytesIO()
+        Image.new("RGB", (40, 40), "white").save(content, format="HEIF")
+        return SimpleUploadedFile(name, content.getvalue(), content_type="image/heic")
+
     def test_dashboard_loads(self):
         response = self.client.get("/app/")
         self.assertEqual(response.status_code, 200)
@@ -240,6 +246,7 @@ class DashboardSmokeTests(TestCase):
         self.assertContains(response, 'capture="environment"')
         self.assertContains(response, 'data-gallery-input="true"')
         self.assertContains(response, "Alege poze sau PDF")
+        self.assertContains(response, ".heic,.heif")
 
     def test_receipt_accepts_camera_and_gallery_images_together(self):
         supplier = Supplier.objects.create(name="Magazin mobil")
@@ -263,6 +270,26 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(invoice.pages.count(), 2)
             self.assertTrue(invoice.pages.get(page_order=1).file.name.endswith("camera.jpg"))
             self.assertTrue(invoice.pages.get(page_order=2).file.name.endswith("galerie.jpg"))
+
+    def test_receipt_accepts_heic_photo_from_iphone(self):
+        supplier = Supplier.objects.create(name="Magazin iPhone")
+        with TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            response = self.client.post(
+                "/app/facturi/adauga/",
+                {
+                    "document_type": Invoice.DocumentType.RECEIPT,
+                    "supplier": supplier.pk,
+                    "number": "IPHONE-HEIC",
+                    "issued_at": "2026-09-03",
+                    "documents": [self.heic_upload()],
+                    "ocr_text": "",
+                    "notes": "",
+                },
+            )
+
+            self.assertEqual(response.status_code, 302)
+            page = Invoice.objects.get(number="IPHONE-HEIC").pages.get()
+            self.assertTrue(page.file.name.endswith("bon-iphone.heic"))
 
     def test_receipt_accepts_multiple_images(self):
         supplier = Supplier.objects.create(name="Magazin test")

@@ -125,7 +125,7 @@ Pe calculatorul configurat în producție se folosesc serviciile systemd descris
 
 1. Autentifică-te la `http://127.0.0.1:8010/account/login/`, apoi intră în `/app/`.
 2. Adaugă furnizorii din `Furnizori → Furnizor nou`; marchează separat furnizorul METRO.
-3. Din `Documente → Document nou`, folosește `Fotografiază` pe telefon sau alege poze/PDF din galerie și Fișiere; alternativ, poți lipi textul.
+3. Din `Documente → Document nou`, folosește `Fotografiază` pe telefon sau alege poze (inclusiv HEIC/HEIF de pe iPhone) și PDF-uri din galerie și Fișiere; alternativ, poți lipi textul.
 4. Pentru un bon lung, fotografiază succesiv ori selectează până la 12 imagini în ordinea de sus în jos.
 5. Folosește tabelul `Revizuire rapidă` pentru a corecta toate liniile, apoi debifează `necesită
    verificare`. Confirmarea memorează automat aliasul și prețul furnizorului.

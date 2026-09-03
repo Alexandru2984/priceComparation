@@ -24,7 +24,7 @@
   </div>
   <div class="upload-selection" data-upload-summary role="status" aria-live="polite">Niciun fișier selectat.</div>
   <button class="link upload-clear" type="button" data-upload-clear hidden>Golește selecția</button>
-  <small class="upload-help" id="{{ upload_form.documents.auto_id }}_helptext">Maximum 12 fișiere, 10 MB fiecare și 50 MB în total. Formate: JPG, PNG, WEBP, TIFF și PDF. Pentru un bon lung, fotografiază cadrele de sus în jos.</small>
+  <small class="upload-help" id="{{ upload_form.documents.auto_id }}_helptext">Maximum 12 fișiere, 10 MB fiecare și 50 MB în total. Formate: JPG, PNG, WEBP, TIFF, HEIC/HEIF și PDF. Pentru un bon lung, fotografiază cadrele de sus în jos.</small>
   <small class="upload-privacy">Fișierele nu sunt publicate și pot fi descărcate doar de utilizatorii autentificați.</small>
   {% for error in upload_form.camera_documents.errors %}<span class="error">{{ error }}</span>{% endfor %}
   {% for error in upload_form.documents.errors %}<span class="error">{{ error }}</span>{% endfor %}

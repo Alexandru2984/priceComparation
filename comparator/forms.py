@@ -206,8 +206,8 @@ class MultipleFileField(forms.FileField):
 
 
 DOCUMENT_UPLOAD_ACCEPT = (
-    ".jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf,"
-    "image/jpeg,image/png,image/webp,image/tiff,application/pdf"
+    ".jpg,.jpeg,.png,.webp,.tif,.tiff,.heic,.heif,.pdf,"
+    "image/jpeg,image/png,image/webp,image/tiff,image/heic,image/heif,application/pdf"
 )
 
 
@@ -261,7 +261,7 @@ class InvoiceForm(InvoiceIdentityValidationMixin, forms.ModelForm):
         validators=[validate_document_upload],
         widget=MultipleFileInput(
             attrs={
-                "accept": "image/jpeg,image/png,image/webp",
+                "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif",
                 "capture": "environment",
                 "class": "upload-native-input",
                 "data-camera-input": "true",
@@ -314,7 +314,7 @@ class DocumentPagesForm(forms.Form):
         validators=[validate_document_upload],
         widget=MultipleFileInput(
             attrs={
-                "accept": "image/jpeg,image/png,image/webp",
+                "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif",
                 "capture": "environment",
                 "class": "upload-native-input",
                 "data-camera-input": "true",
