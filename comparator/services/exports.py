@@ -1,11 +1,16 @@
 import csv
 import io
+import threading
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 
+from django.db import connection
 from django.utils import timezone
 from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 from comparator.models import (
     InventoryItem,
@@ -33,6 +38,11 @@ CATALOG_HEADERS = [
 SPREADSHEET_FORMULA_PREFIXES = (
     "=", "+", "-", "@", "\t", "\r", "\n", "＝", "＋", "－", "＠",
 )
+
+# The PostgreSQL advisory lock coordinates all Gunicorn workers. The local lock
+# keeps the same guarantee for SQLite development and test environments.
+COMPLETE_EXPORT_ADVISORY_LOCK_ID = 0x50524943
+_complete_export_local_lock = threading.Lock()
 
 
 def _safe_cell(value):
@@ -77,6 +87,68 @@ def _append_sheet(workbook, title, headers, rows):
     for row in rows:
         sheet.append([_safe_cell(value) for value in row])
     return sheet
+
+
+def _write_only_cell(sheet, value, *, header=False):
+    value = _safe_cell(value)
+    cell = WriteOnlyCell(sheet, value=float(value) if isinstance(value, Decimal) else value)
+    if header:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="195C44")
+    elif isinstance(value, Decimal):
+        cell.number_format = "0.0000"
+    elif isinstance(value, datetime):
+        cell.number_format = "dd.mm.yyyy hh:mm"
+    return cell
+
+
+def _append_streaming_sheet(workbook, title, headers, rows):
+    """Append a sheet without retaining every cell in process memory."""
+    sheet = workbook.create_sheet(title)
+    sheet.freeze_panes = "A2"
+    for index, header in enumerate(headers, start=1):
+        # Write-only worksheets serialize column settings with the first row,
+        # so widths must be decided before any cells are appended.
+        sheet.column_dimensions[get_column_letter(index)].width = min(
+            max(len(str(header)) + 2, 14),
+            32,
+        )
+    sheet.append([_write_only_cell(sheet, header, header=True) for header in headers])
+    row_count = 1
+    for row in rows:
+        sheet.append([_write_only_cell(sheet, value) for value in row])
+        row_count += 1
+    sheet.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{row_count}"
+    return sheet
+
+
+@contextmanager
+def complete_export_generation_slot():
+    """Allow only one expensive complete export across all web workers."""
+    local_acquired = _complete_export_local_lock.acquire(blocking=False)
+    database_acquired = False
+    if not local_acquired:
+        yield False
+        return
+    try:
+        if connection.vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_try_advisory_lock(%s)",
+                    [COMPLETE_EXPORT_ADVISORY_LOCK_ID],
+                )
+                database_acquired = bool(cursor.fetchone()[0])
+        else:
+            database_acquired = True
+        yield database_acquired
+    finally:
+        if database_acquired and connection.vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_unlock(%s)",
+                    [COMPLETE_EXPORT_ADVISORY_LOCK_ID],
+                )
+        _complete_export_local_lock.release()
 
 
 def _filter_date_range(queryset, field, start_date, end_date):
@@ -223,8 +295,7 @@ def build_complete_data_xlsx(*, start_date=None, end_date=None, include_inactive
         shopping_items = shopping_items.filter(shopping_list__created_at__date__lte=end_date)
         alerts = alerts.filter(created_at__date__lte=end_date)
 
-    workbook = Workbook()
-    workbook.remove(workbook.active)
+    workbook = Workbook(write_only=True)
     exported_at = timezone.localtime()
     interval = f"{start_date or 'început'} – {end_date or 'prezent'}"
     summary_rows = [
@@ -244,108 +315,107 @@ def build_complete_data_xlsx(*, start_date=None, end_date=None, include_inactive
         ("Alerte", alerts.count()),
         ("Date excluse", "parole, MFA, abonamente push, text OCR, fișiere și căi locale"),
     ]
-    _append_sheet(workbook, "Rezumat", ["Câmp", "Valoare"], summary_rows)
-    _append_sheet(
+    _append_streaming_sheet(workbook, "Rezumat", ["Câmp", "Valoare"], summary_rows)
+    _append_streaming_sheet(
         workbook,
         "Produse",
         ["ID", "Produs", "Marcă", "EAN", "Categorie", "Unitate bază", "Activ", "Creat", "Actualizat"],
         (
             (p.pk, p.name, p.brand, p.ean, p.category or "Altele", p.base_unit, "Da" if p.active else "Nu", p.created_at, p.updated_at)
-            for p in products
+            for p in products.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Prețuri METRO",
         ["ID", "Produs", "EAN", "Bucăți/pachet", "Cantitate/bucată", "Unitate", "Preț pachet", "Preț/unitate", "Valabil de la", "Sursă", "Activ"],
         (
             (o.pk, o.product.name, o.product.ean, o.units_per_package, o.unit_size, o.product.base_unit, o.price_gross, o.price_per_base_unit, o.valid_from, o.source, "Da" if o.active else "Nu")
-            for o in offers
+            for o in offers.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Praguri METRO",
         ["ID ofertă", "Produs", "De la pachete", "Preț/pachet", "Preț/unitate", "Etichetă", "Valabil de la", "Sursă"],
         (
             (t.offer_id, t.offer.product.name, t.min_packages, t.price_gross, t.price_per_base_unit, t.label, t.offer.valid_from, t.offer.source)
-            for t in tiers
+            for t in tiers.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Furnizori",
         ["ID", "Denumire", "CUI", "METRO", "Comandă minimă", "Transport", "Transport gratuit de la", "Observații"],
         (
             (s.pk, s.name, s.tax_id, "Da" if s.is_metro else "Nu", s.minimum_order_gross, s.transport_gross, s.free_transport_from, s.notes)
-            for s in Supplier.objects.order_by("name")
+            for s in Supplier.objects.order_by("name").iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Prețuri furnizori",
         ["Furnizor", "Produs", "EAN", "Preț/unitate", "Unitate", "Valabil de la", "Document"],
         (
             (o.supplier.name, o.product.name, o.product.ean, o.price_per_base_unit, o.base_unit, o.valid_from, o.invoice_line.invoice.number)
-            for o in supplier_offers
+            for o in supplier_offers.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Documente",
         ["ID", "Furnizor", "Tip", "Număr", "Data", "Status", "Recepționat în stoc", "Transport", "Reducere document", "Total declarat", "Total calculat", "Reconciliat", "Linii", "Observații"],
         (
             (i.pk, i.supplier.name, i.get_document_type_display(), i.number, i.issued_at, i.get_status_display(), "Da" if i.receive_into_stock else "Nu", i.transport_gross, i.document_discount_gross, i.document_total_gross, i.calculated_document_total_gross, "Da" if i.is_reconciled else "Nu", len(i.lines.all()), i.notes)
-            for i in invoices
+            for i in invoices.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Linii documente",
         ["ID document", "Data", "Furnizor", "Număr", "Denumire originală", "EAN", "Cantitate", "Bucăți/pachet", "Cantitate/bucată", "Unitate", "Preț brut", "TVA %", "Total linie", "Reducere", "SGR", "Produs asociat", "Scor", "Metodă", "De verificat", "Preț/unitate efectiv"],
         (
             (line.invoice_id, line.invoice.issued_at, line.invoice.supplier.name, line.invoice.number, line.original_name, line.ean, line.quantity, line.units_per_package, line.unit_size, line.base_unit, line.unit_price_gross, line.vat_rate, line.calculated_line_total, line.discount_gross, line.deposit_gross, line.matched_product.name if line.matched_product else "", line.match_score, line.get_match_method_display(), "Da" if line.needs_review else "Nu", line.price_per_base_unit)
-            for line in invoice_lines
+            for line in invoice_lines.iterator(chunk_size=2000)
         ),
     )
     inventory_rows = inventory_with_balance(inventory)
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Inventar",
         ["Produs", "EAN", "Unitate", "Stoc curent", "Minim", "Țintă", "Sub minim", "Valabilitate zile", "Preț raft", "Cantitate/unitate vândută", "TVA vânzare", "TVA achiziție", "Marjă țintă %", "Pierderi %", "Activ"],
         (
             (item.product.name, item.product.ean, item.product.base_unit, item.current_quantity, item.minimum_quantity, item.target_quantity, "Da" if item.is_low else "Nu", item.shelf_life_days, item.retail_price_gross, item.retail_unit_size, item.retail_vat_rate, item.purchase_vat_rate, item.target_margin_percent, item.expected_waste_percent, "Da" if item.active else "Nu")
-            for item in inventory_rows
+            for item in inventory_rows.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Mișcări stoc",
         ["Data", "Produs", "Modificare", "Unitate", "Motiv", "Document", "Referință vânzare", "Cheie sursă", "Notă", "Utilizator"],
         (
             (m.created_at, m.inventory_item.product.name, m.quantity_delta, m.inventory_item.product.base_unit, m.get_reason_display(), m.invoice_line.invoice.number if m.invoice_line_id else "", m.sale_line.external_reference if m.sale_line_id else "", m.source_key, m.note, m.created_by.username if m.created_by_id else "")
-            for m in movements
+            for m in movements.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Liste cumpărături",
         ["ID listă", "Listă", "Creată", "Buget", "Arhivată", "Produs", "EAN", "Cantitate", "Unitate", "Prioritate", "Cumpărat"],
         (
             (item.shopping_list_id, item.shopping_list.name, item.shopping_list.created_at, item.shopping_list.budget_gross, "Da" if item.shopping_list.archived else "Nu", item.product.name, item.product.ean, item.quantity, item.product.base_unit, item.get_priority_display(), "Da" if item.purchased else "Nu")
-            for item in shopping_items
+            for item in shopping_items.iterator(chunk_size=2000)
         ),
     )
-    _append_sheet(
+    _append_streaming_sheet(
         workbook,
         "Alerte",
         ["Produs", "EAN", "Prag", "Unitate", "Notă", "Activă", "Creată", "Ultima notificare", "Ultimul preț notificat"],
         (
             (a.product.name, a.product.ean, a.target_price, a.product.base_unit, a.note, "Da" if a.active else "Nu", a.created_at, a.last_notified_at, a.last_notified_price)
-            for a in alerts
+            for a in alerts.iterator(chunk_size=2000)
         ),
     )
-    _format_workbook(workbook)
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()

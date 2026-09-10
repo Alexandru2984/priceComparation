@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from .forms import DataExportForm
 from .models import ActivityLog, InventoryItem, Invoice, Product, Supplier
-from .services.exports import build_complete_data_xlsx
+from .services.exports import build_complete_data_xlsx, complete_export_generation_slot
 from .services.health import system_readiness
 from .services.operations import operation_summary
 
@@ -66,12 +66,27 @@ def data_export_download(request):
             {"form": form, "counts": _export_counts()},
             status=400,
         )
-    content = build_complete_data_xlsx(**form.cleaned_data)
+    with complete_export_generation_slot() as acquired:
+        if not acquired:
+            response = render(
+                request,
+                "comparator/data_export.html",
+                {
+                    "form": form,
+                    "counts": _export_counts(),
+                    "export_in_progress": True,
+                },
+                status=429,
+            )
+            response["Retry-After"] = "30"
+            return response
+        content = build_complete_data_xlsx(**form.cleaned_data)
     response = HttpResponse(
         content,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     response["Content-Disposition"] = f'attachment; filename="pricematch-date-{timezone.localdate().isoformat()}.xlsx"'
+    response["Content-Length"] = str(len(content))
     return response
 
 

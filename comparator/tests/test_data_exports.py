@@ -1,6 +1,8 @@
 import io
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -176,3 +178,19 @@ class CompleteDataExportTests(TestCase):
             "Data de început nu poate fi după data de sfârșit.",
             status_code=400,
         )
+
+    def test_only_one_complete_export_can_run_at_a_time(self):
+        @contextmanager
+        def busy_export_slot():
+            yield False
+
+        self.client.force_login(self.owner)
+        with patch(
+            "comparator.views_admin.complete_export_generation_slot",
+            busy_export_slot,
+        ):
+            response = self.client.get("/app/exporturi/descarca/")
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response["Retry-After"], "30")
+        self.assertContains(response, "Un export este deja în curs", status_code=429)

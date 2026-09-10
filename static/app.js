@@ -4,6 +4,32 @@ document.querySelectorAll("form[data-confirm]").forEach((form) => {
   });
 });
 
+document.querySelectorAll("form[data-export-form]").forEach((form) => {
+  const submit = form.querySelector("[data-export-submit]");
+  const status = form.querySelector("[data-export-status]");
+  let submitted = false;
+
+  const reset = () => {
+    submitted = false;
+    submit.disabled = false;
+    submit.textContent = "Descarcă exportul complet";
+    status.textContent = "";
+  };
+
+  form.addEventListener("submit", (event) => {
+    if (submitted) {
+      event.preventDefault();
+      return;
+    }
+    submitted = true;
+    submit.disabled = true;
+    submit.textContent = "Se pregătește…";
+    status.textContent = "Nu închide pagina.";
+    window.setTimeout(reset, 60000);
+  });
+  window.addEventListener("pageshow", reset);
+});
+
 const formatUploadSize = (bytes) => {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
